@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nikita-workouts-v1.1.3-floor-press-guide';
+const CACHE_NAME = 'nikita-workouts-v1.1.4-image-lightbox';
 const APP_SHELL = [
   './',
   './index.html',

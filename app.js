@@ -154,6 +154,11 @@
     el.timerMinus.addEventListener('click', () => adjustTimer(-15));
     el.timerPlus.addEventListener('click', () => adjustTimer(15));
     el.timerSkip.addEventListener('click', stopRestTimer);
+    el.main.addEventListener('click', (event) => {
+      const button = event.target.closest('.exercise-guide-image-button');
+      if (!button) return;
+      showExerciseImageLightbox(button.dataset.exerciseId, Number(button.dataset.imageIndex || 0));
+    });
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden && state.timer.endsAt) syncTimerFromEnd();
     });
@@ -216,9 +221,12 @@
         </summary>
         <div class="exercise-guide-body">
           <div class="exercise-guide-images">
-            ${guide.images.map((image) => `
+            ${guide.images.map((image, imageIndex) => `
               <figure class="exercise-guide-figure">
-                <img src="${escapeAttr(image.src)}" alt="${escapeAttr(image.alt)}" loading="lazy" decoding="async">
+                <button type="button" class="exercise-guide-image-button" data-exercise-id="${escapeAttr(exerciseId)}" data-image-index="${imageIndex}" aria-label="Открыть изображение: ${escapeAttr(image.label)}">
+                  <img src="${escapeAttr(image.src)}" alt="${escapeAttr(image.alt)}" loading="lazy" decoding="async">
+                  <span class="exercise-guide-zoom" aria-hidden="true">⛶</span>
+                </button>
                 <figcaption>${escapeHTML(image.label)}</figcaption>
               </figure>
             `).join('')}
@@ -236,6 +244,57 @@
         </div>
       </details>
     `;
+  }
+
+  function showExerciseImageLightbox(exerciseId, startIndex = 0) {
+    const guide = EXERCISE_GUIDES[exerciseId];
+    if (!guide?.images?.length) return;
+
+    let currentIndex = Math.max(0, Math.min(Number(startIndex) || 0, guide.images.length - 1));
+    let touchStartX = 0;
+
+    const renderLightbox = () => {
+      const image = guide.images[currentIndex];
+      el.modalRoot.innerHTML = `
+        <div class="exercise-lightbox" role="dialog" aria-modal="true" aria-label="${escapeAttr(guide.title)}">
+          <div class="exercise-lightbox-top">
+            <div class="exercise-lightbox-count">${currentIndex + 1} / ${guide.images.length}</div>
+            <button type="button" class="exercise-lightbox-close" aria-label="Закрыть">×</button>
+          </div>
+          <div class="exercise-lightbox-stage">
+            ${guide.images.length > 1 ? '<button type="button" class="exercise-lightbox-nav prev" aria-label="Предыдущее изображение">‹</button>' : ''}
+            <img class="exercise-lightbox-image" src="${escapeAttr(image.src)}" alt="${escapeAttr(image.alt)}">
+            ${guide.images.length > 1 ? '<button type="button" class="exercise-lightbox-nav next" aria-label="Следующее изображение">›</button>' : ''}
+          </div>
+          <div class="exercise-lightbox-caption">${escapeHTML(image.label)}</div>
+          <div class="exercise-lightbox-hint">Нажми ×, чтобы закрыть${guide.images.length > 1 ? ' · листай стрелками или свайпом' : ''}</div>
+        </div>
+      `;
+
+      const lightbox = el.modalRoot.querySelector('.exercise-lightbox');
+      el.modalRoot.querySelector('.exercise-lightbox-close').addEventListener('click', closeModal);
+      el.modalRoot.querySelector('.exercise-lightbox-prev, .exercise-lightbox-nav.prev')?.addEventListener('click', () => changeImage(-1));
+      el.modalRoot.querySelector('.exercise-lightbox-next, .exercise-lightbox-nav.next')?.addEventListener('click', () => changeImage(1));
+      lightbox.addEventListener('click', (event) => {
+        if (event.target === lightbox) closeModal();
+      });
+      lightbox.addEventListener('touchstart', (event) => {
+        touchStartX = event.changedTouches[0]?.clientX || 0;
+      }, { passive: true });
+      lightbox.addEventListener('touchend', (event) => {
+        const touchEndX = event.changedTouches[0]?.clientX || 0;
+        const delta = touchEndX - touchStartX;
+        if (Math.abs(delta) < 45) return;
+        changeImage(delta < 0 ? 1 : -1);
+      }, { passive: true });
+    };
+
+    const changeImage = (delta) => {
+      currentIndex = (currentIndex + delta + guide.images.length) % guide.images.length;
+      renderLightbox();
+    };
+
+    renderLightbox();
   }
 
   function getActiveProgram() {
