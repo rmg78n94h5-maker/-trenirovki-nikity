@@ -4,9 +4,13 @@
   const DB = window.NikitaDB;
   const state = {
     route: 'home',
+    profiles: [],
+    activeProfileId: null,
     profile: null,
     nutrition: null,
     settings: {},
+    allExercises: [],
+    allPrograms: [],
     exercises: [],
     programs: [],
     workouts: [],
@@ -34,6 +38,8 @@
     timerMinus: document.getElementById('timer-minus'),
     timerPlus: document.getElementById('timer-plus'),
     timerSkip: document.getElementById('timer-skip'),
+    profileSwitch: document.getElementById('profile-switch-button'),
+    profileInitial: document.getElementById('profile-initial'),
   };
 
   const difficultyOptions = [
@@ -49,10 +55,15 @@
     try {
       await DB.openDB();
       await DB.seedIfNeeded();
-      await loadState();
       bindGlobalEvents();
       registerServiceWorker();
       updateOnlineStatus();
+      await loadState();
+      if (!state.profiles.length) {
+        showProfileOnboarding();
+        return;
+      }
+      await ensurePersonalActiveProgram();
       await restoreDraftWorkout();
       navigate(state.currentWorkout ? 'workout' : routeFromHash() || 'home', false);
     } catch (error) {
@@ -62,29 +73,60 @@
   }
 
   async function loadState() {
-    const [profile, nutrition, settings, exercises, programs, workouts, measurements, photos] = await Promise.all([
-      DB.get('profile', 'main'),
-      DB.get('nutrition', 'main'),
-      DB.getSettingsObject(),
+    const [profiles, activeProfileId, exercises, programs] = await Promise.all([
+      DB.getProfiles(),
+      DB.getActiveProfileId(),
       DB.getAll('exercises'),
       DB.getAll('programs'),
-      DB.getAll('workouts'),
-      DB.getAll('measurements'),
-      DB.getAll('photos'),
     ]);
-    state.profile = profile;
-    state.nutrition = nutrition;
-    state.settings = settings;
+    state.profiles = profiles;
+    state.allExercises = exercises;
+    state.allPrograms = programs;
     state.exercises = exercises;
     state.programs = programs;
+
+    if (!profiles.length) {
+      state.activeProfileId = null;
+      state.profile = null;
+      state.nutrition = null;
+      state.settings = {};
+      state.workouts = [];
+      state.measurements = [];
+      state.photos = [];
+      updateProfileButton();
+      return;
+    }
+
+    state.activeProfileId = profiles.some((profile) => profile.id === activeProfileId) ? activeProfileId : profiles[0].id;
+    if (state.activeProfileId !== activeProfileId) await DB.setActiveProfileId(state.activeProfileId);
+    await loadActiveProfileData();
+  }
+
+  async function loadActiveProfileData() {
+    const profileId = state.activeProfileId;
+    const [profile, nutrition, settings, workouts, measurements, photos] = await Promise.all([
+      DB.get('profile', profileId),
+      DB.get('nutrition', profileId),
+      DB.getSettingsObject(profileId),
+      DB.getAllForProfile('workouts', profileId),
+      DB.getAllForProfile('measurements', profileId),
+      DB.getAllForProfile('photos', profileId),
+    ]);
+    state.profile = profile;
+    state.nutrition = nutrition || { id: profileId, ...clone(window.NIKITA_SEED.nutrition) };
+    state.settings = { ...clone(window.NIKITA_SEED.settings), ...settings };
+    state.exercises = state.allExercises.filter((exercise) => !exercise.ownerProfileId || exercise.ownerProfileId === profileId);
+    state.programs = state.allPrograms.filter((program) => !program.ownerProfileId || program.ownerProfileId === profileId);
     state.workouts = workouts.sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt));
     state.measurements = measurements.sort((a, b) => b.date.localeCompare(a.date));
     state.photos = photos.sort((a, b) => b.date.localeCompare(a.date));
+    updateProfileButton();
   }
 
   function bindGlobalEvents() {
     el.nav.forEach((button) => button.addEventListener('click', () => navigate(button.dataset.route)));
     el.quickAdd.addEventListener('click', showQuickAdd);
+    el.profileSwitch.addEventListener('click', showProfileSwitcher);
     window.addEventListener('hashchange', () => navigate(routeFromHash(), false));
     window.addEventListener('online', updateOnlineStatus);
     window.addEventListener('offline', updateOnlineStatus);
@@ -107,6 +149,7 @@
     el.nav.forEach((button) => button.classList.toggle('active', button.dataset.route === state.route));
     document.querySelector('.bottom-nav').classList.toggle('hidden', state.route === 'workout');
     el.quickAdd.classList.toggle('hidden', state.route === 'workout');
+    el.profileSwitch.classList.toggle('hidden', state.route === 'workout');
     render();
     window.scrollTo({ top: 0, behavior: 'auto' });
   }
@@ -124,9 +167,16 @@
     }
   }
 
-  function setTopbar(title, eyebrow = 'Тренировки Никиты') {
+  function setTopbar(title, eyebrow = '') {
     el.topbarTitle.textContent = title;
-    el.topbarEyebrow.textContent = eyebrow;
+    el.topbarEyebrow.textContent = eyebrow || (state.profile ? `Профиль: ${state.profile.name}` : 'Тренировки');
+  }
+
+  function updateProfileButton() {
+    if (!el.profileInitial) return;
+    const name = state.profile?.name || '?';
+    el.profileInitial.textContent = name.trim().charAt(0).toUpperCase() || '?';
+    el.profileSwitch.title = state.profile ? `Профиль: ${state.profile.name}` : 'Создать профиль';
   }
 
   function getExercise(id) {
@@ -135,6 +185,37 @@
 
   function getActiveProgram() {
     return state.programs.find((program) => program.id === state.settings.activeProgramId) || state.programs[0];
+  }
+
+  function isProgramTemplate(program) {
+    return Boolean(program && !program.ownerProfileId);
+  }
+
+  async function createPersonalProgramFromTemplate(template, profileId = state.activeProfileId) {
+    const personal = clone(template);
+    personal.id = uid(`program-${profileId}`);
+    personal.ownerProfileId = profileId;
+    personal.templateId = template.templateId || template.id;
+    personal.createdAt = new Date().toISOString();
+    personal.updatedAt = personal.createdAt;
+    personal.days = personal.days.map((day) => ({ ...day, id: uid('day') }));
+    await DB.put('programs', personal);
+    state.allPrograms.push(personal);
+    if (profileId === state.activeProfileId) state.programs.push(personal);
+    return personal;
+  }
+
+  async function ensurePersonalActiveProgram() {
+    const active = getActiveProgram();
+    if (!active || !isProgramTemplate(active)) return active;
+    const personal = await createPersonalProgramFromTemplate(active);
+    state.settings.activeProgramId = personal.id;
+    state.settings.currentDayIndex = Math.min(Number(state.settings.currentDayIndex || 0), Math.max(personal.days.length - 1, 0));
+    await DB.setSettingsObject({
+      activeProgramId: personal.id,
+      currentDayIndex: state.settings.currentDayIndex,
+    }, state.activeProfileId);
+    return personal;
   }
 
   function getCurrentDay() {
@@ -299,6 +380,7 @@
 
     state.currentWorkout = {
       id: uid('workout'),
+      profileId: state.activeProfileId,
       date: todayISO(),
       startedAt: new Date().toISOString(),
       programId: program.id,
@@ -562,10 +644,15 @@
         <button class="button danger" id="discard-workout">Удалить</button>
       </div>
     `);
-    document.getElementById('keep-draft').addEventListener('click', () => { closeModal(); navigate('home'); });
+    document.getElementById('keep-draft').addEventListener('click', () => {
+      clearInterval(state.workoutClockInterval);
+      state.currentWorkout = null;
+      closeModal();
+      navigate('home');
+    });
     document.getElementById('discard-workout').addEventListener('click', async () => {
       state.currentWorkout = null;
-      await DB.remove('meta', 'draftWorkout');
+      await DB.remove('meta', draftWorkoutKey());
       closeModal();
       navigate('home');
     });
@@ -596,8 +683,8 @@
     await DB.put('workouts', workout);
     const program = getActiveProgram();
     state.settings.currentDayIndex = (Number(workout.dayIndex) + 1) % program.days.length;
-    await DB.setSettingsObject({ currentDayIndex: state.settings.currentDayIndex });
-    await DB.remove('meta', 'draftWorkout');
+    await DB.setSettingsObject({ currentDayIndex: state.settings.currentDayIndex }, state.activeProfileId);
+    await DB.remove('meta', draftWorkoutKey());
     state.workouts.unshift(workout);
     state.currentWorkout = null;
     clearInterval(state.workoutClockInterval);
@@ -735,15 +822,18 @@
   }
 
   async function switchProgram(id) {
-    state.settings.activeProgramId = id;
+    let program = state.programs.find((item) => item.id === id);
+    if (!program) return;
+    if (isProgramTemplate(program)) program = await createPersonalProgramFromTemplate(program);
+    state.settings.activeProgramId = program.id;
     state.settings.currentDayIndex = 0;
-    await DB.setSettingsObject({ activeProgramId: id, currentDayIndex: 0 });
+    await DB.setSettingsObject({ activeProgramId: program.id, currentDayIndex: 0 }, state.activeProfileId);
     renderPlan();
   }
 
   async function setCurrentDay(index, rerender = true) {
     state.settings.currentDayIndex = index;
-    await DB.setSettingsObject({ currentDayIndex: index });
+    await DB.setSettingsObject({ currentDayIndex: index }, state.activeProfileId);
     if (rerender) renderPlan();
     toast(`Текущий день: ${index + 1}`);
   }
@@ -763,9 +853,12 @@
     copy.id = uid('program');
     copy.name = `${active.name} — копия`;
     copy.createdAt = new Date().toISOString();
+    copy.ownerProfileId = state.activeProfileId;
+    copy.templateId = active.templateId || active.id;
     copy.days = copy.days.map((day) => ({ ...day, id: uid('day') }));
     await DB.put('programs', copy);
     state.programs.push(copy);
+    state.allPrograms.push(copy);
     await switchProgram(copy.id);
     toast('Копия программы создана');
   }
@@ -786,11 +879,13 @@
         id: uid('program'),
         name: document.getElementById('new-program-name').value.trim() || 'Моя программа',
         description: document.getElementById('new-program-description').value.trim(),
+        ownerProfileId: state.activeProfileId,
         createdAt: new Date().toISOString(),
         days: Array.from({ length: count }, (_, i) => ({ id: uid('day'), name: `День ${i + 1}`, durationMin: 45, focus: '', exercises: [], short: [] })),
       };
       await DB.put('programs', program);
       state.programs.push(program);
+      state.allPrograms.push(program);
       closeModal();
       await switchProgram(program.id);
     });
@@ -822,7 +917,7 @@
       if (program.days.length <= 1) return toast('В программе должен остаться хотя бы один день');
       program.days.splice(index, 1);
       state.settings.currentDayIndex = Math.min(Number(state.settings.currentDayIndex || 0), program.days.length - 1);
-      await Promise.all([DB.put('programs', program), DB.setSettingsObject({ currentDayIndex: state.settings.currentDayIndex })]);
+      await Promise.all([DB.put('programs', program), DB.setSettingsObject({ currentDayIndex: state.settings.currentDayIndex }, state.activeProfileId)]);
       closeModal();
       renderPlan();
       toast('День удалён');
@@ -926,10 +1021,11 @@
         group: document.getElementById('custom-group').value.trim() || 'Другое',
         equipment: document.getElementById('custom-equipment').value.trim() || 'Собственный вес',
         defaults: { sets: Number(document.getElementById('custom-sets').value || 3), repsMin: Number(document.getElementById('custom-min').value || 8), repsMax: Number(document.getElementById('custom-max').value || 12), restSec: Number(document.getElementById('custom-rest').value || 75), weightKg: null, unit: 'reps' },
-        notes: '', safety: '', replacements: [], custom: true,
+        notes: '', safety: '', replacements: [], custom: true, ownerProfileId: state.activeProfileId,
       };
       await DB.put('exercises', exercise);
       state.exercises.push(exercise);
+      state.allExercises.push(exercise);
       closeModal();
       onChoose(exercise.id);
     });
@@ -1075,7 +1171,7 @@
     el.main.querySelectorAll('.delete-measurement').forEach((button) => button.addEventListener('click', () => deleteMeasurement(button.dataset.id)));
     document.getElementById('strength-exercise-select')?.addEventListener('change', async (event) => {
       state.settings.strengthExerciseId = event.target.value;
-      await DB.setSettingsObject({ strengthExerciseId: event.target.value });
+      await DB.setSettingsObject({ strengthExerciseId: event.target.value }, state.activeProfileId);
       renderProgress();
     });
     document.getElementById('add-photo')?.addEventListener('click', showPhotoModal);
@@ -1103,6 +1199,7 @@
     document.getElementById('save-measurement').addEventListener('click', async () => {
       const measurement = {
         id: uid('measurement'),
+        profileId: state.activeProfileId,
         date: document.getElementById('measure-date').value || todayISO(),
         weightKg: numberOrNull(document.getElementById('measure-weight').value),
         waistCm: numberOrNull(document.getElementById('measure-waist').value),
@@ -1149,6 +1246,7 @@
       if (!file) return toast('Выбери фотографию');
       const photo = {
         id: uid('photo'),
+        profileId: state.activeProfileId,
         date: document.getElementById('photo-date').value || todayISO(),
         category: document.getElementById('photo-category').value,
         note: document.getElementById('photo-note').value.trim(),
@@ -1183,23 +1281,176 @@
     target.innerHTML = `<div class="compare-grid"><div><img src="${leftUrl}" alt="Слева"><div class="center muted">${formatShortDate(left.date)}</div></div><div><img src="${rightUrl}" alt="Справа"><div class="center muted">${formatShortDate(right.date)}</div></div></div>`;
   }
 
-  function renderMore() {
-    setTopbar('Настройки', 'Профиль, питание и резервные копии');
-    el.main.innerHTML = `
-      <section class="section"><div class="card hero-card"><div class="eyebrow">Персональный профиль</div><h2>${escapeHTML(state.profile.name)}</h2><p>${state.profile.age} года · ${state.profile.heightCm} см · ${state.profile.currentWeightKg} кг</p><div class="hero-meta"><span class="chip">Судно</span><span class="chip">Офлайн</span><span class="chip">Только личные данные</span></div><button class="button secondary full" id="edit-profile">Изменить профиль</button></div></section>
+  function profileCreateFields() {
+    const templates = state.allPrograms.filter((program) => !program.ownerProfileId);
+    const available = templates.length ? templates : state.allPrograms;
+    return `
+      <div class="form-grid profile-create-form">
+        <div class="field"><label>Имя</label><input id="new-profile-name" autocomplete="name" placeholder="Например: Лёха"></div>
+        <div class="inline-fields three">
+          <div class="field"><label>Возраст</label><input id="new-profile-age" type="number" min="14" max="100" value="30"></div>
+          <div class="field"><label>Рост, см</label><input id="new-profile-height" type="number" min="120" max="230" value="175"></div>
+          <div class="field"><label>Вес, кг</label><input id="new-profile-weight" type="number" min="35" max="250" step="0.1" value="75"></div>
+        </div>
+        <div class="field"><label>Главная цель</label><input id="new-profile-goal" placeholder="Подтянуть тело, набрать силу, убрать живот…"></div>
+        <div class="field"><label>Доступный инвентарь</label><textarea id="new-profile-equipment" placeholder="Гантели, штанга, коврик, степпер…"></textarea></div>
+        <div class="field"><label>Стартовая программа</label><select id="new-profile-program">${available.map((program) => `<option value="${escapeAttr(program.id)}">${escapeHTML(program.name)}</option>`).join('')}</select></div>
+      </div>`;
+  }
 
-      <section class="section"><div class="section-head"><h2>Цель</h2></div><div class="card list-card">${state.profile.goals.map((g)=>`<div class="list-row"><div class="list-row-main"><div class="list-row-title">✓ ${escapeHTML(g)}</div></div></div>`).join('')}</div></section>
+  function showProfileOnboarding() {
+    document.querySelector('.bottom-nav').classList.add('hidden');
+    el.quickAdd.classList.add('hidden');
+    el.profileSwitch.classList.add('hidden');
+    setTopbar('Создай профиль', 'Первый запуск');
+    el.main.innerHTML = `
+      <section class="section onboarding-section">
+        <div class="card hero-card">
+          <span class="chip accent">ЛИЧНЫЕ ДАННЫЕ</span>
+          <h2>Кто будет тренироваться?</h2>
+          <p>У каждого профиля будут отдельные тренировки, рабочие веса, замеры, фотографии и настройки.</p>
+        </div>
+      </section>
+      <section class="section"><div class="card">${profileCreateFields()}<button class="button primary full" id="create-first-profile" style="margin-top:14px">Создать профиль</button></div></section>
+      <section class="section"><div class="notice"><strong>Без регистрации.</strong> Данные остаются только на этом устройстве. На другом телефоне человек создаст собственный профиль после открытия ссылки.</div></section>`;
+    document.getElementById('create-first-profile').addEventListener('click', () => createProfileFromForm(document));
+  }
+
+  function showCreateProfileModal() {
+    showModal(`
+      <div class="modal-head"><h2>Новый профиль</h2><button class="modal-close" data-close>×</button></div>
+      ${profileCreateFields()}
+      <button class="button primary full" id="create-profile" style="margin-top:14px">Создать</button>
+      <div class="help" style="margin-top:10px">История, замеры, фотографии и рабочие веса нового профиля будут полностью отдельными.</div>
+    `);
+    document.getElementById('create-profile').addEventListener('click', () => createProfileFromForm(el.modalRoot));
+  }
+
+  async function createProfileFromForm(root) {
+    const name = root.querySelector('#new-profile-name')?.value.trim();
+    if (!name) return toast('Введи имя профиля');
+    const templateId = root.querySelector('#new-profile-program')?.value;
+    const template = state.allPrograms.find((program) => program.id === templateId) || state.allPrograms[0];
+    if (!template) return toast('Не найдена стартовая программа');
+
+    const profileId = uid('profile');
+    const goal = root.querySelector('#new-profile-goal')?.value.trim();
+    const equipmentText = root.querySelector('#new-profile-equipment')?.value.trim() || '';
+    const profile = {
+      id: profileId,
+      name,
+      age: Number(root.querySelector('#new-profile-age')?.value || 30),
+      heightCm: Number(root.querySelector('#new-profile-height')?.value || 175),
+      currentWeightKg: Number(root.querySelector('#new-profile-weight')?.value || 75),
+      goals: goal ? [goal] : ['Стать сильнее и улучшить форму'],
+      equipment: equipmentText ? equipmentText.split(/[\n,]+/).map((item) => item.trim()).filter(Boolean) : [],
+      constraints: [],
+      progressNote: '',
+    };
+
+    const personalProgram = await createPersonalProgramFromTemplate(template, profileId);
+    const settings = {
+      ...clone(window.NIKITA_SEED.settings),
+      activeProgramId: personalProgram.id,
+      currentDayIndex: 0,
+      lastBackupAt: null,
+    };
+    await DB.createProfile(profile, clone(window.NIKITA_SEED.nutrition), settings);
+    await DB.put('measurements', {
+      id: uid('measurement'),
+      profileId,
+      date: todayISO(),
+      weightKg: profile.currentWeightKg,
+      waistCm: null,
+      abdomenCm: null,
+      chestCm: null,
+      hipsCm: null,
+      armCm: null,
+      note: 'Стартовый вес при создании профиля.',
+    });
+
+    clearInterval(state.workoutClockInterval);
+    state.currentWorkout = null;
+    closeModal();
+    await loadState();
+    await ensurePersonalActiveProgram();
+    document.querySelector('.bottom-nav').classList.remove('hidden');
+    el.quickAdd.classList.remove('hidden');
+    el.profileSwitch.classList.remove('hidden');
+    toast(`Профиль «${name}» создан`);
+    navigate('home');
+  }
+
+  function showProfileSwitcher() {
+    if (!state.profiles.length) return showProfileOnboarding();
+    showModal(`
+      <div class="modal-head"><h2>Профили</h2><button class="modal-close" data-close>×</button></div>
+      <div class="card list-card">
+        ${state.profiles.map((profile) => `
+          <div class="list-row profile-row ${profile.id === state.activeProfileId ? 'current-profile' : ''}">
+            <button class="profile-row-main switch-profile" data-id="${escapeAttr(profile.id)}" type="button">
+              <span class="profile-avatar">${escapeHTML(profile.name.charAt(0).toUpperCase())}</span>
+              <span class="list-row-main"><span class="list-row-title">${escapeHTML(profile.name)}</span><span class="list-row-sub">${profile.age || '—'} лет · ${profile.heightCm || '—'} см · ${profile.currentWeightKg || '—'} кг${profile.id === state.activeProfileId ? ' · выбран' : ''}</span></span>
+            </button>
+            ${profile.id !== state.activeProfileId ? `<button class="mini-button delete-profile" data-id="${escapeAttr(profile.id)}" type="button" aria-label="Удалить профиль">×</button>` : '<span class="profile-check">✓</span>'}
+          </div>`).join('')}
+      </div>
+      <button class="button primary full" id="add-profile" style="margin-top:12px">＋ Новый профиль</button>
+      <div class="help" style="margin-top:10px">Переключение не смешивает историю, замеры, фотографии и рабочие веса.</div>
+    `);
+    el.modalRoot.querySelectorAll('.switch-profile').forEach((button) => button.addEventListener('click', () => switchActiveProfile(button.dataset.id)));
+    el.modalRoot.querySelectorAll('.delete-profile').forEach((button) => button.addEventListener('click', () => deleteProfileById(button.dataset.id)));
+    document.getElementById('add-profile').addEventListener('click', showCreateProfileModal);
+  }
+
+  async function switchActiveProfile(profileId) {
+    if (profileId === state.activeProfileId) return closeModal();
+    if (state.currentWorkout) await saveDraftWorkout();
+    state.currentWorkout = null;
+    stopRestTimer(false);
+    clearInterval(state.workoutClockInterval);
+    await DB.setActiveProfileId(profileId);
+    state.activeProfileId = profileId;
+    await loadActiveProfileData();
+    await ensurePersonalActiveProgram();
+    await restoreDraftWorkout();
+    closeModal();
+    toast(`Выбран профиль «${state.profile.name}»`);
+    navigate(state.currentWorkout ? 'workout' : 'home');
+  }
+
+  async function deleteProfileById(profileId) {
+    const profile = state.profiles.find((item) => item.id === profileId);
+    if (!profile || profileId === state.activeProfileId) return;
+    if (!window.confirm(`Удалить профиль «${profile.name}» вместе со всей его историей и фотографиями?`)) return;
+    await DB.deleteProfile(profileId);
+    state.allPrograms = state.allPrograms.filter((program) => program.ownerProfileId !== profileId);
+    state.allExercises = state.allExercises.filter((exercise) => exercise.ownerProfileId !== profileId);
+    await loadState();
+    toast(`Профиль «${profile.name}» удалён`);
+    showProfileSwitcher();
+  }
+
+  function renderMore() {
+    setTopbar('Настройки', `Профиль: ${state.profile.name}`);
+    const goals = state.profile.goals?.length ? state.profile.goals : ['Цель пока не указана'];
+    el.main.innerHTML = `
+      <section class="section"><div class="card hero-card"><div class="eyebrow">Текущий профиль · ${state.profiles.length} всего</div><h2>${escapeHTML(state.profile.name)}</h2><p>${state.profile.age || '—'} лет · ${state.profile.heightCm || '—'} см · ${state.profile.currentWeightKg || '—'} кг</p><div class="hero-meta"><span class="chip">Отдельная история</span><span class="chip">Офлайн</span><span class="chip">Личные данные</span></div><div class="button-row"><button class="button secondary" id="switch-profile">Сменить</button><button class="button primary" id="new-profile">＋ Профиль</button></div><button class="button ghost full" id="edit-profile" style="margin-top:10px">Изменить текущий профиль</button></div></section>
+
+      <section class="section"><div class="section-head"><h2>Цель</h2></div><div class="card list-card">${goals.map((g)=>`<div class="list-row"><div class="list-row-main"><div class="list-row-title">✓ ${escapeHTML(g)}</div></div></div>`).join('')}</div></section>
 
       <section class="section"><div class="section-head"><h2>Калории и БЖУ</h2><button class="link-button" id="edit-nutrition">Изменить</button></div><div class="card"><div class="stats-grid"><div><div class="stat-value">${state.nutrition.trainingCalories}</div><div class="stat-label">тренировка, ккал</div></div><div><div class="stat-value">${state.nutrition.recoveryCalories}</div><div class="stat-label">восстановление</div></div><div><div class="stat-value">${state.nutrition.proteinG}</div><div class="stat-label">белок, г</div></div><div><div class="stat-value">${state.nutrition.trainingFatG}</div><div class="stat-label">жиры, г</div></div></div><div class="divider"></div><div class="help">${escapeHTML(state.nutrition.note)}</div></div></section>
 
       <section class="section"><div class="section-head"><h2>Сигналы таймера</h2></div><div class="card list-card"><label class="list-row"><div><div class="list-row-title">Звук</div><div class="list-row-sub">Сигнал после отдыха</div></div><input id="sound-toggle" type="checkbox" ${state.settings.soundEnabled ? 'checked' : ''}></label><label class="list-row"><div><div class="list-row-title">Вибрация</div><div class="list-row-sub">На iPhone Safari может не поддерживаться</div></div><input id="vibration-toggle" type="checkbox" ${state.settings.vibrationEnabled ? 'checked' : ''}></label></div></section>
 
-      <section class="section"><div class="section-head"><h2>Резервная копия</h2></div><div class="card"><div class="button-row"><button class="button primary" id="export-data">Данные JSON</button><button class="button secondary" id="export-full">С фото</button></div><button class="button ghost full" id="import-data" style="margin-top:10px">Импортировать копию</button><input id="import-file" type="file" accept="application/json" hidden><div class="help" style="margin-top:10px">JSON хранится в «Файлах» iPhone. Полная копия с фотографиями может быть большой.</div></div></section>
+      <section class="section"><div class="section-head"><h2>Резервная копия всех профилей</h2></div><div class="card"><div class="button-row"><button class="button primary" id="export-data">Данные JSON</button><button class="button secondary" id="export-full">С фото</button></div><button class="button ghost full" id="import-data" style="margin-top:10px">Импортировать копию</button><input id="import-file" type="file" accept="application/json" hidden><div class="help" style="margin-top:10px">Копия включает все профили на этом устройстве. Вариант с фотографиями может быть большим.</div></div></section>
 
       <section class="section"><div class="section-head"><h2>Установка PWA</h2></div><div class="card"><ol class="muted" style="padding-left:20px;line-height:1.6"><li>Открой опубликованный адрес в Safari.</li><li>Нажми «Поделиться».</li><li>Выбери «На экран Домой».</li><li>Открой иконку один раз при интернете — после этого оболочка работает офлайн.</li></ol><button class="button secondary full" id="storage-info">Проверить хранилище</button></div></section>
 
       <section class="section"><div class="notice warning"><strong>Ограничение iPhone.</strong> Данные PWA могут исчезнуть после удаления иконки, очистки данных Safari или при критической нехватке памяти. Экспорт — обязательная страховка.</div></section>
     `;
+    document.getElementById('switch-profile').addEventListener('click', showProfileSwitcher);
+    document.getElementById('new-profile').addEventListener('click', showCreateProfileModal);
     document.getElementById('edit-profile').addEventListener('click', showProfileModal);
     document.getElementById('edit-nutrition').addEventListener('click', showNutritionModal);
     document.getElementById('sound-toggle').addEventListener('change', (e)=>saveToggle('soundEnabled',e.target.checked));
@@ -1213,17 +1464,31 @@
 
   function showProfileModal() {
     showModal(`
-      <div class="modal-head"><h2>Профиль</h2><button class="modal-close" data-close>×</button></div>
-      <div class="form-grid"><div class="field"><label>Имя</label><input id="profile-name" value="${escapeAttr(state.profile.name)}"></div><div class="inline-fields three"><div class="field"><label>Возраст</label><input id="profile-age" type="number" value="${state.profile.age}"></div><div class="field"><label>Рост, см</label><input id="profile-height" type="number" value="${state.profile.heightCm}"></div><div class="field"><label>Вес, кг</label><input id="profile-weight" type="number" step="0.1" value="${state.profile.currentWeightKg}"></div></div><div class="field"><label>Заметка о прогрессе</label><textarea id="profile-progress">${escapeHTML(state.profile.progressNote || '')}</textarea></div></div>
+      <div class="modal-head"><h2>Профиль ${escapeHTML(state.profile.name)}</h2><button class="modal-close" data-close>×</button></div>
+      <div class="form-grid">
+        <div class="field"><label>Имя</label><input id="profile-name" value="${escapeAttr(state.profile.name)}"></div>
+        <div class="inline-fields three"><div class="field"><label>Возраст</label><input id="profile-age" type="number" value="${state.profile.age || ''}"></div><div class="field"><label>Рост, см</label><input id="profile-height" type="number" value="${state.profile.heightCm || ''}"></div><div class="field"><label>Вес, кг</label><input id="profile-weight" type="number" step="0.1" value="${state.profile.currentWeightKg || ''}"></div></div>
+        <div class="field"><label>Цели — по одной на строке</label><textarea id="profile-goals">${escapeHTML((state.profile.goals || []).join('\n'))}</textarea></div>
+        <div class="field"><label>Инвентарь — по одному на строке</label><textarea id="profile-equipment">${escapeHTML((state.profile.equipment || []).join('\n'))}</textarea></div>
+        <div class="field"><label>Заметка о прогрессе</label><textarea id="profile-progress">${escapeHTML(state.profile.progressNote || '')}</textarea></div>
+      </div>
       <button class="button primary full" id="save-profile" style="margin-top:14px">Сохранить</button>
     `);
     document.getElementById('save-profile').addEventListener('click', async ()=>{
-      state.profile.name=document.getElementById('profile-name').value.trim()||'Никита';
-      state.profile.age=Number(document.getElementById('profile-age').value||34);
-      state.profile.heightCm=Number(document.getElementById('profile-height').value||173);
-      state.profile.currentWeightKg=Number(document.getElementById('profile-weight').value||77);
+      state.profile.name=document.getElementById('profile-name').value.trim()||'Профиль';
+      state.profile.age=Number(document.getElementById('profile-age').value||0);
+      state.profile.heightCm=Number(document.getElementById('profile-height').value||0);
+      state.profile.currentWeightKg=Number(document.getElementById('profile-weight').value||0);
+      state.profile.goals=document.getElementById('profile-goals').value.split('\n').map((item)=>item.trim()).filter(Boolean);
+      state.profile.equipment=document.getElementById('profile-equipment').value.split('\n').map((item)=>item.trim()).filter(Boolean);
       state.profile.progressNote=document.getElementById('profile-progress').value.trim();
-      await DB.put('profile',state.profile); closeModal(); renderMore(); toast('Профиль сохранён');
+      state.profile.updatedAt=new Date().toISOString();
+      await DB.put('profile',state.profile);
+      state.profiles = state.profiles.map((profile) => profile.id === state.profile.id ? state.profile : profile);
+      updateProfileButton();
+      closeModal();
+      renderMore();
+      toast('Профиль сохранён');
     });
   }
 
@@ -1239,15 +1504,15 @@
     });
   }
 
-  async function saveToggle(key, value) { state.settings[key]=value; await DB.setSettingsObject({[key]:value}); }
+  async function saveToggle(key, value) { state.settings[key]=value; await DB.setSettingsObject({[key]:value}, state.activeProfileId); }
 
   async function exportBackup(includePhotos) {
     try {
       toast(includePhotos ? 'Готовлю копию с фото…' : 'Готовлю резервную копию…');
       const backup = await DB.exportData(includePhotos);
-      downloadBlob(new Blob([JSON.stringify(backup)], {type:'application/json'}), `nikita-workouts-${includePhotos?'full':'data'}-${todayISO()}.json`);
+      downloadBlob(new Blob([JSON.stringify(backup)], {type:'application/json'}), `workouts-all-profiles-${includePhotos?'full':'data'}-${todayISO()}.json`);
       state.settings.lastBackupAt = new Date().toISOString();
-      await DB.setSettingsObject({lastBackupAt:state.settings.lastBackupAt});
+      await DB.setSettingsObject({lastBackupAt:state.settings.lastBackupAt}, state.activeProfileId);
     } catch (error) { toast(`Ошибка экспорта: ${error.message}`); }
   }
 
@@ -1289,10 +1554,21 @@
 
   function showStorageWarningIfNeeded() {}
 
-  async function saveDraftWorkout() { if(state.currentWorkout) await DB.put('meta',{key:'draftWorkout',value:state.currentWorkout}); }
+  function draftWorkoutKey(profileId = state.activeProfileId) { return `draftWorkout:${profileId}`; }
+  async function saveDraftWorkout() {
+    if (state.currentWorkout && state.activeProfileId) {
+      state.currentWorkout.profileId = state.activeProfileId;
+      await DB.put('meta', { key: draftWorkoutKey(), value: state.currentWorkout });
+    }
+  }
   let draftSaveTimer=null;
   function debounceDraftSave(){clearTimeout(draftSaveTimer);draftSaveTimer=setTimeout(saveDraftWorkout,350);updateWorkoutProgress();}
-  async function restoreDraftWorkout(){const row=await DB.get('meta','draftWorkout');if(row?.value?.status==='in_progress')state.currentWorkout=row.value;}
+  async function restoreDraftWorkout(){
+    state.currentWorkout = null;
+    if (!state.activeProfileId) return;
+    const row=await DB.get('meta',draftWorkoutKey());
+    if(row?.value?.status==='in_progress' && row.value.profileId===state.activeProfileId)state.currentWorkout=row.value;
+  }
 
   function findLastExerciseResult(exerciseId) {
     for (const workout of state.workouts) {

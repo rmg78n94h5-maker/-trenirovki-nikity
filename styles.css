@@ -180,3 +180,21 @@ button { color: inherit; }
 .timer-overlay[hidden] {
   display: none !important;
 }
+
+/* Локальные профили */
+.topbar-actions { display: flex; align-items: center; gap: 8px; }
+.profile-button { width: 44px; height: 44px; border: 1px solid rgba(199,255,47,.45); background: rgba(199,255,47,.10); color: var(--accent); border-radius: 14px; display: grid; place-items: center; font-size: 17px; font-weight: 950; }
+.profile-avatar { width: 38px; height: 38px; flex: 0 0 38px; border-radius: 12px; display: grid; place-items: center; background: rgba(199,255,47,.12); color: var(--accent); border: 1px solid rgba(199,255,47,.25); font-weight: 950; }
+.profile-row { padding: 9px 10px 9px 12px; }
+.profile-row.current-profile { background: rgba(199,255,47,.055); }
+.profile-row-main { min-width: 0; flex: 1; display: flex; align-items: center; gap: 11px; padding: 5px 2px; border: 0; background: transparent; color: inherit; text-align: left; }
+.profile-row-main .list-row-main { display: block; }
+.profile-row-main .list-row-title, .profile-row-main .list-row-sub { display: block; }
+.profile-check { color: var(--accent); font-size: 20px; font-weight: 950; padding: 0 8px; }
+.onboarding-section { margin-top: 12px; }
+
+@media (max-width: 360px) {
+  .topbar { padding-left: 12px; padding-right: 12px; }
+  .topbar h1 { font-size: 25px; }
+  .profile-button, .icon-button { width: 40px; height: 40px; }
+}

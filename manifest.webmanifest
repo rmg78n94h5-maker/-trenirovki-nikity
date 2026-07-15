@@ -1,16 +1,20 @@
 {
-  "name": "Тренировки Никиты",
+  "name": "Тренировки",
   "short_name": "Тренировки",
-  "description": "Персональный офлайн-журнал тренировок Никиты для работы на судне.",
+  "description": "Персональный офлайн-журнал тренировок с отдельными локальными профилями.",
   "id": "./",
-  "start_url": "./#\/home",
+  "start_url": "./#/home",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#080a0c",
   "theme_color": "#0b0d0f",
   "lang": "ru-RU",
-  "categories": ["fitness", "health", "lifestyle"],
+  "categories": [
+    "fitness",
+    "health",
+    "lifestyle"
+  ],
   "icons": [
     {
       "src": "./icons/icon-192.png",

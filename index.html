@@ -6,23 +6,26 @@
   <meta name="theme-color" content="#0b0d0f" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Тренировки Никиты" />
+  <meta name="apple-mobile-web-app-title" content="Тренировки" />
   <meta name="format-detection" content="telephone=no" />
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
   <link rel="icon" href="./icons/icon-192.png" />
   <link rel="stylesheet" href="./styles.css" />
-  <title>Тренировки Никиты</title>
+  <title>Тренировки</title>
 </head>
 <body>
   <div id="offline-indicator" class="offline-indicator" hidden>Офлайн — данные сохраняются на телефоне</div>
   <div id="app" class="app-shell">
     <header class="topbar">
       <div>
-        <div class="eyebrow" id="topbar-eyebrow">Тренировки Никиты</div>
+        <div class="eyebrow" id="topbar-eyebrow">Тренировки</div>
         <h1 id="topbar-title">Сегодня</h1>
       </div>
-      <button id="quick-add-button" class="icon-button" type="button" aria-label="Быстро добавить">＋</button>
+      <div class="topbar-actions">
+        <button id="profile-switch-button" class="profile-button" type="button" aria-label="Сменить профиль"><span id="profile-initial">?</span></button>
+        <button id="quick-add-button" class="icon-button" type="button" aria-label="Быстро добавить">＋</button>
+      </div>
     </header>
 
     <main id="main" class="main-content" aria-live="polite"></main>
