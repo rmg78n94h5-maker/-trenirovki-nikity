@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nikita-workouts-v1.1.1-icon';
+const CACHE_NAME = 'nikita-workouts-v1.1.2-individual';
 const APP_SHELL = [
   './',
   './index.html',

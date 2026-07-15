@@ -1294,7 +1294,7 @@
         </div>
         <div class="field"><label>Главная цель</label><input id="new-profile-goal" placeholder="Подтянуть тело, набрать силу, убрать живот…"></div>
         <div class="field"><label>Доступный инвентарь</label><textarea id="new-profile-equipment" placeholder="Гантели, штанга, коврик, степпер…"></textarea></div>
-        <div class="field"><label>Стартовая программа</label><select id="new-profile-program">${available.map((program) => `<option value="${escapeAttr(program.id)}">${escapeHTML(program.name)}</option>`).join('')}</select></div>
+        <div class="field"><label>Стартовая программа</label><select id="new-profile-program">${available.map((program) => `<option value="${escapeAttr(program.id)}">${escapeHTML(program.name)}</option>`).join('')}<option value="individual">Индивидуальная</option></select><div class="help">Индивидуальная программа создаётся пустой: дни и упражнения добавишь под себя в разделе «План».</div></div>
       </div>`;
   }
 
@@ -1330,8 +1330,11 @@
     const name = root.querySelector('#new-profile-name')?.value.trim();
     if (!name) return toast('Введи имя профиля');
     const templateId = root.querySelector('#new-profile-program')?.value;
-    const template = state.allPrograms.find((program) => program.id === templateId) || state.allPrograms[0];
-    if (!template) return toast('Не найдена стартовая программа');
+    const isIndividualProgram = templateId === 'individual';
+    const template = isIndividualProgram
+      ? null
+      : (state.allPrograms.find((program) => program.id === templateId) || state.allPrograms[0]);
+    if (!isIndividualProgram && !template) return toast('Не найдена стартовая программа');
 
     const profileId = uid('profile');
     const goal = root.querySelector('#new-profile-goal')?.value.trim();
@@ -1348,7 +1351,31 @@
       progressNote: '',
     };
 
-    const personalProgram = await createPersonalProgramFromTemplate(template, profileId);
+    let personalProgram;
+    if (isIndividualProgram) {
+      const createdAt = new Date().toISOString();
+      personalProgram = {
+        id: uid(`program-${profileId}`),
+        name: 'Индивидуальная программа',
+        description: 'Собери дни, упражнения, подходы и нагрузку полностью под себя.',
+        ownerProfileId: profileId,
+        templateId: 'individual',
+        createdAt,
+        updatedAt: createdAt,
+        days: [{
+          id: uid('day'),
+          name: 'День 1',
+          durationMin: 45,
+          focus: '',
+          exercises: [],
+          short: [],
+        }],
+      };
+      await DB.put('programs', personalProgram);
+      state.allPrograms.push(personalProgram);
+    } else {
+      personalProgram = await createPersonalProgramFromTemplate(template, profileId);
+    }
     const settings = {
       ...clone(window.NIKITA_SEED.settings),
       activeProgramId: personalProgram.id,
@@ -1377,8 +1404,10 @@
     document.querySelector('.bottom-nav').classList.remove('hidden');
     el.quickAdd.classList.remove('hidden');
     el.profileSwitch.classList.remove('hidden');
-    toast(`Профиль «${name}» создан`);
-    navigate('home');
+    toast(isIndividualProgram
+      ? `Профиль «${name}» создан — составь программу под себя`
+      : `Профиль «${name}» создан`);
+    navigate(isIndividualProgram ? 'plan' : 'home');
   }
 
   function showProfileSwitcher() {
