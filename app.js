@@ -49,6 +49,27 @@
     ['failure', 'До отказа'],
   ];
 
+
+  const EXERCISE_GUIDES = {
+    'db-floor-press': {
+      title: 'Техника и подсказки',
+      source: 'Иллюстрации из программы «Тело в форме»',
+      steps: [
+        'Ляг на коврик, согни ноги и уверенно поставь стопы на пол.',
+        'Держи гантели над грудью; локти направь немного ближе к корпусу, а не строго в стороны.',
+        'Медленно опускай руки до мягкого касания локтями пола.',
+        'На выдохе выжми гантели вверх, не сталкивая их и не отрывая плечи от пола.',
+      ],
+      breathing: 'Вдох при опускании, выдох во время жима вверх. Не задерживай дыхание.',
+      mistakes: 'Не бей локтями об пол, не выгибай поясницу, не запрокидывай голову и не разворачивай локти под прямым углом к корпусу.',
+      tip: 'Оставляй 1–3 повтора в запасе. Если плечу неприятно, уменьши вес и сильнее приблизь локти к корпусу.',
+      images: [
+        { src: './exercise-media/db-floor-press-start.webp', alt: 'Жим гантелей лёжа на полу — нижняя точка', label: 'Старт · нижняя точка' },
+        { src: './exercise-media/db-floor-press-finish.webp', alt: 'Жим гантелей лёжа на полу — верхняя точка', label: 'Финиш · руки выжаты вверх' },
+      ],
+    },
+  };
+
   document.addEventListener('DOMContentLoaded', init);
 
   async function init() {
@@ -181,6 +202,40 @@
 
   function getExercise(id) {
     return state.exercises.find((exercise) => exercise.id === id);
+  }
+
+
+  function renderExerciseGuide(exerciseId) {
+    const guide = EXERCISE_GUIDES[exerciseId];
+    if (!guide) return '';
+    return `
+      <details class="exercise-guide">
+        <summary>
+          <span class="exercise-guide-summary-text"><span aria-hidden="true">ⓘ</span> ${escapeHTML(guide.title)}</span>
+          <span class="exercise-guide-chevron" aria-hidden="true">⌄</span>
+        </summary>
+        <div class="exercise-guide-body">
+          <div class="exercise-guide-images">
+            ${guide.images.map((image) => `
+              <figure class="exercise-guide-figure">
+                <img src="${escapeAttr(image.src)}" alt="${escapeAttr(image.alt)}" loading="lazy" decoding="async">
+                <figcaption>${escapeHTML(image.label)}</figcaption>
+              </figure>
+            `).join('')}
+          </div>
+          <div class="exercise-guide-section">
+            <h4>Как выполнять</h4>
+            <ol>${guide.steps.map((step) => `<li>${escapeHTML(step)}</li>`).join('')}</ol>
+          </div>
+          <div class="exercise-guide-facts">
+            <div><strong>Дыхание</strong><span>${escapeHTML(guide.breathing)}</span></div>
+            <div><strong>Частые ошибки</strong><span>${escapeHTML(guide.mistakes)}</span></div>
+            <div><strong>Подсказка</strong><span>${escapeHTML(guide.tip)}</span></div>
+          </div>
+          <div class="exercise-guide-source">${escapeHTML(guide.source)}</div>
+        </div>
+      </details>
+    `;
   }
 
   function getActiveProgram() {
@@ -445,6 +500,7 @@
           <div class="exercise-meta">${escapeHTML(exercise?.equipment || '')} · отдых ${result.defaults.restSec || 0} сек</div>
           <div class="hero-meta">${previous}${suggestion}</div>
           ${exercise?.safety ? `<div class="notice warning" style="margin-top:10px">${escapeHTML(exercise.safety)}</div>` : ''}
+          ${renderExerciseGuide(result.exerciseId)}
           <div class="exercise-tools">
             <button class="button secondary small replace-exercise" data-index="${exerciseIndex}" type="button">Заменить</button>
             <button class="button ghost small skip-exercise" data-index="${exerciseIndex}" type="button">${result.skipped ? 'Вернуть' : 'Пропустить'}</button>

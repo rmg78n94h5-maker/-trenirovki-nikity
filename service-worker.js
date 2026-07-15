@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nikita-workouts-v1.1.2-individual';
+const CACHE_NAME = 'nikita-workouts-v1.1.3-floor-press-guide';
 const APP_SHELL = [
   './',
   './index.html',
@@ -10,7 +10,9 @@ const APP_SHELL = [
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/apple-touch-icon.png',
-  './icons/maskable-512.png'
+  './icons/maskable-512.png',
+  './exercise-media/db-floor-press-start.webp',
+  './exercise-media/db-floor-press-finish.webp'
 ];
 
 self.addEventListener('install', (event) => {

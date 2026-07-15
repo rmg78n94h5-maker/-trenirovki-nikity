@@ -198,3 +198,28 @@ button { color: inherit; }
   .topbar h1 { font-size: 25px; }
   .profile-button, .icon-button { width: 40px; height: 40px; }
 }
+
+/* Раскрываемая техника упражнения */
+.exercise-guide { margin-top: 12px; border: 1px solid var(--line); border-radius: 15px; background: rgba(7, 9, 11, .58); overflow: hidden; }
+.exercise-guide summary { list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; cursor: pointer; color: var(--text); font-weight: 800; -webkit-tap-highlight-color: transparent; }
+.exercise-guide summary::-webkit-details-marker { display: none; }
+.exercise-guide-summary-text { display: inline-flex; align-items: center; gap: 8px; }
+.exercise-guide-summary-text > span { color: var(--accent); }
+.exercise-guide-chevron { color: var(--accent); font-size: 22px; line-height: 1; transition: transform .2s ease; }
+.exercise-guide[open] .exercise-guide-chevron { transform: rotate(180deg); }
+.exercise-guide-body { padding: 0 12px 14px; border-top: 1px solid var(--line); }
+.exercise-guide-images { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; padding-top: 12px; }
+.exercise-guide-figure { margin: 0; min-width: 0; background: #111417; border: 1px solid var(--line); border-radius: 13px; overflow: hidden; }
+.exercise-guide-figure img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+.exercise-guide-figure figcaption { padding: 8px 9px; color: var(--muted); font-size: 12px; line-height: 1.3; }
+.exercise-guide-section { margin-top: 14px; }
+.exercise-guide-section h4 { margin: 0 0 8px; font-size: 15px; }
+.exercise-guide-section ol { margin: 0; padding-left: 21px; color: var(--muted); }
+.exercise-guide-section li { margin-bottom: 7px; line-height: 1.45; }
+.exercise-guide-facts { display: grid; gap: 8px; margin-top: 12px; }
+.exercise-guide-facts > div { display: grid; gap: 4px; padding: 10px 11px; border-radius: 12px; background: rgba(255, 255, 255, .035); }
+.exercise-guide-facts strong { color: var(--accent); font-size: 13px; }
+.exercise-guide-facts span { color: var(--muted); font-size: 13px; line-height: 1.45; }
+.exercise-guide-source { margin-top: 10px; color: var(--muted); font-size: 11px; text-align: right; opacity: .75; }
+@media (max-width: 390px) { .exercise-guide-images { grid-template-columns: 1fr; } }
+
