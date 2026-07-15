@@ -177,3 +177,6 @@ button { color: inherit; }
   .set-select { width: 88px; font-size: 12px; }
   .button-row.three { grid-template-columns: 1fr; }
 }
+.timer-overlay[hidden] {
+  display: none !important;
+}
