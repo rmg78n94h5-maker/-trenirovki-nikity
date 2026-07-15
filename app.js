@@ -387,6 +387,10 @@
               </tr>`).join('')}
           </tbody>
         </table>
+        <div class="button-row" style="padding:0 14px 14px">
+          <button class="button secondary small add-set" data-index="${exerciseIndex}" type="button" ${result.skipped ? 'disabled' : ''}>＋ Добавить подход</button>
+          ${result.sets.length > 1 ? `<button class="button ghost small remove-set" data-index="${exerciseIndex}" type="button" ${result.skipped ? 'disabled' : ''}>− Убрать последний</button>` : ''}
+        </div>
       </article>
     `;
   }
@@ -409,6 +413,8 @@
     el.main.querySelectorAll('.replace-exercise').forEach((button) => button.addEventListener('click', () => showReplacementModal(Number(button.dataset.index))));
     el.main.querySelectorAll('.skip-exercise').forEach((button) => button.addEventListener('click', () => toggleSkipExercise(Number(button.dataset.index))));
     el.main.querySelectorAll('.comment-exercise').forEach((button) => button.addEventListener('click', () => showExerciseCommentModal(Number(button.dataset.index))));
+    el.main.querySelectorAll('.add-set').forEach((button) => button.addEventListener('click', () => addWorkoutSet(Number(button.dataset.index))));
+    el.main.querySelectorAll('.remove-set').forEach((button) => button.addEventListener('click', () => removeLastWorkoutSet(Number(button.dataset.index))));
     document.getElementById('workout-comment').addEventListener('input', (event) => {
       state.currentWorkout.comment = event.target.value;
       debounceDraftSave();
@@ -420,6 +426,46 @@
   function updateSet(exerciseIndex, setIndex, field, value) {
     state.currentWorkout.exercises[exerciseIndex].sets[setIndex][field] = value;
     debounceDraftSave();
+  }
+
+  async function addWorkoutSet(exerciseIndex) {
+    const result = state.currentWorkout?.exercises?.[exerciseIndex];
+    if (!result || result.skipped) return;
+
+    const previousSet = result.sets[result.sets.length - 1] || {};
+    const unit = result.defaults.unit;
+    const newSet = {
+      number: result.sets.length + 1,
+      weightKg: unit === 'reps' ? (previousSet.weightKg ?? result.defaults.weightKg ?? '') : '',
+      reps: unit === 'reps' ? (previousSet.reps ?? result.defaults.repsMin ?? '') : '',
+      durationSec: unit === 'seconds' ? (previousSet.durationSec ?? result.defaults.durationSec ?? 30) : null,
+      durationMin: unit === 'minutes' ? (previousSet.durationMin ?? result.defaults.durationMin ?? 10) : null,
+      difficulty: 'normal',
+      completed: false,
+      addedManually: true,
+    };
+
+    result.sets.push(newSet);
+    await saveDraftWorkout();
+    renderWorkout();
+    toast(`Добавлен подход ${newSet.number}`);
+  }
+
+  async function removeLastWorkoutSet(exerciseIndex) {
+    const result = state.currentWorkout?.exercises?.[exerciseIndex];
+    if (!result || result.skipped || result.sets.length <= 1) return;
+
+    const lastSet = result.sets[result.sets.length - 1];
+    if (lastSet.completed) {
+      toast('Сначала сними отметку с последнего подхода');
+      return;
+    }
+
+    result.sets.pop();
+    result.sets.forEach((set, index) => { set.number = index + 1; });
+    await saveDraftWorkout();
+    renderWorkout();
+    toast('Последний подход удалён');
   }
 
   async function toggleSetComplete(exerciseIndex, setIndex) {
