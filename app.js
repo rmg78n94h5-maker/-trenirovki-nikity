@@ -1,0 +1,1337 @@
+(() => {
+  'use strict';
+
+  const DB = window.NikitaDB;
+  const state = {
+    route: 'home',
+    profile: null,
+    nutrition: null,
+    settings: {},
+    exercises: [],
+    programs: [],
+    workouts: [],
+    measurements: [],
+    photos: [],
+    currentWorkout: null,
+    historyFilter: 'month',
+    progressTab: 'body',
+    timer: { seconds: 0, interval: null, nextLabel: '' },
+    photoUrls: new Map(),
+  };
+
+  const el = {
+    main: document.getElementById('main'),
+    topbarTitle: document.getElementById('topbar-title'),
+    topbarEyebrow: document.getElementById('topbar-eyebrow'),
+    nav: [...document.querySelectorAll('.nav-item')],
+    modalRoot: document.getElementById('modal-root'),
+    toast: document.getElementById('toast'),
+    offline: document.getElementById('offline-indicator'),
+    quickAdd: document.getElementById('quick-add-button'),
+    timerOverlay: document.getElementById('rest-timer'),
+    timerValue: document.getElementById('timer-value'),
+    timerNext: document.getElementById('timer-next'),
+    timerMinus: document.getElementById('timer-minus'),
+    timerPlus: document.getElementById('timer-plus'),
+    timerSkip: document.getElementById('timer-skip'),
+  };
+
+  const difficultyOptions = [
+    ['easy', 'Легко'],
+    ['normal', 'Нормально'],
+    ['hard', 'Тяжело'],
+    ['failure', 'До отказа'],
+  ];
+
+  document.addEventListener('DOMContentLoaded', init);
+
+  async function init() {
+    try {
+      await DB.openDB();
+      await DB.seedIfNeeded();
+      await loadState();
+      bindGlobalEvents();
+      registerServiceWorker();
+      updateOnlineStatus();
+      await restoreDraftWorkout();
+      navigate(state.currentWorkout ? 'workout' : routeFromHash() || 'home', false);
+    } catch (error) {
+      console.error(error);
+      el.main.innerHTML = `<div class="notice danger"><strong>Не удалось запустить приложение.</strong><br>${escapeHTML(error.message)}</div>`;
+    }
+  }
+
+  async function loadState() {
+    const [profile, nutrition, settings, exercises, programs, workouts, measurements, photos] = await Promise.all([
+      DB.get('profile', 'main'),
+      DB.get('nutrition', 'main'),
+      DB.getSettingsObject(),
+      DB.getAll('exercises'),
+      DB.getAll('programs'),
+      DB.getAll('workouts'),
+      DB.getAll('measurements'),
+      DB.getAll('photos'),
+    ]);
+    state.profile = profile;
+    state.nutrition = nutrition;
+    state.settings = settings;
+    state.exercises = exercises;
+    state.programs = programs;
+    state.workouts = workouts.sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt));
+    state.measurements = measurements.sort((a, b) => b.date.localeCompare(a.date));
+    state.photos = photos.sort((a, b) => b.date.localeCompare(a.date));
+  }
+
+  function bindGlobalEvents() {
+    el.nav.forEach((button) => button.addEventListener('click', () => navigate(button.dataset.route)));
+    el.quickAdd.addEventListener('click', showQuickAdd);
+    window.addEventListener('hashchange', () => navigate(routeFromHash(), false));
+    window.addEventListener('online', updateOnlineStatus);
+    window.addEventListener('offline', updateOnlineStatus);
+    el.timerMinus.addEventListener('click', () => adjustTimer(-15));
+    el.timerPlus.addEventListener('click', () => adjustTimer(15));
+    el.timerSkip.addEventListener('click', stopRestTimer);
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && state.timer.endsAt) syncTimerFromEnd();
+    });
+  }
+
+  function routeFromHash() {
+    return location.hash.replace(/^#\/?/, '').split('?')[0] || 'home';
+  }
+
+  function navigate(route, updateHash = true) {
+    const allowed = ['home', 'plan', 'history', 'progress', 'more', 'workout'];
+    state.route = allowed.includes(route) ? route : 'home';
+    if (updateHash && location.hash !== `#/${state.route}`) history.pushState(null, '', `#/${state.route}`);
+    el.nav.forEach((button) => button.classList.toggle('active', button.dataset.route === state.route));
+    document.querySelector('.bottom-nav').classList.toggle('hidden', state.route === 'workout');
+    el.quickAdd.classList.toggle('hidden', state.route === 'workout');
+    render();
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }
+
+  function render() {
+    revokePhotoUrls();
+    switch (state.route) {
+      case 'home': renderHome(); break;
+      case 'plan': renderPlan(); break;
+      case 'history': renderHistory(); break;
+      case 'progress': renderProgress(); break;
+      case 'more': renderMore(); break;
+      case 'workout': renderWorkout(); break;
+      default: renderHome();
+    }
+  }
+
+  function setTopbar(title, eyebrow = 'Тренировки Никиты') {
+    el.topbarTitle.textContent = title;
+    el.topbarEyebrow.textContent = eyebrow;
+  }
+
+  function getExercise(id) {
+    return state.exercises.find((exercise) => exercise.id === id);
+  }
+
+  function getActiveProgram() {
+    return state.programs.find((program) => program.id === state.settings.activeProgramId) || state.programs[0];
+  }
+
+  function getCurrentDay() {
+    const program = getActiveProgram();
+    const index = Math.min(Number(state.settings.currentDayIndex || 0), Math.max(program.days.length - 1, 0));
+    return { program, day: program.days[index], index };
+  }
+
+  function renderHome() {
+    const { program, day, index } = getCurrentDay();
+    const today = new Date();
+    const weekWorkouts = workoutsSince(startOfWeek(today));
+    const completedThisWeek = weekWorkouts.filter((w) => w.status === 'completed').length;
+    const totalMinutes = Math.round(weekWorkouts.reduce((sum, w) => sum + (w.durationSec || 0), 0) / 60);
+    const lastWorkout = state.workouts.find((w) => w.status === 'completed');
+    const latestMeasurement = state.measurements[0];
+    const streak = calculateStreak();
+    const nutrition = day.recovery ? {
+      calories: state.nutrition.recoveryCalories,
+      protein: state.nutrition.proteinG,
+      fat: state.nutrition.recoveryFatG,
+      carbs: state.nutrition.recoveryCarbsG,
+    } : {
+      calories: state.nutrition.trainingCalories,
+      protein: state.nutrition.proteinG,
+      fat: state.nutrition.trainingFatG,
+      carbs: state.nutrition.trainingCarbsG,
+    };
+
+    setTopbar(formatDate(today, { weekday: 'long', day: 'numeric', month: 'long' }), `День ${index + 1} из ${program.days.length}`);
+
+    el.main.innerHTML = `
+      <section class="section">
+        <div class="card hero-card">
+          <span class="chip accent">${day.recovery ? 'ВОССТАНОВЛЕНИЕ' : 'СЕГОДНЯ'}</span>
+          <h2>${escapeHTML(day.name)}</h2>
+          <p>${escapeHTML(day.focus || program.description)}</p>
+          <div class="hero-meta">
+            <span class="chip">◷ ≈ ${day.durationMin} мин</span>
+            <span class="chip">${day.exercises.length} упражнений</span>
+            <span class="chip">Серия: ${streak} дн.</span>
+          </div>
+          <div class="exercise-list">
+            ${day.exercises.slice(0, 6).map((entry, i) => {
+              const exercise = getExercise(entry.exerciseId);
+              return `<div class="exercise-line">
+                <span class="exercise-index">${i + 1}</span>
+                <div><div class="exercise-name">${escapeHTML(exercise?.name || entry.exerciseId)}</div><div class="exercise-sub">${workPrescription(exercise, entry)}</div></div>
+                <span class="muted">›</span>
+              </div>`;
+            }).join('')}
+            ${day.exercises.length > 6 ? `<div class="muted center">Ещё ${day.exercises.length - 6}</div>` : ''}
+          </div>
+          <div class="button-row">
+            <button class="button primary" id="start-workout">Начать тренировку</button>
+            <button class="button secondary" id="start-short">Нет сил · 15–20 мин</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-head"><h2>Эта неделя</h2><button class="link-button" data-go="history">История</button></div>
+        <div class="stats-grid">
+          <div class="stat"><div class="stat-value">${completedThisWeek}</div><div class="stat-label">тренировки</div></div>
+          <div class="stat"><div class="stat-value">${totalMinutes}</div><div class="stat-label">минут</div></div>
+          <div class="stat"><div class="stat-value">${Math.round(avgCompletion(weekWorkouts))}%</div><div class="stat-label">выполнение</div></div>
+          <div class="stat"><div class="stat-value">${formatCompactLoad(weekWorkouts.reduce((s, w) => s + (w.totalLoadKg || 0), 0))}</div><div class="stat-label">нагрузка, кг</div></div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-head"><h2>Текущие данные</h2><button class="link-button" id="add-measurement-home">Добавить</button></div>
+        <div class="card">
+          <div class="stats-grid">
+            <div><div class="stat-value">${latestMeasurement?.weightKg ?? state.profile.currentWeightKg}</div><div class="stat-label">вес, кг</div></div>
+            <div><div class="stat-value">${latestMeasurement?.waistCm ?? '—'}</div><div class="stat-label">талия, см</div></div>
+            <div><div class="stat-value">${latestMeasurement?.abdomenCm ?? '—'}</div><div class="stat-label">живот, см</div></div>
+            <div><div class="stat-value">${latestMeasurement ? formatShortDate(latestMeasurement.date) : '—'}</div><div class="stat-label">последний замер</div></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-head"><h2>Питание сегодня</h2><button class="link-button" data-go="more">Настроить</button></div>
+        <div class="card">
+          <div class="stats-grid">
+            <div><div class="stat-value">${nutrition.calories}</div><div class="stat-label">ккал</div></div>
+            <div><div class="stat-value">${nutrition.protein}</div><div class="stat-label">белок, г</div></div>
+            <div><div class="stat-value">${nutrition.fat}</div><div class="stat-label">жиры, г</div></div>
+            <div><div class="stat-value">${nutrition.carbs}</div><div class="stat-label">углеводы, г</div></div>
+          </div>
+          <div class="divider"></div>
+          <div class="help">${escapeHTML(state.nutrition.note)}</div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-head"><h2>Последняя тренировка</h2></div>
+        ${lastWorkout ? workoutSummaryCard(lastWorkout) : `<div class="card empty"><strong>История пока пустая</strong>После первой тренировки приложение запомнит веса и начнёт предлагать прогрессию.</div>`}
+      </section>
+
+      <div class="notice warning"><strong>Судно и безопасность.</strong> При сильной качке замени упражнения стоя с тяжёлым весом на варианты сидя, лёжа или с опорой. При боли в паху, животе, пояснице или суставах — остановись, а не геройствуй.</div>
+    `;
+
+    document.getElementById('start-workout').addEventListener('click', () => startWorkout(false));
+    document.getElementById('start-short').addEventListener('click', () => startWorkout(true));
+    document.getElementById('add-measurement-home').addEventListener('click', showMeasurementModal);
+    bindGoButtons();
+    el.main.querySelectorAll('.view-workout').forEach((button) => button.addEventListener('click', () => showWorkoutDetails(button.dataset.id)));
+  }
+
+  function workPrescription(exercise, entry = {}) {
+    if (!exercise) return '';
+    const d = { ...exercise.defaults, ...entry };
+    if (d.unit === 'minutes') return `${d.durationMin || exercise.defaults.durationMin} мин`;
+    if (d.unit === 'seconds') return `${d.sets} × ${d.durationSec || exercise.defaults.durationSec} сек`;
+    return `${d.sets} × ${d.repsMin}${d.repsMax && d.repsMax !== d.repsMin ? `–${d.repsMax}` : ''}`;
+  }
+
+  async function startWorkout(shortMode) {
+    if (state.currentWorkout) {
+      navigate('workout');
+      return;
+    }
+    const { program, day, index } = getCurrentDay();
+    const selected = shortMode
+      ? (day.short || day.exercises.slice(0, 5).map((x) => x.exerciseId)).map((id) => day.exercises.find((x) => x.exerciseId === id) || { exerciseId: id })
+      : day.exercises;
+
+    const exerciseResults = [];
+    for (const entry of selected) {
+      const exercise = getExercise(entry.exerciseId);
+      if (!exercise) continue;
+      const defaults = { ...exercise.defaults, ...entry };
+      if (shortMode && defaults.unit === 'minutes') {
+        defaults.durationMin = exercise.equipment === 'Степпер' ? Math.min(defaults.durationMin || 10, 10) : Math.min(defaults.durationMin || 4, 4);
+      }
+      const last = findLastExerciseResult(exercise.id);
+      const suggestion = progressionSuggestion(exercise, last);
+      const setsCount = shortMode ? Math.min(defaults.sets || 1, defaults.unit === 'reps' ? 2 : 1) : (defaults.sets || 1);
+      const setRows = Array.from({ length: setsCount }, (_, i) => ({
+        number: i + 1,
+        weightKg: defaults.unit === 'reps' ? (suggestion.weightKg ?? last?.sets?.find((s) => s.completed)?.weightKg ?? defaults.weightKg ?? '') : '',
+        reps: defaults.unit === 'reps' ? (last?.sets?.[i]?.reps || defaults.repsMin || '') : '',
+        durationSec: defaults.unit === 'seconds' ? (defaults.durationSec || 30) : null,
+        durationMin: defaults.unit === 'minutes' ? (defaults.durationMin || 10) : null,
+        difficulty: 'normal',
+        completed: false,
+      }));
+      exerciseResults.push({
+        exerciseId: exercise.id,
+        name: exercise.name,
+        skipped: false,
+        replacementOf: null,
+        comment: '',
+        previous: last ? summarizePrevious(last) : null,
+        suggestion,
+        defaults,
+        sets: setRows,
+      });
+    }
+
+    state.currentWorkout = {
+      id: uid('workout'),
+      date: todayISO(),
+      startedAt: new Date().toISOString(),
+      programId: program.id,
+      programName: program.name,
+      dayId: day.id,
+      dayIndex: index,
+      dayName: shortMode ? `${day.name} · короткая` : day.name,
+      shortMode,
+      status: 'in_progress',
+      exercises: exerciseResults,
+      comment: '',
+    };
+    await saveDraftWorkout();
+    navigate('workout');
+  }
+
+  function renderWorkout() {
+    const workout = state.currentWorkout;
+    if (!workout) {
+      navigate('home');
+      return;
+    }
+    setTopbar(workout.dayName, workout.shortMode ? 'Короткая тренировка' : 'Тренировка идёт');
+    el.main.innerHTML = `
+      <div class="workout-header">
+        <div class="card" style="padding:12px 14px">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+            <div><div class="workout-clock" id="workout-clock">00:00</div><div class="muted">время тренировки</div></div>
+            <div style="min-width:120px"><div class="right"><strong id="workout-progress-text">0%</strong></div><div class="progress-bar"><span id="workout-progress-bar" style="width:0%"></span></div></div>
+          </div>
+        </div>
+      </div>
+
+      ${workout.exercises.map((result, exerciseIndex) => renderWorkoutExercise(result, exerciseIndex)).join('')}
+
+      <section class="card">
+        <div class="field"><label>Комментарий ко всей тренировке</label><textarea id="workout-comment" placeholder="Самочувствие, качка, что изменить…">${escapeHTML(workout.comment || '')}</textarea></div>
+      </section>
+
+      <div class="workout-footer">
+        <button class="button ghost" id="cancel-workout">Закрыть</button>
+        <button class="button primary" id="finish-workout">Завершить</button>
+      </div>
+    `;
+    bindWorkoutEvents();
+    updateWorkoutClock();
+    state.workoutClockInterval && clearInterval(state.workoutClockInterval);
+    state.workoutClockInterval = setInterval(updateWorkoutClock, 1000);
+    updateWorkoutProgress();
+  }
+
+  function renderWorkoutExercise(result, exerciseIndex) {
+    const exercise = getExercise(result.exerciseId);
+    const unit = result.defaults.unit;
+    const previous = result.previous ? `<span class="chip">Прошлый: ${escapeHTML(result.previous)}</span>` : `<span class="chip">Первое выполнение</span>`;
+    const suggestion = result.suggestion?.text ? `<span class="chip ${result.suggestion.kind === 'increase' ? 'success' : result.suggestion.kind === 'reduce' ? 'warning' : ''}">${escapeHTML(result.suggestion.text)}</span>` : '';
+    return `
+      <article class="workout-exercise ${result.skipped ? 'muted' : ''}" data-exercise-index="${exerciseIndex}">
+        <div class="workout-exercise-head">
+          <div class="eyebrow">${exerciseIndex + 1} · ${escapeHTML(exercise?.group || '')}</div>
+          <h3>${escapeHTML(result.name)}</h3>
+          <div class="exercise-meta">${escapeHTML(exercise?.equipment || '')} · отдых ${result.defaults.restSec || 0} сек</div>
+          <div class="hero-meta">${previous}${suggestion}</div>
+          ${exercise?.safety ? `<div class="notice warning" style="margin-top:10px">${escapeHTML(exercise.safety)}</div>` : ''}
+          <div class="exercise-tools">
+            <button class="button secondary small replace-exercise" data-index="${exerciseIndex}" type="button">Заменить</button>
+            <button class="button ghost small skip-exercise" data-index="${exerciseIndex}" type="button">${result.skipped ? 'Вернуть' : 'Пропустить'}</button>
+            <button class="button ghost small comment-exercise" data-index="${exerciseIndex}" type="button">Комментарий</button>
+          </div>
+          ${result.comment ? `<div class="help" style="margin-top:9px">“${escapeHTML(result.comment)}”</div>` : ''}
+        </div>
+        <table class="set-table">
+          <thead><tr><th>№</th>${unit === 'reps' ? '<th>КГ</th><th>ПОВТ.</th>' : `<th>${unit === 'minutes' ? 'МИН.' : 'СЕК.'}</th>`}<th>ТЯЖЕСТЬ</th><th></th></tr></thead>
+          <tbody>
+            ${result.sets.map((set, setIndex) => `
+              <tr class="${set.completed ? 'done' : ''}" data-set-index="${setIndex}">
+                <td class="set-number">${set.number}</td>
+                ${unit === 'reps' ? `
+                  <td><input class="set-input set-weight" type="number" inputmode="decimal" min="0" step="0.5" value="${set.weightKg}" ${result.skipped ? 'disabled' : ''}></td>
+                  <td><input class="set-input set-reps" type="number" inputmode="numeric" min="0" step="1" value="${set.reps}" ${result.skipped ? 'disabled' : ''}></td>
+                ` : `
+                  <td><input class="set-input set-duration" type="number" inputmode="numeric" min="1" step="1" value="${unit === 'minutes' ? set.durationMin : set.durationSec}" ${result.skipped ? 'disabled' : ''}></td>
+                `}
+                <td><select class="set-select set-difficulty" ${result.skipped ? 'disabled' : ''}>${difficultyOptions.map(([value, label]) => `<option value="${value}" ${set.difficulty === value ? 'selected' : ''}>${label}</option>`).join('')}</select></td>
+                <td><button class="check-button ${set.completed ? 'done' : ''} complete-set" type="button" ${result.skipped ? 'disabled' : ''}>${set.completed ? '✓' : '○'}</button></td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </article>
+    `;
+  }
+
+  function bindWorkoutEvents() {
+    el.main.querySelectorAll('.workout-exercise').forEach((card) => {
+      const exerciseIndex = Number(card.dataset.exerciseIndex);
+      card.querySelectorAll('tbody tr').forEach((row) => {
+        const setIndex = Number(row.dataset.setIndex);
+        row.querySelector('.set-weight')?.addEventListener('input', (event) => updateSet(exerciseIndex, setIndex, 'weightKg', numberOrBlank(event.target.value)));
+        row.querySelector('.set-reps')?.addEventListener('input', (event) => updateSet(exerciseIndex, setIndex, 'reps', numberOrBlank(event.target.value)));
+        row.querySelector('.set-duration')?.addEventListener('input', (event) => {
+          const unit = state.currentWorkout.exercises[exerciseIndex].defaults.unit;
+          updateSet(exerciseIndex, setIndex, unit === 'minutes' ? 'durationMin' : 'durationSec', numberOrBlank(event.target.value));
+        });
+        row.querySelector('.set-difficulty')?.addEventListener('change', (event) => updateSet(exerciseIndex, setIndex, 'difficulty', event.target.value));
+        row.querySelector('.complete-set')?.addEventListener('click', () => toggleSetComplete(exerciseIndex, setIndex));
+      });
+    });
+    el.main.querySelectorAll('.replace-exercise').forEach((button) => button.addEventListener('click', () => showReplacementModal(Number(button.dataset.index))));
+    el.main.querySelectorAll('.skip-exercise').forEach((button) => button.addEventListener('click', () => toggleSkipExercise(Number(button.dataset.index))));
+    el.main.querySelectorAll('.comment-exercise').forEach((button) => button.addEventListener('click', () => showExerciseCommentModal(Number(button.dataset.index))));
+    document.getElementById('workout-comment').addEventListener('input', (event) => {
+      state.currentWorkout.comment = event.target.value;
+      debounceDraftSave();
+    });
+    document.getElementById('cancel-workout').addEventListener('click', showWorkoutCloseModal);
+    document.getElementById('finish-workout').addEventListener('click', showFinishWorkoutModal);
+  }
+
+  function updateSet(exerciseIndex, setIndex, field, value) {
+    state.currentWorkout.exercises[exerciseIndex].sets[setIndex][field] = value;
+    debounceDraftSave();
+  }
+
+  async function toggleSetComplete(exerciseIndex, setIndex) {
+    const result = state.currentWorkout.exercises[exerciseIndex];
+    const set = result.sets[setIndex];
+    set.completed = !set.completed;
+    await saveDraftWorkout();
+    renderWorkout();
+    if (set.completed && result.defaults.restSec > 0) {
+      const next = result.sets[setIndex + 1] ? `${result.name} · подход ${setIndex + 2}` : 'Переход к следующему упражнению';
+      startRestTimer(result.defaults.restSec, next);
+    }
+  }
+
+  async function toggleSkipExercise(index) {
+    const result = state.currentWorkout.exercises[index];
+    result.skipped = !result.skipped;
+    if (result.skipped) result.sets.forEach((set) => { set.completed = false; });
+    await saveDraftWorkout();
+    renderWorkout();
+  }
+
+  function showReplacementModal(index) {
+    const current = state.currentWorkout.exercises[index];
+    const exercise = getExercise(current.exerciseId);
+    const replacementIds = exercise?.replacements || [];
+    const candidates = replacementIds.map(getExercise).filter(Boolean);
+    showModal(`
+      <div class="modal-head"><h2>Замена упражнения</h2><button class="modal-close" data-close>×</button></div>
+      <div class="notice">Все варианты используют доступное на судне оборудование. При качке выбирай сидя, лёжа или с опорой.</div>
+      <div class="card list-card" style="margin-top:12px">
+        ${candidates.length ? candidates.map((candidate) => `<button class="list-row choose-replacement" data-id="${candidate.id}" style="width:100%;text-align:left;background:transparent;border-left:0;border-right:0;border-top:0;color:inherit">
+          <div class="list-row-main"><div class="list-row-title">${escapeHTML(candidate.name)}</div><div class="list-row-sub">${escapeHTML(candidate.equipment)} · ${escapeHTML(candidate.group)}</div></div><span>›</span>
+        </button>`).join('') : `<div class="empty"><strong>Готовых замен нет</strong>Можно добавить упражнение через редактор программы.</div>`}
+      </div>
+      <button class="button secondary full" id="choose-any-exercise" style="margin-top:12px">Выбрать из всей библиотеки</button>
+    `);
+    el.modalRoot.querySelectorAll('.choose-replacement').forEach((button) => button.addEventListener('click', () => replaceWorkoutExercise(index, button.dataset.id)));
+    document.getElementById('choose-any-exercise').addEventListener('click', () => showExercisePicker((id) => replaceWorkoutExercise(index, id)));
+  }
+
+  async function replaceWorkoutExercise(index, newId) {
+    const old = state.currentWorkout.exercises[index];
+    const exercise = getExercise(newId);
+    if (!exercise) return;
+    const last = findLastExerciseResult(exercise.id);
+    const suggestion = progressionSuggestion(exercise, last);
+    const sets = Array.from({ length: Math.min(exercise.defaults.sets, state.currentWorkout.shortMode ? 2 : exercise.defaults.sets) }, (_, i) => ({
+      number: i + 1,
+      weightKg: suggestion.weightKg ?? last?.sets?.[i]?.weightKg ?? exercise.defaults.weightKg ?? '',
+      reps: last?.sets?.[i]?.reps || exercise.defaults.repsMin || '',
+      durationSec: exercise.defaults.durationSec || null,
+      durationMin: exercise.defaults.durationMin || null,
+      difficulty: 'normal',
+      completed: false,
+    }));
+    state.currentWorkout.exercises[index] = {
+      exerciseId: exercise.id,
+      name: exercise.name,
+      replacementOf: old.replacementOf || old.exerciseId,
+      skipped: false,
+      comment: `Замена: ${old.name}`,
+      previous: last ? summarizePrevious(last) : null,
+      suggestion,
+      defaults: { ...exercise.defaults },
+      sets,
+    };
+    await saveDraftWorkout();
+    closeModal();
+    renderWorkout();
+  }
+
+  function showExerciseCommentModal(index) {
+    const result = state.currentWorkout.exercises[index];
+    showModal(`
+      <div class="modal-head"><h2>Комментарий</h2><button class="modal-close" data-close>×</button></div>
+      <div class="field"><label>${escapeHTML(result.name)}</label><textarea id="exercise-comment-input" placeholder="Например: неудобно при качке, тянет плечо, вес лёгкий…">${escapeHTML(result.comment || '')}</textarea></div>
+      <button class="button primary full" id="save-exercise-comment" style="margin-top:14px">Сохранить</button>
+    `);
+    document.getElementById('save-exercise-comment').addEventListener('click', async () => {
+      result.comment = document.getElementById('exercise-comment-input').value.trim();
+      await saveDraftWorkout();
+      closeModal();
+      renderWorkout();
+    });
+  }
+
+  function showWorkoutCloseModal() {
+    showModal(`
+      <div class="modal-head"><h2>Закрыть тренировку?</h2><button class="modal-close" data-close>×</button></div>
+      <p class="muted">Черновик сохранён на телефоне. Можно вернуться позже без потери подходов.</p>
+      <div class="button-row">
+        <button class="button secondary" id="keep-draft">Оставить черновик</button>
+        <button class="button danger" id="discard-workout">Удалить</button>
+      </div>
+    `);
+    document.getElementById('keep-draft').addEventListener('click', () => { closeModal(); navigate('home'); });
+    document.getElementById('discard-workout').addEventListener('click', async () => {
+      state.currentWorkout = null;
+      await DB.remove('meta', 'draftWorkout');
+      closeModal();
+      navigate('home');
+    });
+  }
+
+  function showFinishWorkoutModal() {
+    const pct = workoutCompletion(state.currentWorkout);
+    showModal(`
+      <div class="modal-head"><h2>Завершить тренировку</h2><button class="modal-close" data-close>×</button></div>
+      <div class="stats-grid">
+        <div class="stat"><div class="stat-value">${pct}%</div><div class="stat-label">выполнено</div></div>
+        <div class="stat"><div class="stat-value">${formatDuration(elapsedSeconds(state.currentWorkout.startedAt))}</div><div class="stat-label">длительность</div></div>
+      </div>
+      ${pct < 50 ? `<div class="notice warning" style="margin-top:12px">Выполнено меньше половины. Это не провал: тренировка сохранится как есть и план не сломается.</div>` : ''}
+      <button class="button primary full" id="confirm-finish" style="margin-top:14px">Сохранить результат</button>
+    `);
+    document.getElementById('confirm-finish').addEventListener('click', finishWorkout);
+  }
+
+  async function finishWorkout() {
+    const workout = state.currentWorkout;
+    workout.status = 'completed';
+    workout.finishedAt = new Date().toISOString();
+    workout.durationSec = elapsedSeconds(workout.startedAt);
+    workout.completionPct = workoutCompletion(workout);
+    workout.totalLoadKg = calculateLoad(workout);
+    workout.progression = workout.exercises.map((result) => ({ exerciseId: result.exerciseId, ...postWorkoutSuggestion(result) }));
+    await DB.put('workouts', workout);
+    const program = getActiveProgram();
+    state.settings.currentDayIndex = (Number(workout.dayIndex) + 1) % program.days.length;
+    await DB.setSettingsObject({ currentDayIndex: state.settings.currentDayIndex });
+    await DB.remove('meta', 'draftWorkout');
+    state.workouts.unshift(workout);
+    state.currentWorkout = null;
+    clearInterval(state.workoutClockInterval);
+    closeModal();
+    toast('Тренировка сохранена');
+    navigate('home');
+  }
+
+  function updateWorkoutClock() {
+    const clock = document.getElementById('workout-clock');
+    if (clock && state.currentWorkout) clock.textContent = formatDuration(elapsedSeconds(state.currentWorkout.startedAt));
+  }
+
+  function updateWorkoutProgress() {
+    if (!state.currentWorkout) return;
+    const pct = workoutCompletion(state.currentWorkout);
+    const text = document.getElementById('workout-progress-text');
+    const bar = document.getElementById('workout-progress-bar');
+    if (text) text.textContent = `${pct}%`;
+    if (bar) bar.style.width = `${pct}%`;
+  }
+
+  function startRestTimer(seconds, nextLabel) {
+    stopRestTimer(false);
+    state.timer.seconds = Number(seconds) || 60;
+    state.timer.endsAt = Date.now() + state.timer.seconds * 1000;
+    state.timer.nextLabel = nextLabel || '';
+    el.timerOverlay.hidden = false;
+    el.timerNext.textContent = state.timer.nextLabel;
+    renderTimer();
+    state.timer.interval = setInterval(() => {
+      syncTimerFromEnd();
+      if (state.timer.seconds <= 0) timerDone();
+    }, 250);
+  }
+
+  function syncTimerFromEnd() {
+    if (!state.timer.endsAt) return;
+    state.timer.seconds = Math.max(0, Math.ceil((state.timer.endsAt - Date.now()) / 1000));
+    renderTimer();
+  }
+
+  function adjustTimer(delta) {
+    state.timer.seconds = Math.max(0, state.timer.seconds + delta);
+    state.timer.endsAt = Date.now() + state.timer.seconds * 1000;
+    renderTimer();
+  }
+
+  function renderTimer() {
+    el.timerValue.textContent = formatDuration(state.timer.seconds);
+  }
+
+  function timerDone() {
+    clearInterval(state.timer.interval);
+    state.timer.interval = null;
+    state.timer.seconds = 0;
+    state.timer.endsAt = null;
+    renderTimer();
+    if (state.settings.vibrationEnabled && navigator.vibrate) navigator.vibrate([180, 80, 180]);
+    if (state.settings.soundEnabled) beep();
+    setTimeout(() => stopRestTimer(), 800);
+  }
+
+  function stopRestTimer(hide = true) {
+    clearInterval(state.timer.interval);
+    state.timer.interval = null;
+    state.timer.endsAt = null;
+    if (hide) el.timerOverlay.hidden = true;
+  }
+
+  function beep() {
+    try {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      const ctx = new AudioContext();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.frequency.value = 740;
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.35);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.4);
+    } catch (error) {
+      console.warn('Audio unavailable', error);
+    }
+  }
+
+  function renderPlan() {
+    const active = getActiveProgram();
+    setTopbar('Недельный план', active.name);
+    el.main.innerHTML = `
+      <section class="section">
+        <div class="tabs">
+          ${state.programs.map((program) => `<button class="tab ${program.id === active.id ? 'active' : ''} switch-program" data-id="${program.id}">${escapeHTML(program.name)}</button>`).join('')}
+        </div>
+      </section>
+      <section class="section">
+        <div class="card hero-card">
+          <div class="eyebrow">Активная программа</div>
+          <h2>${escapeHTML(active.name)}</h2>
+          <p>${escapeHTML(active.description || '')}</p>
+          <div class="hero-meta"><span class="chip">${active.days.length} дней в цикле</span><span class="chip">Текущий: ${Number(state.settings.currentDayIndex) + 1}</span></div>
+          <div class="button-row three">
+            <button class="button secondary" id="duplicate-program">Дублировать</button>
+            <button class="button secondary" id="add-program-day">Добавить день</button>
+            <button class="button primary" id="new-program">Новая программа</button>
+          </div>
+        </div>
+      </section>
+      <section class="section">
+        ${active.days.map((day, index) => `
+          <div class="card program-day">
+            <div class="program-day-head">
+              <div style="display:flex;align-items:center;gap:12px;min-width:0"><div class="day-badge">${index + 1}</div><div class="truncate"><h3 class="truncate">${escapeHTML(day.name)}</h3><div class="list-row-sub">≈ ${day.durationMin} мин · ${day.exercises.length} упражнений</div></div></div>
+              <button class="mini-button edit-day" data-index="${index}">✎</button>
+            </div>
+            <div class="exercise-list">
+              ${day.exercises.map((entry, i) => { const exercise = getExercise(entry.exerciseId); return `<div class="exercise-line"><span class="exercise-index">${i + 1}</span><div><div class="exercise-name">${escapeHTML(exercise?.name || entry.exerciseId)}</div><div class="exercise-sub">${workPrescription(exercise, entry)}</div></div><span class="muted">${exercise?.equipment || ''}</span></div>`; }).join('')}
+            </div>
+            <div class="button-row">
+              <button class="button secondary small start-specific" data-index="${index}">Начать этот день</button>
+              <button class="button ghost small set-current-day" data-index="${index}">Сделать текущим</button>
+            </div>
+          </div>`).join('')}
+      </section>
+    `;
+    el.main.querySelectorAll('.switch-program').forEach((button) => button.addEventListener('click', () => switchProgram(button.dataset.id)));
+    el.main.querySelectorAll('.set-current-day').forEach((button) => button.addEventListener('click', () => setCurrentDay(Number(button.dataset.index))));
+    el.main.querySelectorAll('.start-specific').forEach((button) => button.addEventListener('click', async () => { await setCurrentDay(Number(button.dataset.index), false); startWorkout(false); }));
+    el.main.querySelectorAll('.edit-day').forEach((button) => button.addEventListener('click', () => showEditDayModal(Number(button.dataset.index))));
+    document.getElementById('duplicate-program').addEventListener('click', duplicateActiveProgram);
+    document.getElementById('add-program-day').addEventListener('click', addProgramDay);
+    document.getElementById('new-program').addEventListener('click', showNewProgramModal);
+  }
+
+  async function switchProgram(id) {
+    state.settings.activeProgramId = id;
+    state.settings.currentDayIndex = 0;
+    await DB.setSettingsObject({ activeProgramId: id, currentDayIndex: 0 });
+    renderPlan();
+  }
+
+  async function setCurrentDay(index, rerender = true) {
+    state.settings.currentDayIndex = index;
+    await DB.setSettingsObject({ currentDayIndex: index });
+    if (rerender) renderPlan();
+    toast(`Текущий день: ${index + 1}`);
+  }
+
+
+  async function addProgramDay() {
+    const program = getActiveProgram();
+    program.days.push({ id: uid('day'), name: `День ${program.days.length + 1}`, durationMin: 45, focus: '', exercises: [], short: [] });
+    await DB.put('programs', program);
+    renderPlan();
+    toast('Новый тренировочный день добавлен');
+  }
+
+  async function duplicateActiveProgram() {
+    const active = getActiveProgram();
+    const copy = clone(active);
+    copy.id = uid('program');
+    copy.name = `${active.name} — копия`;
+    copy.createdAt = new Date().toISOString();
+    copy.days = copy.days.map((day) => ({ ...day, id: uid('day') }));
+    await DB.put('programs', copy);
+    state.programs.push(copy);
+    await switchProgram(copy.id);
+    toast('Копия программы создана');
+  }
+
+  function showNewProgramModal() {
+    showModal(`
+      <div class="modal-head"><h2>Новая программа</h2><button class="modal-close" data-close>×</button></div>
+      <div class="form-grid">
+        <div class="field"><label>Название</label><input id="new-program-name" value="Моя программа"></div>
+        <div class="field"><label>Описание</label><textarea id="new-program-description" placeholder="Для чего эта программа"></textarea></div>
+        <div class="field"><label>Количество дней</label><input id="new-program-days" type="number" min="1" max="14" value="7"></div>
+      </div>
+      <button class="button primary full" id="create-program" style="margin-top:14px">Создать</button>
+    `);
+    document.getElementById('create-program').addEventListener('click', async () => {
+      const count = Math.max(1, Math.min(14, Number(document.getElementById('new-program-days').value || 7)));
+      const program = {
+        id: uid('program'),
+        name: document.getElementById('new-program-name').value.trim() || 'Моя программа',
+        description: document.getElementById('new-program-description').value.trim(),
+        createdAt: new Date().toISOString(),
+        days: Array.from({ length: count }, (_, i) => ({ id: uid('day'), name: `День ${i + 1}`, durationMin: 45, focus: '', exercises: [], short: [] })),
+      };
+      await DB.put('programs', program);
+      state.programs.push(program);
+      closeModal();
+      await switchProgram(program.id);
+    });
+  }
+
+  function showEditDayModal(index) {
+    const program = getActiveProgram();
+    const day = program.days[index];
+    showModal(`
+      <div class="modal-head"><h2>Редактор дня ${index + 1}</h2><button class="modal-close" data-close>×</button></div>
+      <div class="form-grid">
+        <div class="field"><label>Название</label><input id="edit-day-name" value="${escapeAttr(day.name)}"></div>
+        <div class="inline-fields"><div class="field"><label>Длительность, мин</label><input id="edit-day-duration" type="number" min="10" max="180" value="${day.durationMin}"></div><div class="field"><label>Акцент</label><input id="edit-day-focus" value="${escapeAttr(day.focus || '')}"></div></div>
+      </div>
+      <div class="section-head" style="margin-top:18px"><h2>Упражнения</h2><button class="link-button" id="add-day-exercise">Добавить</button></div>
+      <div class="card list-card" id="edit-day-list">
+        ${day.exercises.length ? day.exercises.map((entry, i) => editDayExerciseRow(entry, i)).join('') : '<div class="empty"><strong>День пустой</strong>Добавь упражнения из библиотеки.</div>'}
+      </div>
+      <button class="button primary full" id="save-day" style="margin-top:14px">Сохранить день</button>
+      <button class="button danger full" id="delete-day" style="margin-top:10px">Удалить этот день</button>
+    `);
+    bindEditDayList(day, index);
+    document.getElementById('add-day-exercise').addEventListener('click', () => showExercisePicker((id) => {
+      day.exercises.push({ exerciseId: id });
+      closeModal();
+      showEditDayModal(index);
+    }));
+    document.getElementById('delete-day').addEventListener('click', async () => {
+      if (program.days.length <= 1) return toast('В программе должен остаться хотя бы один день');
+      program.days.splice(index, 1);
+      state.settings.currentDayIndex = Math.min(Number(state.settings.currentDayIndex || 0), program.days.length - 1);
+      await Promise.all([DB.put('programs', program), DB.setSettingsObject({ currentDayIndex: state.settings.currentDayIndex })]);
+      closeModal();
+      renderPlan();
+      toast('День удалён');
+    });
+    document.getElementById('save-day').addEventListener('click', async () => {
+      day.name = document.getElementById('edit-day-name').value.trim() || `День ${index + 1}`;
+      day.durationMin = Number(document.getElementById('edit-day-duration').value || 45);
+      day.focus = document.getElementById('edit-day-focus').value.trim();
+      await DB.put('programs', program);
+      closeModal();
+      renderPlan();
+      toast('День сохранён');
+    });
+  }
+
+  function editDayExerciseRow(entry, index) {
+    const exercise = getExercise(entry.exerciseId);
+    return `<div class="list-row" data-entry-index="${index}">
+      <div class="list-row-main"><div class="list-row-title">${escapeHTML(exercise?.name || entry.exerciseId)}</div><div class="list-row-sub">${workPrescription(exercise, entry)} · отдых ${entry.restSec ?? exercise?.defaults.restSec ?? 0} сек</div></div>
+      <div class="row-actions"><button class="mini-button move-up">↑</button><button class="mini-button move-down">↓</button><button class="mini-button edit-entry">✎</button><button class="mini-button remove-entry">×</button></div>
+    </div>`;
+  }
+
+  function bindEditDayList(day, dayIndex) {
+    el.modalRoot.querySelectorAll('#edit-day-list .list-row').forEach((row) => {
+      const index = Number(row.dataset.entryIndex);
+      row.querySelector('.move-up').addEventListener('click', () => moveDayEntry(day, dayIndex, index, -1));
+      row.querySelector('.move-down').addEventListener('click', () => moveDayEntry(day, dayIndex, index, 1));
+      row.querySelector('.remove-entry').addEventListener('click', () => { day.exercises.splice(index, 1); closeModal(); showEditDayModal(dayIndex); });
+      row.querySelector('.edit-entry').addEventListener('click', () => showEditEntryModal(day, dayIndex, index));
+    });
+  }
+
+  function moveDayEntry(day, dayIndex, index, delta) {
+    const target = index + delta;
+    if (target < 0 || target >= day.exercises.length) return;
+    [day.exercises[index], day.exercises[target]] = [day.exercises[target], day.exercises[index]];
+    closeModal();
+    showEditDayModal(dayIndex);
+  }
+
+  function showEditEntryModal(day, dayIndex, entryIndex) {
+    const entry = day.exercises[entryIndex];
+    const exercise = getExercise(entry.exerciseId);
+    const d = { ...exercise.defaults, ...entry };
+    showModal(`
+      <div class="modal-head"><h2>${escapeHTML(exercise.name)}</h2><button class="modal-close" data-close>×</button></div>
+      <div class="form-grid">
+        <div class="inline-fields three"><div class="field"><label>Подходы</label><input id="entry-sets" type="number" min="1" max="10" value="${d.sets}"></div><div class="field"><label>Повторы от</label><input id="entry-reps-min" type="number" min="0" value="${d.repsMin || 0}"></div><div class="field"><label>До</label><input id="entry-reps-max" type="number" min="0" value="${d.repsMax || d.repsMin || 0}"></div></div>
+        <div class="inline-fields"><div class="field"><label>Рабочий вес, кг</label><input id="entry-weight" type="number" step="0.5" min="0" value="${d.weightKg ?? ''}"></div><div class="field"><label>Отдых, сек</label><input id="entry-rest" type="number" min="0" value="${d.restSec || 0}"></div></div>
+      </div>
+      <button class="button primary full" id="save-entry" style="margin-top:14px">Применить</button>
+    `);
+    document.getElementById('save-entry').addEventListener('click', () => {
+      Object.assign(entry, {
+        sets: Number(document.getElementById('entry-sets').value || 1),
+        repsMin: Number(document.getElementById('entry-reps-min').value || 0),
+        repsMax: Number(document.getElementById('entry-reps-max').value || 0),
+        weightKg: numberOrBlank(document.getElementById('entry-weight').value),
+        restSec: Number(document.getElementById('entry-rest').value || 0),
+      });
+      closeModal();
+      showEditDayModal(dayIndex);
+    });
+  }
+
+  function showExercisePicker(onChoose) {
+    showModal(`
+      <div class="modal-head"><h2>Выбрать упражнение</h2><button class="modal-close" data-close>×</button></div>
+      <div class="field"><input id="exercise-search" placeholder="Поиск по названию или группе"></div>
+      <div class="card list-card" id="exercise-picker-list" style="margin-top:12px;max-height:55vh;overflow:auto"></div>
+      <button class="button secondary full" id="create-custom-exercise" style="margin-top:12px">Создать своё упражнение</button>
+    `);
+    const renderList = () => {
+      const q = document.getElementById('exercise-search').value.trim().toLowerCase();
+      const filtered = state.exercises.filter((x) => `${x.name} ${x.group} ${x.equipment}`.toLowerCase().includes(q));
+      document.getElementById('exercise-picker-list').innerHTML = filtered.map((x) => `<button class="list-row pick-exercise" data-id="${x.id}" style="width:100%;text-align:left;background:transparent;border-left:0;border-right:0;border-top:0;color:inherit"><div class="list-row-main"><div class="list-row-title">${escapeHTML(x.name)}</div><div class="list-row-sub">${escapeHTML(x.group)} · ${escapeHTML(x.equipment)}</div></div><span>＋</span></button>`).join('');
+      el.modalRoot.querySelectorAll('.pick-exercise').forEach((button) => button.addEventListener('click', () => { closeModal(); onChoose(button.dataset.id); }));
+    };
+    document.getElementById('exercise-search').addEventListener('input', renderList);
+    document.getElementById('create-custom-exercise').addEventListener('click', () => showCustomExerciseModal(onChoose));
+    renderList();
+  }
+
+  function showCustomExerciseModal(onChoose) {
+    showModal(`
+      <div class="modal-head"><h2>Своё упражнение</h2><button class="modal-close" data-close>×</button></div>
+      <div class="form-grid">
+        <div class="field"><label>Название</label><input id="custom-name"></div>
+        <div class="inline-fields"><div class="field"><label>Группа</label><input id="custom-group" placeholder="Например: спина"></div><div class="field"><label>Оборудование</label><input id="custom-equipment" placeholder="Гантели"></div></div>
+        <div class="inline-fields three"><div class="field"><label>Подходы</label><input id="custom-sets" type="number" value="3"></div><div class="field"><label>Повторы от</label><input id="custom-min" type="number" value="8"></div><div class="field"><label>До</label><input id="custom-max" type="number" value="12"></div></div>
+        <div class="field"><label>Отдых, сек</label><input id="custom-rest" type="number" value="75"></div>
+      </div>
+      <button class="button primary full" id="save-custom" style="margin-top:14px">Создать и добавить</button>
+    `);
+    document.getElementById('save-custom').addEventListener('click', async () => {
+      const name = document.getElementById('custom-name').value.trim();
+      if (!name) return toast('Введи название');
+      const exercise = {
+        id: uid('custom-ex'), name,
+        group: document.getElementById('custom-group').value.trim() || 'Другое',
+        equipment: document.getElementById('custom-equipment').value.trim() || 'Собственный вес',
+        defaults: { sets: Number(document.getElementById('custom-sets').value || 3), repsMin: Number(document.getElementById('custom-min').value || 8), repsMax: Number(document.getElementById('custom-max').value || 12), restSec: Number(document.getElementById('custom-rest').value || 75), weightKg: null, unit: 'reps' },
+        notes: '', safety: '', replacements: [], custom: true,
+      };
+      await DB.put('exercises', exercise);
+      state.exercises.push(exercise);
+      closeModal();
+      onChoose(exercise.id);
+    });
+  }
+
+  function renderHistory() {
+    setTopbar('История', 'Тренировки и нагрузка');
+    const filtered = filteredHistory();
+    el.main.innerHTML = `
+      <section class="section"><div class="tabs">${[['day','День'],['week','Неделя'],['month','Месяц'],['all','Всё']].map(([value,label]) => `<button class="tab ${state.historyFilter === value ? 'active' : ''} history-filter" data-filter="${value}">${label}</button>`).join('')}</div></section>
+      <section class="section">
+        <div class="stats-grid">
+          <div class="stat"><div class="stat-value">${filtered.length}</div><div class="stat-label">тренировки</div></div>
+          <div class="stat"><div class="stat-value">${Math.round(filtered.reduce((s,w)=>s+(w.durationSec||0),0)/60)}</div><div class="stat-label">минут</div></div>
+          <div class="stat"><div class="stat-value">${Math.round(avgCompletion(filtered))}%</div><div class="stat-label">выполнение</div></div>
+          <div class="stat"><div class="stat-value">${formatCompactLoad(filtered.reduce((s,w)=>s+(w.totalLoadKg||0),0))}</div><div class="stat-label">нагрузка, кг</div></div>
+        </div>
+      </section>
+      <section class="section">
+        ${filtered.length ? filtered.map(workoutSummaryCard).join('') : `<div class="card empty"><strong>Ничего не найдено</strong>В выбранном периоде тренировок нет.</div>`}
+      </section>
+    `;
+    el.main.querySelectorAll('.history-filter').forEach((button) => button.addEventListener('click', () => { state.historyFilter = button.dataset.filter; renderHistory(); }));
+    el.main.querySelectorAll('.view-workout').forEach((button) => button.addEventListener('click', () => showWorkoutDetails(button.dataset.id)));
+  }
+
+  function filteredHistory() {
+    const now = new Date();
+    if (state.historyFilter === 'all') return state.workouts;
+    const start = state.historyFilter === 'day' ? startOfDay(now) : state.historyFilter === 'week' ? startOfWeek(now) : new Date(now.getFullYear(), now.getMonth(), 1);
+    return state.workouts.filter((w) => new Date(w.startedAt) >= start);
+  }
+
+  function workoutSummaryCard(workout) {
+    return `<div class="card">
+      <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div><div class="eyebrow">${formatDate(new Date(workout.startedAt), { day:'numeric', month:'long', year:'numeric' })}</div><h3 style="margin:5px 0 4px">${escapeHTML(workout.dayName)}</h3><div class="muted">${formatDuration(workout.durationSec || 0)} · ${workout.completionPct ?? workoutCompletion(workout)}% · ${formatCompactLoad(workout.totalLoadKg || 0)} кг</div></div><button class="mini-button view-workout" data-id="${workout.id}">›</button></div>
+      <div class="progress-bar" style="margin-top:12px"><span style="width:${workout.completionPct ?? workoutCompletion(workout)}%"></span></div>
+    </div>`;
+  }
+
+  function showWorkoutDetails(id) {
+    const workout = state.workouts.find((w) => w.id === id);
+    if (!workout) return;
+    showModal(`
+      <div class="modal-head"><div><div class="eyebrow">${formatDate(new Date(workout.startedAt), { day:'numeric', month:'long', year:'numeric' })}</div><h2>${escapeHTML(workout.dayName)}</h2></div><button class="modal-close" data-close>×</button></div>
+      <div class="stats-grid">
+        <div class="stat"><div class="stat-value">${formatDuration(workout.durationSec || 0)}</div><div class="stat-label">время</div></div>
+        <div class="stat"><div class="stat-value">${workout.completionPct}%</div><div class="stat-label">выполнено</div></div>
+        <div class="stat"><div class="stat-value">${formatCompactLoad(workout.totalLoadKg || 0)}</div><div class="stat-label">нагрузка, кг</div></div>
+        <div class="stat"><div class="stat-value">${workout.exercises.filter((x)=>x.skipped).length}</div><div class="stat-label">пропущено</div></div>
+      </div>
+      <div class="card list-card" style="margin-top:12px">
+        ${workout.exercises.map((result) => `<div class="list-row"><div class="list-row-main"><div class="list-row-title">${result.skipped ? '○ ' : '✓ '}${escapeHTML(result.name)}</div><div class="list-row-sub">${result.skipped ? 'Пропущено' : result.sets.filter((s)=>s.completed).map((s)=> result.defaults.unit === 'reps' ? `${s.weightKg || 0}×${s.reps}` : `${s.durationMin || s.durationSec}`).join(' · ') || 'Нет выполненных подходов'}${result.comment ? `<br>Комментарий: ${escapeHTML(result.comment)}` : ''}</div></div></div>`).join('')}
+      </div>
+      ${workout.comment ? `<div class="notice" style="margin-top:12px">${escapeHTML(workout.comment)}</div>` : ''}
+      <button class="button danger full" id="delete-workout" style="margin-top:14px">Удалить тренировку</button>
+    `);
+    document.getElementById('delete-workout').addEventListener('click', async () => {
+      await DB.remove('workouts', id);
+      state.workouts = state.workouts.filter((w) => w.id !== id);
+      closeModal();
+      renderHistory();
+      toast('Тренировка удалена');
+    });
+  }
+
+  function renderProgress() {
+    setTopbar('Прогресс', 'Без самообмана — только данные');
+    el.main.innerHTML = `
+      <section class="section"><div class="tabs">
+        ${[['body','Тело'],['training','Тренировки'],['strength','Рабочие веса'],['stepper','Степпер'],['photos','Фото']].map(([value,label]) => `<button class="tab ${state.progressTab === value ? 'active' : ''} progress-tab" data-tab="${value}">${label}</button>`).join('')}
+      </div></section>
+      <div id="progress-content">${renderProgressContent()}</div>
+    `;
+    el.main.querySelectorAll('.progress-tab').forEach((button) => button.addEventListener('click', () => { state.progressTab = button.dataset.tab; renderProgress(); }));
+    bindProgressEvents();
+  }
+
+  function renderProgressContent() {
+    if (state.progressTab === 'body') return renderBodyProgress();
+    if (state.progressTab === 'training') return renderTrainingProgress();
+    if (state.progressTab === 'strength') return renderStrengthProgress();
+    if (state.progressTab === 'stepper') return renderStepperProgress();
+    return renderPhotoProgress();
+  }
+
+  function renderBodyProgress() {
+    const latest = state.measurements[0];
+    return `
+      <section class="section"><div class="button-row"><button class="button primary" id="add-measurement">Добавить замер</button><button class="button secondary" id="measurement-history">Все замеры</button></div></section>
+      <section class="section"><div class="card"><div class="section-head"><h2>Вес</h2><span class="muted">${latest?.weightKg ?? '—'} кг</span></div>${lineChart(state.measurements.filter(x=>x.weightKg).slice().reverse(), 'weightKg', 'кг')}</div></section>
+      <section class="section"><div class="card"><div class="section-head"><h2>Талия</h2><span class="muted">${latest?.waistCm ?? '—'} см</span></div>${lineChart(state.measurements.filter(x=>x.waistCm).slice().reverse(), 'waistCm', 'см')}</div></section>
+      <section class="section"><div class="card list-card">${state.measurements.slice(0,8).map((m) => `<div class="list-row"><div class="list-row-main"><div class="list-row-title">${formatShortDate(m.date)}</div><div class="list-row-sub">Вес ${m.weightKg ?? '—'} · талия ${m.waistCm ?? '—'} · живот ${m.abdomenCm ?? '—'} см</div></div><button class="mini-button delete-measurement" data-id="${m.id}">×</button></div>`).join('')}</div></section>`;
+  }
+
+  function renderTrainingProgress() {
+    const weeks = aggregateWeeks(8);
+    return `
+      <section class="section"><div class="stats-grid">
+        <div class="stat"><div class="stat-value">${state.workouts.length}</div><div class="stat-label">всего тренировок</div></div>
+        <div class="stat"><div class="stat-value">${calculateStreak()}</div><div class="stat-label">серия дней</div></div>
+        <div class="stat"><div class="stat-value">${Math.round(state.workouts.reduce((s,w)=>s+(w.durationSec||0),0)/3600)}</div><div class="stat-label">часов</div></div>
+        <div class="stat"><div class="stat-value">${Math.round(avgCompletion(state.workouts))}%</div><div class="stat-label">среднее выполнение</div></div>
+      </div></section>
+      <section class="section"><div class="card"><div class="section-head"><h2>Тренировки по неделям</h2></div>${barChart(weeks.map(x=>({label:x.label,value:x.count})), 'трен.')}</div></section>`;
+  }
+
+  function renderStrengthProgress() {
+    const exercisesWithData = state.exercises.filter((exercise) => state.workouts.some((w) => w.exercises.some((r) => r.exerciseId === exercise.id && r.sets.some((s) => s.completed && Number(s.weightKg) > 0))));
+    const selectedId = state.settings.strengthExerciseId && exercisesWithData.some(x=>x.id===state.settings.strengthExerciseId) ? state.settings.strengthExerciseId : exercisesWithData[0]?.id;
+    const data = selectedId ? strengthSeries(selectedId) : [];
+    return `
+      <section class="section"><div class="card">
+        <div class="field"><label>Упражнение</label><select id="strength-exercise-select">${exercisesWithData.map((x)=>`<option value="${x.id}" ${x.id===selectedId?'selected':''}>${escapeHTML(x.name)}</option>`).join('')}</select></div>
+        <div style="margin-top:14px">${selectedId ? lineChart(data, 'value', 'кг', 'date') : '<div class="empty"><strong>Нет данных</strong>Внеси вес в подходах — график появится автоматически.</div>'}</div>
+      </div></section>
+      <div class="notice">График показывает максимальный выполненный рабочий вес за тренировку, а не расчётный одноповторный максимум.</div>`;
+  }
+
+  function renderStepperProgress() {
+    const data = stepperSeries();
+    return `<section class="section"><div class="card"><div class="section-head"><h2>Минуты на степпере</h2><span class="muted">${data.reduce((s,x)=>s+x.value,0)} мин</span></div>${lineChart(data, 'value', 'мин', 'date')}</div></section>`;
+  }
+
+  function renderPhotoProgress() {
+    const photoOptions = state.photos.map((p) => `<option value="${p.id}">${formatShortDate(p.date)} · ${photoCategoryLabel(p.category)}</option>`).join('');
+    return `
+      <section class="section"><button class="button primary full" id="add-photo">Добавить фото прогресса</button></section>
+      <div class="notice warning">Фото хранятся только в IndexedDB этого приложения. iPhone может удалить данные сайта при очистке Safari или нехватке места. Для важных снимков сохраняй оригиналы в «Фото»/«Файлы» и периодически делай полный экспорт.</div>
+      <section class="section" style="margin-top:14px"><div class="card"><div class="section-head"><h2>Сравнить две даты</h2></div><div class="inline-fields"><div class="field"><label>Слева</label><select id="compare-left"><option value="">Выбрать</option>${photoOptions}</select></div><div class="field"><label>Справа</label><select id="compare-right"><option value="">Выбрать</option>${photoOptions}</select></div></div><div id="photo-compare" style="margin-top:12px"></div></div></section>
+      <section class="section"><div class="photo-grid">${state.photos.length ? state.photos.map(photoCard).join('') : '<div class="card empty" style="grid-column:1/-1"><strong>Фото пока нет</strong>Фотографии не встроены в публичный проект — добавь их локально после установки.</div>'}</div></section>`;
+  }
+
+  function photoCard(photo) {
+    const url = URL.createObjectURL(photo.blob);
+    state.photoUrls.set(photo.id, url);
+    return `<div class="photo-card"><img src="${url}" alt="Фото прогресса ${escapeAttr(photo.category)}"><div class="photo-label">${formatShortDate(photo.date)} · ${photoCategoryLabel(photo.category)}<br><button class="link-button delete-photo" data-id="${photo.id}" style="margin-top:5px">Удалить</button></div></div>`;
+  }
+
+  function bindProgressEvents() {
+    document.getElementById('add-measurement')?.addEventListener('click', showMeasurementModal);
+    document.getElementById('measurement-history')?.addEventListener('click', showMeasurementsModal);
+    el.main.querySelectorAll('.delete-measurement').forEach((button) => button.addEventListener('click', () => deleteMeasurement(button.dataset.id)));
+    document.getElementById('strength-exercise-select')?.addEventListener('change', async (event) => {
+      state.settings.strengthExerciseId = event.target.value;
+      await DB.setSettingsObject({ strengthExerciseId: event.target.value });
+      renderProgress();
+    });
+    document.getElementById('add-photo')?.addEventListener('click', showPhotoModal);
+    el.main.querySelectorAll('.delete-photo').forEach((button) => button.addEventListener('click', () => deletePhoto(button.dataset.id)));
+    const left = document.getElementById('compare-left');
+    const right = document.getElementById('compare-right');
+    const updateCompare = () => renderPhotoCompare(left?.value, right?.value);
+    left?.addEventListener('change', updateCompare);
+    right?.addEventListener('change', updateCompare);
+  }
+
+  function showMeasurementModal() {
+    const latest = state.measurements[0] || {};
+    showModal(`
+      <div class="modal-head"><h2>Новый замер</h2><button class="modal-close" data-close>×</button></div>
+      <div class="form-grid">
+        <div class="field"><label>Дата</label><input id="measure-date" type="date" value="${todayISO()}"></div>
+        <div class="inline-fields"><div class="field"><label>Вес, кг</label><input id="measure-weight" type="number" inputmode="decimal" step="0.1" value="${latest.weightKg ?? state.profile.currentWeightKg}"></div><div class="field"><label>Талия, см</label><input id="measure-waist" type="number" inputmode="decimal" step="0.1" value=""></div></div>
+        <div class="inline-fields"><div class="field"><label>Живот, см</label><input id="measure-abdomen" type="number" inputmode="decimal" step="0.1"></div><div class="field"><label>Грудь, см</label><input id="measure-chest" type="number" inputmode="decimal" step="0.1"></div></div>
+        <div class="inline-fields"><div class="field"><label>Бёдра, см</label><input id="measure-hips" type="number" inputmode="decimal" step="0.1"></div><div class="field"><label>Рука, см</label><input id="measure-arm" type="number" inputmode="decimal" step="0.1"></div></div>
+        <div class="field"><label>Комментарий</label><textarea id="measure-note" placeholder="Утро/вечер, после смены, отёки…"></textarea></div>
+      </div>
+      <button class="button primary full" id="save-measurement" style="margin-top:14px">Сохранить</button>
+    `);
+    document.getElementById('save-measurement').addEventListener('click', async () => {
+      const measurement = {
+        id: uid('measurement'),
+        date: document.getElementById('measure-date').value || todayISO(),
+        weightKg: numberOrNull(document.getElementById('measure-weight').value),
+        waistCm: numberOrNull(document.getElementById('measure-waist').value),
+        abdomenCm: numberOrNull(document.getElementById('measure-abdomen').value),
+        chestCm: numberOrNull(document.getElementById('measure-chest').value),
+        hipsCm: numberOrNull(document.getElementById('measure-hips').value),
+        armCm: numberOrNull(document.getElementById('measure-arm').value),
+        note: document.getElementById('measure-note').value.trim(),
+      };
+      await DB.put('measurements', measurement);
+      state.measurements.push(measurement);
+      state.measurements.sort((a,b)=>b.date.localeCompare(a.date));
+      closeModal();
+      toast('Замер сохранён');
+      render();
+    });
+  }
+
+  function showMeasurementsModal() {
+    showModal(`<div class="modal-head"><h2>Все замеры</h2><button class="modal-close" data-close>×</button></div><div class="card list-card">${state.measurements.map((m)=>`<div class="list-row"><div class="list-row-main"><div class="list-row-title">${formatShortDate(m.date)}</div><div class="list-row-sub">Вес ${m.weightKg ?? '—'} · талия ${m.waistCm ?? '—'} · живот ${m.abdomenCm ?? '—'} · грудь ${m.chestCm ?? '—'} · бёдра ${m.hipsCm ?? '—'} · рука ${m.armCm ?? '—'}</div></div></div>`).join('')}</div>`);
+  }
+
+  async function deleteMeasurement(id) {
+    await DB.remove('measurements', id);
+    state.measurements = state.measurements.filter((m)=>m.id!==id);
+    renderProgress();
+    toast('Замер удалён');
+  }
+
+  function showPhotoModal() {
+    showModal(`
+      <div class="modal-head"><h2>Фото прогресса</h2><button class="modal-close" data-close>×</button></div>
+      <div class="form-grid">
+        <div class="field"><label>Дата</label><input id="photo-date" type="date" value="${todayISO()}"></div>
+        <div class="field"><label>Категория</label><select id="photo-category"><option value="front">Спереди</option><option value="side">Сбоку</option><option value="back">Сзади</option></select></div>
+        <div class="field"><label>Фотография</label><input id="photo-file" type="file" accept="image/*"></div>
+        <div class="field"><label>Комментарий</label><textarea id="photo-note"></textarea></div>
+      </div>
+      <div class="notice warning" style="margin-top:12px">Не размещай эти фотографии внутри папки проекта: при публикации на GitHub Pages они станут публичными. Добавляй их только через установленное приложение.</div>
+      <button class="button primary full" id="save-photo" style="margin-top:14px">Сохранить локально</button>
+    `);
+    document.getElementById('save-photo').addEventListener('click', async () => {
+      const file = document.getElementById('photo-file').files[0];
+      if (!file) return toast('Выбери фотографию');
+      const photo = {
+        id: uid('photo'),
+        date: document.getElementById('photo-date').value || todayISO(),
+        category: document.getElementById('photo-category').value,
+        note: document.getElementById('photo-note').value.trim(),
+        blob: file,
+        mimeType: file.type,
+        filename: file.name,
+        createdAt: new Date().toISOString(),
+      };
+      await DB.put('photos', photo);
+      state.photos.unshift(photo);
+      closeModal();
+      renderProgress();
+      toast('Фото сохранено на устройстве');
+    });
+  }
+
+  async function deletePhoto(id) {
+    await DB.remove('photos', id);
+    state.photos = state.photos.filter((p)=>p.id!==id);
+    renderProgress();
+    toast('Фото удалено');
+  }
+
+  function renderPhotoCompare(leftId, rightId) {
+    const target = document.getElementById('photo-compare');
+    if (!target) return;
+    const left = state.photos.find((p)=>p.id===leftId);
+    const right = state.photos.find((p)=>p.id===rightId);
+    if (!left || !right) { target.innerHTML = '<div class="empty">Выбери две фотографии.</div>'; return; }
+    const leftUrl = URL.createObjectURL(left.blob); const rightUrl = URL.createObjectURL(right.blob);
+    state.photoUrls.set(`compare-${left.id}`, leftUrl); state.photoUrls.set(`compare-${right.id}`, rightUrl);
+    target.innerHTML = `<div class="compare-grid"><div><img src="${leftUrl}" alt="Слева"><div class="center muted">${formatShortDate(left.date)}</div></div><div><img src="${rightUrl}" alt="Справа"><div class="center muted">${formatShortDate(right.date)}</div></div></div>`;
+  }
+
+  function renderMore() {
+    setTopbar('Настройки', 'Профиль, питание и резервные копии');
+    el.main.innerHTML = `
+      <section class="section"><div class="card hero-card"><div class="eyebrow">Персональный профиль</div><h2>${escapeHTML(state.profile.name)}</h2><p>${state.profile.age} года · ${state.profile.heightCm} см · ${state.profile.currentWeightKg} кг</p><div class="hero-meta"><span class="chip">Судно</span><span class="chip">Офлайн</span><span class="chip">Только личные данные</span></div><button class="button secondary full" id="edit-profile">Изменить профиль</button></div></section>
+
+      <section class="section"><div class="section-head"><h2>Цель</h2></div><div class="card list-card">${state.profile.goals.map((g)=>`<div class="list-row"><div class="list-row-main"><div class="list-row-title">✓ ${escapeHTML(g)}</div></div></div>`).join('')}</div></section>
+
+      <section class="section"><div class="section-head"><h2>Калории и БЖУ</h2><button class="link-button" id="edit-nutrition">Изменить</button></div><div class="card"><div class="stats-grid"><div><div class="stat-value">${state.nutrition.trainingCalories}</div><div class="stat-label">тренировка, ккал</div></div><div><div class="stat-value">${state.nutrition.recoveryCalories}</div><div class="stat-label">восстановление</div></div><div><div class="stat-value">${state.nutrition.proteinG}</div><div class="stat-label">белок, г</div></div><div><div class="stat-value">${state.nutrition.trainingFatG}</div><div class="stat-label">жиры, г</div></div></div><div class="divider"></div><div class="help">${escapeHTML(state.nutrition.note)}</div></div></section>
+
+      <section class="section"><div class="section-head"><h2>Сигналы таймера</h2></div><div class="card list-card"><label class="list-row"><div><div class="list-row-title">Звук</div><div class="list-row-sub">Сигнал после отдыха</div></div><input id="sound-toggle" type="checkbox" ${state.settings.soundEnabled ? 'checked' : ''}></label><label class="list-row"><div><div class="list-row-title">Вибрация</div><div class="list-row-sub">На iPhone Safari может не поддерживаться</div></div><input id="vibration-toggle" type="checkbox" ${state.settings.vibrationEnabled ? 'checked' : ''}></label></div></section>
+
+      <section class="section"><div class="section-head"><h2>Резервная копия</h2></div><div class="card"><div class="button-row"><button class="button primary" id="export-data">Данные JSON</button><button class="button secondary" id="export-full">С фото</button></div><button class="button ghost full" id="import-data" style="margin-top:10px">Импортировать копию</button><input id="import-file" type="file" accept="application/json" hidden><div class="help" style="margin-top:10px">JSON хранится в «Файлах» iPhone. Полная копия с фотографиями может быть большой.</div></div></section>
+
+      <section class="section"><div class="section-head"><h2>Установка PWA</h2></div><div class="card"><ol class="muted" style="padding-left:20px;line-height:1.6"><li>Открой опубликованный адрес в Safari.</li><li>Нажми «Поделиться».</li><li>Выбери «На экран Домой».</li><li>Открой иконку один раз при интернете — после этого оболочка работает офлайн.</li></ol><button class="button secondary full" id="storage-info">Проверить хранилище</button></div></section>
+
+      <section class="section"><div class="notice warning"><strong>Ограничение iPhone.</strong> Данные PWA могут исчезнуть после удаления иконки, очистки данных Safari или при критической нехватке памяти. Экспорт — обязательная страховка.</div></section>
+    `;
+    document.getElementById('edit-profile').addEventListener('click', showProfileModal);
+    document.getElementById('edit-nutrition').addEventListener('click', showNutritionModal);
+    document.getElementById('sound-toggle').addEventListener('change', (e)=>saveToggle('soundEnabled',e.target.checked));
+    document.getElementById('vibration-toggle').addEventListener('change', (e)=>saveToggle('vibrationEnabled',e.target.checked));
+    document.getElementById('export-data').addEventListener('click', ()=>exportBackup(false));
+    document.getElementById('export-full').addEventListener('click', ()=>exportBackup(true));
+    document.getElementById('import-data').addEventListener('click', ()=>document.getElementById('import-file').click());
+    document.getElementById('import-file').addEventListener('change', importBackupFile);
+    document.getElementById('storage-info').addEventListener('click', showStorageInfo);
+  }
+
+  function showProfileModal() {
+    showModal(`
+      <div class="modal-head"><h2>Профиль</h2><button class="modal-close" data-close>×</button></div>
+      <div class="form-grid"><div class="field"><label>Имя</label><input id="profile-name" value="${escapeAttr(state.profile.name)}"></div><div class="inline-fields three"><div class="field"><label>Возраст</label><input id="profile-age" type="number" value="${state.profile.age}"></div><div class="field"><label>Рост, см</label><input id="profile-height" type="number" value="${state.profile.heightCm}"></div><div class="field"><label>Вес, кг</label><input id="profile-weight" type="number" step="0.1" value="${state.profile.currentWeightKg}"></div></div><div class="field"><label>Заметка о прогрессе</label><textarea id="profile-progress">${escapeHTML(state.profile.progressNote || '')}</textarea></div></div>
+      <button class="button primary full" id="save-profile" style="margin-top:14px">Сохранить</button>
+    `);
+    document.getElementById('save-profile').addEventListener('click', async ()=>{
+      state.profile.name=document.getElementById('profile-name').value.trim()||'Никита';
+      state.profile.age=Number(document.getElementById('profile-age').value||34);
+      state.profile.heightCm=Number(document.getElementById('profile-height').value||173);
+      state.profile.currentWeightKg=Number(document.getElementById('profile-weight').value||77);
+      state.profile.progressNote=document.getElementById('profile-progress').value.trim();
+      await DB.put('profile',state.profile); closeModal(); renderMore(); toast('Профиль сохранён');
+    });
+  }
+
+  function showNutritionModal() {
+    showModal(`
+      <div class="modal-head"><h2>Калории и БЖУ</h2><button class="modal-close" data-close>×</button></div>
+      <div class="form-grid"><div class="inline-fields"><div class="field"><label>Тренировка, ккал</label><input id="n-train-cal" type="number" value="${state.nutrition.trainingCalories}"></div><div class="field"><label>Восстановление, ккал</label><input id="n-rest-cal" type="number" value="${state.nutrition.recoveryCalories}"></div></div><div class="inline-fields three"><div class="field"><label>Белок, г</label><input id="n-protein" type="number" value="${state.nutrition.proteinG}"></div><div class="field"><label>Жиры трен., г</label><input id="n-fat-train" type="number" value="${state.nutrition.trainingFatG}"></div><div class="field"><label>Жиры отдых, г</label><input id="n-fat-rest" type="number" value="${state.nutrition.recoveryFatG}"></div></div><div class="inline-fields"><div class="field"><label>Углеводы трен., г</label><input id="n-carb-train" type="number" value="${state.nutrition.trainingCarbsG}"></div><div class="field"><label>Углеводы отдых, г</label><input id="n-carb-rest" type="number" value="${state.nutrition.recoveryCarbsG}"></div></div><div class="field"><label>Примечание</label><textarea id="n-note">${escapeHTML(state.nutrition.note)}</textarea></div></div>
+      <button class="button primary full" id="save-nutrition" style="margin-top:14px">Сохранить</button>
+    `);
+    document.getElementById('save-nutrition').addEventListener('click', async ()=>{
+      Object.assign(state.nutrition,{trainingCalories:Number(document.getElementById('n-train-cal').value),recoveryCalories:Number(document.getElementById('n-rest-cal').value),proteinG:Number(document.getElementById('n-protein').value),trainingFatG:Number(document.getElementById('n-fat-train').value),recoveryFatG:Number(document.getElementById('n-fat-rest').value),trainingCarbsG:Number(document.getElementById('n-carb-train').value),recoveryCarbsG:Number(document.getElementById('n-carb-rest').value),note:document.getElementById('n-note').value.trim()});
+      await DB.put('nutrition',state.nutrition); closeModal(); renderMore(); toast('Питание обновлено');
+    });
+  }
+
+  async function saveToggle(key, value) { state.settings[key]=value; await DB.setSettingsObject({[key]:value}); }
+
+  async function exportBackup(includePhotos) {
+    try {
+      toast(includePhotos ? 'Готовлю копию с фото…' : 'Готовлю резервную копию…');
+      const backup = await DB.exportData(includePhotos);
+      downloadBlob(new Blob([JSON.stringify(backup)], {type:'application/json'}), `nikita-workouts-${includePhotos?'full':'data'}-${todayISO()}.json`);
+      state.settings.lastBackupAt = new Date().toISOString();
+      await DB.setSettingsObject({lastBackupAt:state.settings.lastBackupAt});
+    } catch (error) { toast(`Ошибка экспорта: ${error.message}`); }
+  }
+
+  async function importBackupFile(event) {
+    const file = event.target.files[0]; if(!file) return;
+    try { const backup=JSON.parse(await file.text()); await DB.importData(backup,'replace'); await loadState(); toast('Копия восстановлена'); renderMore(); }
+    catch(error){ toast(`Не удалось импортировать: ${error.message}`); }
+    event.target.value='';
+  }
+
+  async function showStorageInfo() {
+    let text='Браузер не сообщил объём хранилища.';
+    if(navigator.storage?.estimate){const e=await navigator.storage.estimate(); text=`Использовано примерно ${formatBytes(e.usage||0)} из ${formatBytes(e.quota||0)}.`;}
+    let persistent='';
+    if(navigator.storage?.persisted){persistent=(await navigator.storage.persisted())?' Хранилище помечено постоянным.':' Постоянное хранение не гарантировано.';}
+    showModal(`<div class="modal-head"><h2>Хранилище</h2><button class="modal-close" data-close>×</button></div><div class="notice">${escapeHTML(text+persistent)}</div><p class="muted">Даже при большом лимите делай резервную копию: пользовательская очистка Safari удаляет локальную базу.</p>`);
+  }
+
+  function showQuickAdd() {
+    showModal(`
+      <div class="modal-head"><h2>Быстро добавить</h2><button class="modal-close" data-close>×</button></div>
+      <div class="card list-card"><button class="list-row quick-measure" style="width:100%;background:transparent;border-left:0;border-right:0;border-top:0;color:inherit"><div class="list-row-main"><div class="list-row-title">Замер тела</div><div class="list-row-sub">Вес, талия, живот и объёмы</div></div><span>＋</span></button><button class="list-row quick-photo" style="width:100%;background:transparent;border:0;color:inherit"><div class="list-row-main"><div class="list-row-title">Фото прогресса</div><div class="list-row-sub">Хранится локально</div></div><span>＋</span></button></div>
+    `);
+    el.modalRoot.querySelector('.quick-measure').addEventListener('click',()=>{closeModal();showMeasurementModal();});
+    el.modalRoot.querySelector('.quick-photo').addEventListener('click',()=>{closeModal();showPhotoModal();});
+  }
+
+  function showModal(content) {
+    el.modalRoot.innerHTML = `<div class="modal-backdrop"><div class="modal"><div class="modal-handle"></div>${content}</div></div>`;
+    el.modalRoot.querySelectorAll('[data-close]').forEach((x)=>x.addEventListener('click',closeModal));
+    el.modalRoot.querySelector('.modal-backdrop').addEventListener('click',(e)=>{if(e.target.classList.contains('modal-backdrop'))closeModal();});
+  }
+
+  function closeModal() { el.modalRoot.innerHTML=''; }
+
+  function showMeasurementsQuick() { showMeasurementModal(); }
+
+  function bindGoButtons() { el.main.querySelectorAll('[data-go]').forEach((button)=>button.addEventListener('click',()=>navigate(button.dataset.go))); }
+
+  function showStorageWarningIfNeeded() {}
+
+  async function saveDraftWorkout() { if(state.currentWorkout) await DB.put('meta',{key:'draftWorkout',value:state.currentWorkout}); }
+  let draftSaveTimer=null;
+  function debounceDraftSave(){clearTimeout(draftSaveTimer);draftSaveTimer=setTimeout(saveDraftWorkout,350);updateWorkoutProgress();}
+  async function restoreDraftWorkout(){const row=await DB.get('meta','draftWorkout');if(row?.value?.status==='in_progress')state.currentWorkout=row.value;}
+
+  function findLastExerciseResult(exerciseId) {
+    for (const workout of state.workouts) {
+      const result = workout.exercises?.find((r)=>r.exerciseId===exerciseId && !r.skipped && r.sets?.some((s)=>s.completed));
+      if (result) return { ...result, workoutDate: workout.startedAt };
+    }
+    return null;
+  }
+
+  function summarizePrevious(result) {
+    const completed=result.sets.filter((s)=>s.completed);
+    if(!completed.length)return '';
+    if(result.defaults?.unit==='minutes')return `${completed[0].durationMin} мин`;
+    if(result.defaults?.unit==='seconds')return `${completed.map((s)=>s.durationSec).join('/') } сек`;
+    const weights=completed.map((s)=>Number(s.weightKg)||0);const reps=completed.map((s)=>Number(s.reps)||0);
+    return `${Math.max(...weights)} кг · ${reps.join('/')}`;
+  }
+
+  function progressionSuggestion(exercise,last) {
+    if(!last)return {kind:'start',weightKg:exercise.defaults.weightKg??null,text:'Введи первый рабочий вес'};
+    if(exercise.defaults.unit!=='reps')return {kind:'same',weightKg:null,text:'Повтори прошлую длительность'};
+    const completed=last.sets.filter((s)=>s.completed);if(!completed.length)return {kind:'reduce',weightKg:null,text:'Начни спокойно'};
+    const base=Math.max(...completed.map((s)=>Number(s.weightKg)||0));
+    const days=Math.floor((Date.now()-new Date(last.workoutDate).getTime())/86400000);
+    if(days>30)return {kind:'reduce',weightKg:roundHalf(base*0.8),text:'Перерыв >30 дней: −20%'};
+    if(days>14)return {kind:'reduce',weightKg:roundHalf(base*0.9),text:'После перерыва: −10%'};
+    const diff=completed.map((s)=>s.difficulty);
+    if(completed.length===last.sets.length && diff.every((x)=>x==='easy')){const next=roundHalf(base>0?base*1.025+0.25:base);return {kind:'increase',weightKg:next,text:base>0?`Попробуй ${next} кг или +1–2 повтора`:'Добавь 1–2 повтора'};}
+    if(diff.some((x)=>x==='failure') || completed.length<last.sets.length){const next=base>0?roundHalf(base*0.95):base;return {kind:'reduce',weightKg:next,text:base>0?`Спокойнее: около ${next} кг`:'Снизь повторы'};}
+    if(diff.some((x)=>x==='hard'))return {kind:'same',weightKg:base,text:`Оставь ${base || 'тот же'} кг`};
+    return {kind:'same',weightKg:base,text:`Повтори ${base || 'тот же вес'} кг`};
+  }
+
+  function postWorkoutSuggestion(result){
+    const done=result.sets.filter((s)=>s.completed); if(result.skipped||!done.length)return {kind:'reduce',text:'В следующий раз начать легче'};
+    if(done.length===result.sets.length && done.every((s)=>s.difficulty==='easy'))return {kind:'increase',text:'Добавить вес или 1–2 повтора'};
+    if(done.some((s)=>s.difficulty==='failure')||done.length<result.sets.length)return {kind:'reduce',text:'Снизить вес/повторы на 5–10%'};
+    if(done.some((s)=>s.difficulty==='hard'))return {kind:'same',text:'Сохранить нагрузку'};
+    return {kind:'same',text:'Повторить нагрузку'};
+  }
+
+  function workoutCompletion(workout){const sets=workout.exercises.filter((x)=>!x.skipped).flatMap((x)=>x.sets);if(!sets.length)return 0;return Math.round(sets.filter((s)=>s.completed).length/sets.length*100);}
+  function calculateLoad(workout){return Math.round(workout.exercises.reduce((sum,r)=>sum+r.sets.reduce((s,set)=>s+(set.completed?(Number(set.weightKg)||0)*(Number(set.reps)||0):0),0),0));}
+  function workoutsSince(date){return state.workouts.filter((w)=>new Date(w.startedAt)>=date);}
+  function avgCompletion(workouts){if(!workouts.length)return 0;return workouts.reduce((s,w)=>s+(w.completionPct??workoutCompletion(w)),0)/workouts.length;}
+  function calculateStreak(){const dates=[...new Set(state.workouts.filter((w)=>w.status==='completed').map((w)=>localDateISO(new Date(w.startedAt))))].sort().reverse();if(!dates.length)return 0;let streak=0;let cursor=startOfDay(new Date());const latest=new Date(`${dates[0]}T00:00:00`);if((cursor-latest)/86400000>1)return 0;cursor=latest;for(const date of dates){const d=new Date(`${date}T00:00:00`);if(Math.round((cursor-d)/86400000)===0){streak++;cursor=new Date(cursor.getTime()-86400000);}else if(Math.round((cursor-d)/86400000)>0)break;}return streak;}
+
+  function strengthSeries(exerciseId){return state.workouts.slice().reverse().flatMap((w)=>{const r=w.exercises.find((x)=>x.exerciseId===exerciseId);if(!r)return[];const max=Math.max(0,...r.sets.filter((s)=>s.completed).map((s)=>Number(s.weightKg)||0));return max?[{date:localDateISO(new Date(w.startedAt)),value:max}]:[];});}
+  function stepperSeries(){return state.workouts.slice().reverse().map((w)=>{let value=0;for(const r of w.exercises){const ex=getExercise(r.exerciseId);if(ex?.equipment==='Степпер')value+=r.sets.filter((s)=>s.completed).reduce((sum,s)=>sum+(Number(s.durationMin)||0),0);}return{date:localDateISO(new Date(w.startedAt)),value};}).filter((x)=>x.value>0);}
+  function aggregateWeeks(count){const rows=[];const now=startOfWeek(new Date());for(let i=count-1;i>=0;i--){const start=new Date(now.getTime()-i*7*86400000);const end=new Date(start.getTime()+7*86400000);rows.push({label:`${start.getDate()}.${start.getMonth()+1}`,count:state.workouts.filter((w)=>new Date(w.startedAt)>=start&&new Date(w.startedAt)<end).length});}return rows;}
+
+  function lineChart(data,key,unit,dateKey='date'){
+    if(!data.length)return '<div class="empty"><strong>Пока нет данных</strong>Добавь хотя бы два значения.</div>';
+    const width=600,height=200,pad=34;const values=data.map((x)=>Number(x[key])).filter(Number.isFinite);const min=Math.min(...values),max=Math.max(...values);const span=max-min||1;const x=(i)=>pad+(i/(Math.max(data.length-1,1)))*(width-pad*2);const y=(v)=>height-pad-((v-min)/span)*(height-pad*2);
+    const path=data.map((d,i)=>`${i?'L':'M'} ${x(i)} ${y(Number(d[key]))}`).join(' ');
+    return `<div class="chart"><svg viewBox="0 0 ${width} ${height}" role="img"><line class="chart-grid" x1="${pad}" x2="${width-pad}" y1="${height-pad}" y2="${height-pad}"/><line class="chart-grid" x1="${pad}" x2="${width-pad}" y1="${pad}" y2="${pad}"/><path class="chart-line" d="${path}"/>${data.map((d,i)=>`<circle class="chart-dot" cx="${x(i)}" cy="${y(Number(d[key]))}" r="5"/><text class="chart-label" x="${x(i)}" y="${height-10}" text-anchor="middle">${formatTinyDate(d[dateKey])}</text>`).join('')}<text class="chart-label" x="6" y="${pad+4}">${max.toFixed(1)} ${unit}</text><text class="chart-label" x="6" y="${height-pad+4}">${min.toFixed(1)}</text></svg></div>`;
+  }
+
+  function barChart(data,unit){if(!data.length)return '<div class="empty">Нет данных</div>';const width=600,height=200,pad=32,max=Math.max(1,...data.map((x)=>x.value));const slot=(width-pad*2)/data.length;return `<div class="chart"><svg viewBox="0 0 ${width} ${height}">${data.map((d,i)=>{const h=(d.value/max)*(height-pad*2);const x=pad+i*slot+slot*.2;const y=height-pad-h;return `<rect x="${x}" y="${y}" width="${slot*.6}" height="${h}" rx="6" fill="#c7ff2f"/><text class="chart-label" x="${x+slot*.3}" y="${Math.max(y-6,12)}" text-anchor="middle">${d.value}</text><text class="chart-label" x="${x+slot*.3}" y="${height-10}" text-anchor="middle">${d.label}</text>`;}).join('')}<text class="chart-label" x="6" y="14">${unit}</text></svg></div>`;}
+
+  function showQuickAddOld() {}
+
+  function updateOnlineStatus(){el.offline.hidden=navigator.onLine;}
+  async function registerServiceWorker(){if('serviceWorker'in navigator){try{await navigator.serviceWorker.register('./service-worker.js');}catch(error){console.warn('SW registration failed',error);}}}
+
+  function downloadBlob(blob,filename){const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);}
+  function revokePhotoUrls(){for(const url of state.photoUrls.values())URL.revokeObjectURL(url);state.photoUrls.clear();}
+  function toast(message){el.toast.textContent=message;el.toast.hidden=false;clearTimeout(state.toastTimer);state.toastTimer=setTimeout(()=>{el.toast.hidden=true;},2600);}
+  function formatBytes(bytes){if(!bytes)return'0 Б';const units=['Б','КБ','МБ','ГБ'];const i=Math.min(Math.floor(Math.log(bytes)/Math.log(1024)),3);return`${(bytes/1024**i).toFixed(i?1:0)} ${units[i]}`;}
+  function formatCompactLoad(value){if(value>=10000)return`${(value/1000).toFixed(1)}k`;return Math.round(value).toString();}
+  function formatDuration(seconds){seconds=Math.max(0,Math.floor(Number(seconds)||0));const h=Math.floor(seconds/3600),m=Math.floor(seconds%3600/60),s=seconds%60;return h?`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`:`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;}
+  function elapsedSeconds(start){return Math.max(0,Math.floor((Date.now()-new Date(start).getTime())/1000));}
+  function todayISO(){return localDateISO(new Date());}
+  function localDateISO(date){const y=date.getFullYear(),m=String(date.getMonth()+1).padStart(2,'0'),d=String(date.getDate()).padStart(2,'0');return`${y}-${m}-${d}`;}
+  function formatDate(date,options){return new Intl.DateTimeFormat('ru-RU',options).format(date);}
+  function formatShortDate(value){const date=value instanceof Date?value:new Date(`${value}T00:00:00`);return new Intl.DateTimeFormat('ru-RU',{day:'2-digit',month:'2-digit',year:'2-digit'}).format(date);}
+  function formatTinyDate(value){const date=value instanceof Date?value:new Date(`${value}T00:00:00`);return`${date.getDate()}.${date.getMonth()+1}`;}
+  function photoCategoryLabel(value){return({front:'Спереди',side:'Сбоку',back:'Сзади'})[value]||value;}
+  function startOfDay(date){return new Date(date.getFullYear(),date.getMonth(),date.getDate());}
+  function startOfWeek(date){const d=startOfDay(date);const day=(d.getDay()+6)%7;return new Date(d.getTime()-day*86400000);}
+  function uid(prefix='id'){return`${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,9)}`;}
+  function clone(value){return JSON.parse(JSON.stringify(value));}
+  function roundHalf(value){return Math.round(value*2)/2;}
+  function numberOrBlank(value){return value===''?'':Number(value);}
+  function numberOrNull(value){return value===''?null:Number(value);}
+  function escapeHTML(value=''){return String(value).replace(/[&<>'"]/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[c]));}
+  function escapeAttr(value=''){return escapeHTML(value).replace(/`/g,'&#096;');}
+})();

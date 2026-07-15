@@ -1,0 +1,258 @@
+(() => {
+  const ex = (id, name, group, equipment, defaults, extra = {}) => ({
+    id,
+    name,
+    group,
+    equipment,
+    defaults: {
+      sets: 3,
+      repsMin: 8,
+      repsMax: 12,
+      restSec: 75,
+      weightKg: null,
+      unit: 'reps',
+      ...defaults,
+    },
+    notes: '',
+    safety: '',
+    replacements: [],
+    ...extra,
+  });
+
+  const exercises = [
+    ex('warmup-joints', 'Суставная разминка', 'Разминка', 'Собственный вес', { sets: 1, unit: 'minutes', durationMin: 6, restSec: 0 }, { notes: 'Шея, плечи, локти, таз, колени, голеностоп. Без резких движений.' }),
+    ex('stepper-easy', 'Степпер — лёгкий темп', 'Кардио', 'Степпер', { sets: 1, unit: 'minutes', durationMin: 20, restSec: 0 }, { notes: 'Темп, при котором можно говорить короткими фразами.' }),
+    ex('stepper-intervals', 'Степпер — интервалы', 'Кардио', 'Степпер', { sets: 1, unit: 'minutes', durationMin: 20, restSec: 0 }, { notes: '1 минута бодро / 1 минута спокойно. Степпер без поручня: держать корпус собранным.' }),
+    ex('stepper-short', 'Степпер — короткий финишер', 'Кардио', 'Степпер', { sets: 1, unit: 'minutes', durationMin: 8, restSec: 0 }),
+
+    ex('pushups', 'Отжимания', 'Грудь / трицепс', 'Собственный вес', { sets: 3, repsMin: 8, repsMax: 20, restSec: 75 }, { replacements: ['db-floor-press', 'chair-incline-pushups'], notes: 'Оставляй 1–3 повтора в запасе, не проваливай поясницу.' }),
+    ex('chair-incline-pushups', 'Отжимания от стула', 'Грудь / трицепс', 'Стул', { sets: 3, repsMin: 10, repsMax: 20, restSec: 60 }, { replacements: ['pushups', 'db-floor-press'] }),
+    ex('db-floor-press', 'Жим гантелей лёжа на полу', 'Грудь / трицепс', 'Гантели + коврик', { sets: 4, repsMin: 8, repsMax: 12, restSec: 90 }, { replacements: ['pushups', 'machine-chest-press'], notes: 'Локти не разводить строго в стороны; касание пола мягкое.' }),
+    ex('machine-chest-press', 'Жим от себя в тренажёре', 'Грудь / трицепс', 'Мультитренажёр', { sets: 4, repsMin: 8, repsMax: 12, restSec: 90 }, { replacements: ['db-floor-press', 'pushups'] }),
+    ex('pec-deck', 'Бабочка в тренажёре', 'Грудь', 'Мультитренажёр', { sets: 3, repsMin: 10, repsMax: 15, restSec: 60 }, { replacements: ['db-fly-floor', 'pushups'] }),
+    ex('db-fly-floor', 'Разводка гантелей лёжа', 'Грудь', 'Гантели + коврик', { sets: 3, repsMin: 10, repsMax: 15, restSec: 60 }, { replacements: ['pec-deck', 'pushups'], notes: 'Небольшой сгиб локтя, амплитуда без боли в плечах.' }),
+    ex('db-shoulder-press', 'Жим гантелей сидя', 'Плечи / трицепс', 'Гантели + стул', { sets: 3, repsMin: 8, repsMax: 12, restSec: 90 }, { replacements: ['machine-chest-press', 'pike-pushups'], safety: 'При качке выполнять только сидя с устойчивой опорой.' }),
+    ex('pike-pushups', 'Отжимания уголком', 'Плечи / трицепс', 'Собственный вес', { sets: 3, repsMin: 6, repsMax: 12, restSec: 75 }, { replacements: ['db-shoulder-press'] }),
+    ex('lateral-raise', 'Подъёмы гантелей в стороны', 'Плечи', 'Гантели', { sets: 3, repsMin: 12, repsMax: 18, restSec: 60 }, { replacements: ['rear-delt-fly'] }),
+    ex('rear-delt-fly', 'Разведения гантелей в наклоне', 'Задняя дельта / верх спины', 'Гантели', { sets: 3, repsMin: 12, repsMax: 18, restSec: 60 }, { replacements: ['lateral-raise', 'face-pull-machine'] }),
+    ex('face-pull-machine', 'Тяга каната к лицу', 'Задняя дельта / верх спины', 'Мультитренажёр', { sets: 3, repsMin: 12, repsMax: 18, restSec: 60 }, { replacements: ['rear-delt-fly'] }),
+
+    ex('one-arm-row', 'Тяга гантели одной рукой', 'Спина / бицепс', 'Гантель + стул', { sets: 4, repsMin: 8, repsMax: 12, restSec: 75 }, { replacements: ['seated-row-machine', 'barbell-row'], safety: 'Опирайся на стул; при качке не выполнять без устойчивой опоры.' }),
+    ex('barbell-row', 'Тяга штанги в наклоне', 'Спина / бицепс', 'Штанга', { sets: 3, repsMin: 8, repsMax: 12, restSec: 90 }, { replacements: ['one-arm-row', 'seated-row-machine'], safety: 'Без рывков и задержки дыхания. При дискомфорте в паху или пояснице заменить.' }),
+    ex('lat-pulldown', 'Тяга верхнего блока к груди', 'Спина / бицепс', 'Мультитренажёр', { sets: 4, repsMin: 8, repsMax: 12, restSec: 90 }, { replacements: ['one-arm-row', 'db-pullover'] }),
+    ex('seated-row-machine', 'Тяга нижнего блока сидя', 'Спина / бицепс', 'Мультитренажёр', { sets: 4, repsMin: 8, repsMax: 12, restSec: 90 }, { replacements: ['one-arm-row', 'barbell-row'] }),
+    ex('db-pullover', 'Пуловер с гантелью лёжа', 'Широчайшие / грудь', 'Гантель + коврик', { sets: 3, repsMin: 10, repsMax: 15, restSec: 75 }, { replacements: ['lat-pulldown'] }),
+    ex('shrugs', 'Шраги с гантелями', 'Трапеции / хват', 'Гантели', { sets: 3, repsMin: 12, repsMax: 18, restSec: 60 }, { replacements: ['farmer-hold'] }),
+    ex('farmer-hold', 'Удержание гантелей', 'Хват / предплечья / кор', 'Гантели', { sets: 3, unit: 'seconds', durationSec: 35, restSec: 60 }, { replacements: ['suitcase-hold'], safety: 'При качке выполнять стоя у опоры или заменить.' }),
+    ex('suitcase-hold', 'Удержание гантели одной рукой', 'Кор / хват', 'Гантель', { sets: 3, unit: 'seconds', durationSec: 30, restSec: 45 }, { replacements: ['farmer-hold', 'side-plank'] }),
+
+    ex('barbell-curl', 'Сгибание рук со штангой', 'Бицепс', 'Штанга', { sets: 3, repsMin: 8, repsMax: 12, restSec: 75 }, { replacements: ['db-curl', 'hammer-curl'] }),
+    ex('db-curl', 'Сгибание рук с гантелями', 'Бицепс', 'Гантели', { sets: 3, repsMin: 10, repsMax: 15, restSec: 60 }, { replacements: ['barbell-curl', 'hammer-curl'] }),
+    ex('hammer-curl', 'Молотковые сгибания', 'Бицепс / предплечья', 'Гантели', { sets: 3, repsMin: 10, repsMax: 15, restSec: 60 }, { replacements: ['db-curl', 'reverse-curl'] }),
+    ex('reverse-curl', 'Обратные сгибания', 'Предплечья / бицепс', 'Штанга или гантели', { sets: 3, repsMin: 10, repsMax: 15, restSec: 60 }, { replacements: ['hammer-curl'] }),
+    ex('overhead-triceps', 'Разгибание гантели из-за головы', 'Трицепс', 'Гантель + стул', { sets: 3, repsMin: 10, repsMax: 15, restSec: 60 }, { replacements: ['close-pushups', 'triceps-pushdown'] }),
+    ex('close-pushups', 'Узкие отжимания', 'Трицепс / грудь', 'Собственный вес', { sets: 3, repsMin: 6, repsMax: 15, restSec: 75 }, { replacements: ['overhead-triceps', 'chair-incline-pushups'] }),
+    ex('triceps-pushdown', 'Разгибание рук на блоке', 'Трицепс', 'Мультитренажёр', { sets: 3, repsMin: 10, repsMax: 15, restSec: 60 }, { replacements: ['overhead-triceps', 'close-pushups'] }),
+
+    ex('goblet-squat', 'Присед с гантелью', 'Ноги / ягодицы', 'Гантель', { sets: 4, repsMin: 10, repsMax: 15, restSec: 90 }, { replacements: ['chair-squat', 'barbell-squat'], safety: 'Не задерживать дыхание. При дискомфорте в паху уменьшить вес/амплитуду.' }),
+    ex('chair-squat', 'Присед до стула', 'Ноги / ягодицы', 'Стул / собственный вес', { sets: 3, repsMin: 12, repsMax: 20, restSec: 60 }, { replacements: ['goblet-squat'] }),
+    ex('barbell-squat', 'Присед со штангой', 'Ноги / ягодицы', 'Штанга', { sets: 4, repsMin: 8, repsMax: 12, restSec: 120 }, { replacements: ['goblet-squat', 'chair-squat'], safety: 'Не включён в короткие тренировки. После операции на паховой грыже — без максимальных весов, без натуживания.' }),
+    ex('romanian-deadlift', 'Румынская тяга', 'Задняя цепь / ягодицы', 'Штанга или гантели', { sets: 4, repsMin: 8, repsMax: 12, restSec: 90 }, { replacements: ['good-morning-bodyweight', 'hip-thrust'], safety: 'Без задержки дыхания. Если тянет пах/поясницу — остановить и заменить.' }),
+    ex('good-morning-bodyweight', 'Наклоны «доброе утро» без веса', 'Задняя цепь', 'Собственный вес', { sets: 3, repsMin: 12, repsMax: 18, restSec: 60 }, { replacements: ['romanian-deadlift'] }),
+    ex('bulgarian-split-squat', 'Болгарские выпады', 'Ноги / ягодицы', 'Гантели + стул', { sets: 3, repsMin: 8, repsMax: 12, restSec: 75 }, { replacements: ['reverse-lunge', 'chair-squat'], safety: 'При качке заменить на присед до стула или выпады с опорой.' }),
+    ex('reverse-lunge', 'Обратные выпады', 'Ноги / ягодицы', 'Гантели или собственный вес', { sets: 3, repsMin: 10, repsMax: 12, restSec: 75 }, { replacements: ['bulgarian-split-squat', 'chair-squat'] }),
+    ex('hip-thrust', 'Ягодичный мост', 'Ягодицы / задняя цепь', 'Коврик / стул / вес', { sets: 4, repsMin: 10, repsMax: 15, restSec: 75 }, { replacements: ['single-leg-bridge', 'romanian-deadlift'] }),
+    ex('single-leg-bridge', 'Ягодичный мост на одной ноге', 'Ягодицы / задняя цепь', 'Коврик', { sets: 3, repsMin: 10, repsMax: 15, restSec: 60 }, { replacements: ['hip-thrust'] }),
+    ex('calf-raise', 'Подъёмы на носки', 'Икры', 'Гантели / стул', { sets: 4, repsMin: 15, repsMax: 25, restSec: 45 }, { replacements: ['stepper-short'] }),
+    ex('wall-sit', 'Стульчик у стены', 'Квадрицепсы / ягодицы', 'Стена', { sets: 3, unit: 'seconds', durationSec: 45, restSec: 60 }, { replacements: ['chair-squat'] }),
+
+    ex('dead-bug', 'Dead bug', 'Пресс / глубокий кор', 'Коврик', { sets: 3, repsMin: 8, repsMax: 12, restSec: 45 }, { replacements: ['bird-dog', 'reverse-crunch'], notes: 'Поясница прижата, движение медленное.' }),
+    ex('bird-dog', 'Bird dog', 'Кор / поясница', 'Коврик', { sets: 3, repsMin: 8, repsMax: 12, restSec: 45 }, { replacements: ['dead-bug'] }),
+    ex('reverse-crunch', 'Обратные скручивания', 'Нижняя часть пресса', 'Коврик', { sets: 3, repsMin: 10, repsMax: 15, restSec: 45 }, { replacements: ['lying-leg-raise', 'dead-bug'], safety: 'Без рывка тазом и без натуживания.' }),
+    ex('lying-leg-raise', 'Подъём согнутых ног лёжа', 'Нижняя часть пресса', 'Коврик', { sets: 3, repsMin: 10, repsMax: 15, restSec: 45 }, { replacements: ['reverse-crunch', 'dead-bug'] }),
+    ex('side-plank', 'Боковая планка', 'Бока / кор', 'Коврик', { sets: 3, unit: 'seconds', durationSec: 30, restSec: 45 }, { replacements: ['suitcase-hold'] }),
+    ex('front-plank', 'Планка', 'Пресс / кор', 'Коврик', { sets: 3, unit: 'seconds', durationSec: 40, restSec: 45 }, { replacements: ['dead-bug', 'bird-dog'] }),
+    ex('russian-twist', 'Русские повороты без веса', 'Косые мышцы живота', 'Коврик', { sets: 3, repsMin: 12, repsMax: 20, restSec: 45 }, { replacements: ['side-plank', 'suitcase-hold'], safety: 'При дискомфорте в пояснице заменить на анти-ротацию.' }),
+    ex('ab-roller', 'Ролик для пресса с колен', 'Пресс / кор', 'Ролик + коврик', { sets: 2, repsMin: 5, repsMax: 10, restSec: 75 }, { replacements: ['dead-bug', 'front-plank'], safety: 'Не включён по умолчанию: после операции на паховой грыже использовать только без симптомов и без натуживания.' }),
+
+    ex('mobility', 'Мобилизация и растяжка', 'Восстановление', 'Коврик', { sets: 1, unit: 'minutes', durationMin: 10, restSec: 0 }, { notes: 'Грудной отдел, сгибатели бедра, ягодицы, задняя поверхность бедра, плечи.' }),
+    ex('breathing', 'Спокойное дыхание и расслабление', 'Восстановление', 'Коврик', { sets: 1, unit: 'minutes', durationMin: 5, restSec: 0 }),
+  ];
+
+  const item = (exerciseId, overrides = {}) => ({ exerciseId, ...overrides });
+
+  const shipCycle = {
+    id: 'ship-cycle-7',
+    name: 'Судовой цикл — 6 тренировок + восстановление',
+    description: 'Персональный недельный цикл: эстетичная форма, живот и бока, нижняя часть пресса, плотность без чрезмерного набора массы.',
+    createdAt: '2026-07-15T00:00:00.000Z',
+    days: [
+      {
+        id: 'ship-day-1',
+        name: 'Верх тела + пресс',
+        durationMin: 60,
+        focus: 'Грудь, спина, плечи и нижняя часть пресса',
+        exercises: [
+          item('warmup-joints'), item('db-floor-press'), item('one-arm-row'), item('db-shoulder-press'),
+          item('pushups', { sets: 2 }), item('lateral-raise'), item('reverse-crunch'), item('dead-bug', { sets: 2 }),
+        ],
+        short: ['warmup-joints', 'db-floor-press', 'one-arm-row', 'db-shoulder-press', 'reverse-crunch'],
+      },
+      {
+        id: 'ship-day-2',
+        name: 'Ягодицы + задняя цепь',
+        durationMin: 60,
+        focus: 'Ягодицы, задняя поверхность бедра, устойчивый кор',
+        exercises: [
+          item('warmup-joints'), item('romanian-deadlift'), item('hip-thrust'), item('bulgarian-split-squat'),
+          item('single-leg-bridge'), item('calf-raise', { sets: 3 }), item('bird-dog', { sets: 2 }),
+        ],
+        short: ['warmup-joints', 'romanian-deadlift', 'hip-thrust', 'bulgarian-split-squat', 'bird-dog'],
+      },
+      {
+        id: 'ship-day-3',
+        name: 'Пресс, бока + степпер',
+        durationMin: 50,
+        focus: 'Нижняя часть пресса, косые мышцы, выносливость',
+        exercises: [
+          item('warmup-joints', { durationMin: 4 }), item('stepper-intervals'), item('reverse-crunch'),
+          item('side-plank'), item('suitcase-hold'), item('dead-bug'), item('mobility', { durationMin: 6 }),
+        ],
+        short: ['warmup-joints', 'stepper-short', 'reverse-crunch', 'side-plank', 'dead-bug'],
+      },
+      {
+        id: 'ship-day-4',
+        name: 'Спина, бицепс + плечи',
+        durationMin: 60,
+        focus: 'Ширина и плотность спины, руки, плечевой пояс',
+        exercises: [
+          item('warmup-joints'), item('lat-pulldown'), item('seated-row-machine'), item('one-arm-row', { sets: 3 }),
+          item('rear-delt-fly'), item('barbell-curl'), item('hammer-curl'), item('lateral-raise', { sets: 2 }),
+        ],
+        short: ['warmup-joints', 'lat-pulldown', 'one-arm-row', 'barbell-curl', 'rear-delt-fly'],
+      },
+      {
+        id: 'ship-day-5',
+        name: 'Ноги + ягодицы',
+        durationMin: 60,
+        focus: 'Квадрицепсы, ягодицы, икры и общая плотность ног',
+        exercises: [
+          item('warmup-joints'), item('goblet-squat'), item('reverse-lunge'), item('bulgarian-split-squat'),
+          item('hip-thrust', { sets: 3 }), item('calf-raise'), item('wall-sit', { sets: 2 }), item('stepper-short', { durationMin: 6 }),
+        ],
+        short: ['warmup-joints', 'goblet-squat', 'reverse-lunge', 'hip-thrust', 'calf-raise'],
+      },
+      {
+        id: 'ship-day-6',
+        name: 'Круговая тренировка',
+        durationMin: 50,
+        focus: 'Всё тело, кондиции, кор и расход энергии',
+        circuit: { rounds: 4, workSec: 40, transitionSec: 20, restBetweenRoundsSec: 90 },
+        exercises: [
+          item('warmup-joints'), item('chair-squat', { sets: 4, repsMin: 12, repsMax: 15, restSec: 20 }),
+          item('pushups', { sets: 4, repsMin: 8, repsMax: 15, restSec: 20 }),
+          item('one-arm-row', { sets: 4, repsMin: 10, repsMax: 12, restSec: 20 }),
+          item('hip-thrust', { sets: 4, repsMin: 15, repsMax: 20, restSec: 20 }),
+          item('dead-bug', { sets: 4, repsMin: 8, repsMax: 10, restSec: 20 }),
+          item('stepper-short', { durationMin: 8 }),
+        ],
+        short: ['warmup-joints', 'chair-squat', 'pushups', 'one-arm-row', 'dead-bug'],
+      },
+      {
+        id: 'ship-day-7',
+        name: 'Восстановление + степпер',
+        durationMin: 35,
+        focus: 'Восстановиться без полного бездействия',
+        recovery: true,
+        exercises: [item('stepper-easy', { durationMin: 20 }), item('mobility'), item('breathing')],
+        short: ['stepper-easy', 'mobility'],
+      },
+    ],
+  };
+
+  const journal20 = {
+    id: 'journal-20',
+    name: 'Тело в форме 2.0 — цикл на 4 дня',
+    description: 'Сохранённая версия программы из журнала: ноги; грудь/плечи/трицепс; спина/бицепс/хват; руки/икры/бока/пресс.',
+    createdAt: '2026-07-14T00:00:00.000Z',
+    days: [
+      {
+        id: 'j20-d1', name: 'Ноги, икры, бока + кор', durationMin: 80, focus: 'Ноги и устойчивый корпус',
+        exercises: [item('warmup-joints'), item('goblet-squat'), item('romanian-deadlift'), item('bulgarian-split-squat'), item('reverse-lunge'), item('hip-thrust'), item('single-leg-bridge'), item('calf-raise'), item('side-plank'), item('suitcase-hold'), item('russian-twist')],
+        short: ['warmup-joints', 'goblet-squat', 'romanian-deadlift', 'hip-thrust', 'side-plank'],
+      },
+      {
+        id: 'j20-d2', name: 'Грудь, плечи + трицепс', durationMin: 80, focus: 'Жимовой верх тела',
+        exercises: [item('warmup-joints'), item('db-floor-press'), item('machine-chest-press'), item('pushups'), item('pec-deck'), item('db-shoulder-press'), item('lateral-raise'), item('rear-delt-fly'), item('overhead-triceps'), item('triceps-pushdown'), item('close-pushups')],
+        short: ['warmup-joints', 'db-floor-press', 'db-shoulder-press', 'lateral-raise', 'triceps-pushdown'],
+      },
+      {
+        id: 'j20-d3', name: 'Спина, бицепс, предплечья + хват', durationMin: 80, focus: 'Ширина и толщина спины, руки, хват',
+        exercises: [item('warmup-joints'), item('lat-pulldown'), item('seated-row-machine'), item('one-arm-row'), item('barbell-row'), item('shrugs'), item('rear-delt-fly'), item('barbell-curl'), item('db-curl'), item('hammer-curl'), item('reverse-curl'), item('farmer-hold')],
+        short: ['warmup-joints', 'lat-pulldown', 'seated-row-machine', 'barbell-curl', 'farmer-hold'],
+      },
+      {
+        id: 'j20-d4', name: 'Руки, икры, бока + пресс', durationMin: 75, focus: 'Руки, хват, икры и крепкий корпус',
+        exercises: [item('warmup-joints'), item('barbell-curl'), item('hammer-curl'), item('overhead-triceps'), item('triceps-pushdown'), item('calf-raise'), item('side-plank'), item('suitcase-hold'), item('reverse-crunch'), item('front-plank')],
+        short: ['warmup-joints', 'barbell-curl', 'overhead-triceps', 'calf-raise', 'reverse-crunch'],
+      },
+    ],
+  };
+
+  window.NIKITA_SEED = {
+    version: 1,
+    profile: {
+      name: 'Никита',
+      age: 34,
+      heightCm: 173,
+      currentWeightKg: 77,
+      goals: [
+        'Убрать живот и бока',
+        'Укрепить нижнюю часть пресса',
+        'Сделать тело более подтянутым и плотным',
+        'Эстетичная мужская форма без сильного набора массы',
+        'Отслеживать реальный прогресс по весам и повторениям',
+      ],
+      equipment: [
+        'Степпер без поручня',
+        'Регулируемая штанга',
+        'Разборные гантели',
+        'Ролик для пресса',
+        'Стул',
+        'Коврик',
+        'Собственный вес',
+        'Мультитренажёр с верхним/нижним блоком, бабочкой и жимом от себя',
+      ],
+      constraints: [
+        'Работа на ногах и физическая нагрузка на камбузе',
+        'Качка: при плохой устойчивости убирать упражнения стоя с тяжёлым весом',
+        'Паховая грыжа была удалена; не использовать натуживание, задержку дыхания и максимальные веса',
+        'Ролик для пресса не включён в основной план и остаётся ручной опцией',
+      ],
+      progressNote: 'По фото с декабря 2025 по июль 2026 верх тела, плечи и руки стали заметно плотнее. Точные старые замеры и рабочие веса в доступном журнале не зафиксированы — приложение начнёт обучаться после первой сохранённой тренировки.',
+    },
+    nutrition: {
+      trainingCalories: 2700,
+      recoveryCalories: 2500,
+      proteinG: 160,
+      trainingFatG: 80,
+      recoveryFatG: 85,
+      trainingCarbsG: 335,
+      recoveryCarbsG: 274,
+      note: 'Стартовая цель под рекомпозицию. Корректировать на 100–150 ккал по средней массе тела и талии за 14 дней.',
+    },
+    settings: {
+      activeProgramId: shipCycle.id,
+      currentDayIndex: 0,
+      soundEnabled: true,
+      vibrationEnabled: true,
+      theme: 'dark',
+      lastBackupAt: null,
+    },
+    exercises,
+    programs: [shipCycle, journal20],
+    measurements: [
+      { id: 'm-current-2026-07-15', date: '2026-07-15', weightKg: 77, waistCm: null, abdomenCm: null, chestCm: null, hipsCm: null, armCm: null, note: 'Текущие данные на момент создания приложения.' },
+    ],
+  };
+})();

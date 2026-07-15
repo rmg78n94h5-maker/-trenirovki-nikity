@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#0b0d0f" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Тренировки Никиты" />
+  <meta name="format-detection" content="telephone=no" />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+  <link rel="icon" href="./icons/icon-192.png" />
+  <link rel="stylesheet" href="./styles.css" />
+  <title>Тренировки Никиты</title>
+</head>
+<body>
+  <div id="offline-indicator" class="offline-indicator" hidden>Офлайн — данные сохраняются на телефоне</div>
+  <div id="app" class="app-shell">
+    <header class="topbar">
+      <div>
+        <div class="eyebrow" id="topbar-eyebrow">Тренировки Никиты</div>
+        <h1 id="topbar-title">Сегодня</h1>
+      </div>
+      <button id="quick-add-button" class="icon-button" type="button" aria-label="Быстро добавить">＋</button>
+    </header>
+
+    <main id="main" class="main-content" aria-live="polite"></main>
+
+    <nav class="bottom-nav" aria-label="Основная навигация">
+      <button class="nav-item active" data-route="home" type="button"><span class="nav-icon">⌂</span><span>Сегодня</span></button>
+      <button class="nav-item" data-route="plan" type="button"><span class="nav-icon">▦</span><span>План</span></button>
+      <button class="nav-item" data-route="history" type="button"><span class="nav-icon">◷</span><span>История</span></button>
+      <button class="nav-item" data-route="progress" type="button"><span class="nav-icon">↗</span><span>Прогресс</span></button>
+      <button class="nav-item" data-route="more" type="button"><span class="nav-icon">•••</span><span>Ещё</span></button>
+    </nav>
+  </div>
+
+  <div id="modal-root"></div>
+  <div id="toast" class="toast" role="status" hidden></div>
+
+  <div id="rest-timer" class="timer-overlay" hidden>
+    <div class="timer-card">
+      <div class="eyebrow">Отдых</div>
+      <div id="timer-value" class="timer-value">01:00</div>
+      <div id="timer-next" class="muted center">Следующий подход</div>
+      <div class="timer-actions">
+        <button class="button secondary" id="timer-minus" type="button">−15 сек</button>
+        <button class="button secondary" id="timer-plus" type="button">+15 сек</button>
+      </div>
+      <button class="button primary full" id="timer-skip" type="button">Продолжить</button>
+    </div>
+  </div>
+
+  <script src="./seed.js"></script>
+  <script src="./db.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
