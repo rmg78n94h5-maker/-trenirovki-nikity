@@ -49,27 +49,6 @@
     ['failure', 'До отказа'],
   ];
 
-
-  const EXERCISE_GUIDES = {
-    'db-floor-press': {
-      title: 'Техника и подсказки',
-      source: 'Иллюстрации из программы «Тело в форме»',
-      steps: [
-        'Ляг на коврик, согни ноги и уверенно поставь стопы на пол.',
-        'Держи гантели над грудью; локти направь немного ближе к корпусу, а не строго в стороны.',
-        'Медленно опускай руки до мягкого касания локтями пола.',
-        'На выдохе выжми гантели вверх, не сталкивая их и не отрывая плечи от пола.',
-      ],
-      breathing: 'Вдох при опускании, выдох во время жима вверх. Не задерживай дыхание.',
-      mistakes: 'Не бей локтями об пол, не выгибай поясницу, не запрокидывай голову и не разворачивай локти под прямым углом к корпусу.',
-      tip: 'Оставляй 1–3 повтора в запасе. Если плечу неприятно, уменьши вес и сильнее приблизь локти к корпусу.',
-      images: [
-        { src: './exercise-media/db-floor-press-start.webp', alt: 'Жим гантелей лёжа на полу — нижняя точка', label: 'Старт · нижняя точка' },
-        { src: './exercise-media/db-floor-press-finish.webp', alt: 'Жим гантелей лёжа на полу — верхняя точка', label: 'Финиш · руки выжаты вверх' },
-      ],
-    },
-  };
-
   document.addEventListener('DOMContentLoaded', init);
 
   async function init() {
@@ -155,9 +134,9 @@
     el.timerPlus.addEventListener('click', () => adjustTimer(15));
     el.timerSkip.addEventListener('click', stopRestTimer);
     el.main.addEventListener('click', (event) => {
-      const button = event.target.closest('.exercise-guide-image-button');
+      const button = event.target.closest('.guide-image-button');
       if (!button) return;
-      showExerciseImageLightbox(button.dataset.exerciseId, Number(button.dataset.imageIndex || 0));
+      showGuideImage(button.dataset.exerciseId);
     });
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden && state.timer.endsAt) syncTimerFromEnd();
@@ -209,92 +188,65 @@
     return state.exercises.find((exercise) => exercise.id === id);
   }
 
+  function getExerciseGuide(exerciseId) {
+    return window.EXERCISE_GUIDES?.[exerciseId] || null;
+  }
 
-  function renderExerciseGuide(exerciseId) {
-    const guide = EXERCISE_GUIDES[exerciseId];
-    if (!guide) return '';
+  function renderGuideBody(exerciseId, compact = false) {
+    const guide = getExerciseGuide(exerciseId);
+    if (!guide) return '<div class="help">Описание для этого упражнения пока не добавлено.</div>';
     return `
-      <details class="exercise-guide">
-        <summary>
-          <span class="exercise-guide-summary-text"><span aria-hidden="true">ⓘ</span> ${escapeHTML(guide.title)}</span>
-          <span class="exercise-guide-chevron" aria-hidden="true">⌄</span>
-        </summary>
-        <div class="exercise-guide-body">
-          <div class="exercise-guide-images">
-            ${guide.images.map((image, imageIndex) => `
-              <figure class="exercise-guide-figure">
-                <button type="button" class="exercise-guide-image-button" data-exercise-id="${escapeAttr(exerciseId)}" data-image-index="${imageIndex}" aria-label="Открыть изображение: ${escapeAttr(image.label)}">
-                  <img src="${escapeAttr(image.src)}" alt="${escapeAttr(image.alt)}" loading="lazy" decoding="async">
-                  <span class="exercise-guide-zoom" aria-hidden="true">⛶</span>
-                </button>
-                <figcaption>${escapeHTML(image.label)}</figcaption>
-              </figure>
-            `).join('')}
-          </div>
-          <div class="exercise-guide-section">
-            <h4>Как выполнять</h4>
-            <ol>${guide.steps.map((step) => `<li>${escapeHTML(step)}</li>`).join('')}</ol>
-          </div>
-          <div class="exercise-guide-facts">
-            <div><strong>Дыхание</strong><span>${escapeHTML(guide.breathing)}</span></div>
-            <div><strong>Частые ошибки</strong><span>${escapeHTML(guide.mistakes)}</span></div>
-            <div><strong>Подсказка</strong><span>${escapeHTML(guide.tip)}</span></div>
-          </div>
-          <div class="exercise-guide-source">${escapeHTML(guide.source)}</div>
+      <div class="guide-body ${compact ? 'compact' : ''}">
+        <button class="guide-image-button" type="button" data-exercise-id="${escapeAttr(exerciseId)}" aria-label="Открыть изображение крупно">
+          <img src="${escapeAttr(guide.image)}" alt="Иллюстрация техники упражнения" loading="lazy" decoding="async">
+          <span class="guide-zoom" aria-hidden="true">⛶</span>
+        </button>
+        <div class="guide-image-caption">${escapeHTML(guide.imageLabel)} · «Тело в форме 2.0», стр. ${guide.sourcePage}</div>
+        ${guide.sourceNote ? `<div class="guide-source-note">${escapeHTML(guide.sourceNote)}</div>` : ''}
+        <div class="guide-section">
+          <h4>Как выполнять</h4>
+          <ol>${guide.steps.map((step) => `<li>${escapeHTML(step)}</li>`).join('')}</ol>
         </div>
+        <div class="guide-facts">
+          <div><strong>Дыхание</strong><span>${escapeHTML(guide.breathing)}</span></div>
+          <div><strong>Частые ошибки</strong><span>${escapeHTML(guide.mistakes)}</span></div>
+          <div><strong>Подсказка</strong><span>${escapeHTML(guide.tip)}</span></div>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderHomeExercise(entry, index) {
+    const exercise = getExercise(entry.exerciseId);
+    return `
+      <details class="home-exercise-details">
+        <summary class="exercise-line">
+          <span class="exercise-index">${index + 1}</span>
+          <div><div class="exercise-name">${escapeHTML(exercise?.name || entry.exerciseId)}</div><div class="exercise-sub">${workPrescription(exercise, entry)}</div></div>
+          <span class="exercise-chevron" aria-hidden="true">⌄</span>
+        </summary>
+        <div class="home-guide-wrap">${renderGuideBody(entry.exerciseId, true)}</div>
       </details>
     `;
   }
 
-  function showExerciseImageLightbox(exerciseId, startIndex = 0) {
-    const guide = EXERCISE_GUIDES[exerciseId];
-    if (!guide?.images?.length) return;
-
-    let currentIndex = Math.max(0, Math.min(Number(startIndex) || 0, guide.images.length - 1));
-    let touchStartX = 0;
-
-    const renderLightbox = () => {
-      const image = guide.images[currentIndex];
-      el.modalRoot.innerHTML = `
-        <div class="exercise-lightbox" role="dialog" aria-modal="true" aria-label="${escapeAttr(guide.title)}">
-          <div class="exercise-lightbox-top">
-            <div class="exercise-lightbox-count">${currentIndex + 1} / ${guide.images.length}</div>
-            <button type="button" class="exercise-lightbox-close" aria-label="Закрыть">×</button>
-          </div>
-          <div class="exercise-lightbox-stage">
-            ${guide.images.length > 1 ? '<button type="button" class="exercise-lightbox-nav prev" aria-label="Предыдущее изображение">‹</button>' : ''}
-            <img class="exercise-lightbox-image" src="${escapeAttr(image.src)}" alt="${escapeAttr(image.alt)}">
-            ${guide.images.length > 1 ? '<button type="button" class="exercise-lightbox-nav next" aria-label="Следующее изображение">›</button>' : ''}
-          </div>
-          <div class="exercise-lightbox-caption">${escapeHTML(image.label)}</div>
-          <div class="exercise-lightbox-hint">Нажми ×, чтобы закрыть${guide.images.length > 1 ? ' · листай стрелками или свайпом' : ''}</div>
+  function showGuideImage(exerciseId) {
+    const guide = getExerciseGuide(exerciseId);
+    if (!guide) return;
+    el.modalRoot.innerHTML = `
+      <div class="guide-lightbox" role="dialog" aria-modal="true" aria-label="Изображение упражнения">
+        <div class="guide-lightbox-top">
+          <div class="guide-lightbox-title">«Тело в форме 2.0» · стр. ${guide.sourcePage}</div>
+          <button type="button" class="guide-lightbox-close" aria-label="Закрыть">×</button>
         </div>
-      `;
-
-      const lightbox = el.modalRoot.querySelector('.exercise-lightbox');
-      el.modalRoot.querySelector('.exercise-lightbox-close').addEventListener('click', closeModal);
-      el.modalRoot.querySelector('.exercise-lightbox-prev, .exercise-lightbox-nav.prev')?.addEventListener('click', () => changeImage(-1));
-      el.modalRoot.querySelector('.exercise-lightbox-next, .exercise-lightbox-nav.next')?.addEventListener('click', () => changeImage(1));
-      lightbox.addEventListener('click', (event) => {
-        if (event.target === lightbox) closeModal();
-      });
-      lightbox.addEventListener('touchstart', (event) => {
-        touchStartX = event.changedTouches[0]?.clientX || 0;
-      }, { passive: true });
-      lightbox.addEventListener('touchend', (event) => {
-        const touchEndX = event.changedTouches[0]?.clientX || 0;
-        const delta = touchEndX - touchStartX;
-        if (Math.abs(delta) < 45) return;
-        changeImage(delta < 0 ? 1 : -1);
-      }, { passive: true });
-    };
-
-    const changeImage = (delta) => {
-      currentIndex = (currentIndex + delta + guide.images.length) % guide.images.length;
-      renderLightbox();
-    };
-
-    renderLightbox();
+        <div class="guide-lightbox-stage"><img src="${escapeAttr(guide.image)}" alt="Иллюстрация техники упражнения"></div>
+        <div class="guide-lightbox-caption">${escapeHTML(guide.imageLabel)}</div>
+      </div>
+    `;
+    el.modalRoot.querySelector('.guide-lightbox-close').addEventListener('click', closeModal);
+    el.modalRoot.querySelector('.guide-lightbox').addEventListener('click', (event) => {
+      if (event.target.classList.contains('guide-lightbox')) closeModal();
+    });
   }
 
   function getActiveProgram() {
@@ -373,15 +325,11 @@
             <span class="chip">Серия: ${streak} дн.</span>
           </div>
           <div class="exercise-list">
-            ${day.exercises.slice(0, 6).map((entry, i) => {
-              const exercise = getExercise(entry.exerciseId);
-              return `<div class="exercise-line">
-                <span class="exercise-index">${i + 1}</span>
-                <div><div class="exercise-name">${escapeHTML(exercise?.name || entry.exerciseId)}</div><div class="exercise-sub">${workPrescription(exercise, entry)}</div></div>
-                <span class="muted">›</span>
-              </div>`;
-            }).join('')}
-            ${day.exercises.length > 6 ? `<div class="muted center">Ещё ${day.exercises.length - 6}</div>` : ''}
+            ${day.exercises.slice(0, 6).map((entry, i) => renderHomeExercise(entry, i)).join('')}
+            ${day.exercises.length > 6 ? `
+              <div id="home-extra-exercises" hidden>${day.exercises.slice(6).map((entry, i) => renderHomeExercise(entry, i + 6)).join('')}</div>
+              <button class="show-more-exercises" id="toggle-extra-exercises" type="button">Показать ещё ${day.exercises.length - 6}</button>
+            ` : ''}
           </div>
           <div class="button-row">
             <button class="button primary" id="start-workout">Начать тренировку</button>
@@ -437,6 +385,12 @@
     document.getElementById('start-workout').addEventListener('click', () => startWorkout(false));
     document.getElementById('start-short').addEventListener('click', () => startWorkout(true));
     document.getElementById('add-measurement-home').addEventListener('click', showMeasurementModal);
+    document.getElementById('toggle-extra-exercises')?.addEventListener('click', (event) => {
+      const extra = document.getElementById('home-extra-exercises');
+      const opening = extra.hidden;
+      extra.hidden = !opening;
+      event.currentTarget.textContent = opening ? 'Скрыть дополнительные упражнения' : `Показать ещё ${day.exercises.length - 6}`;
+    });
     bindGoButtons();
     el.main.querySelectorAll('.view-workout').forEach((button) => button.addEventListener('click', () => showWorkoutDetails(button.dataset.id)));
   }
@@ -559,7 +513,10 @@
           <div class="exercise-meta">${escapeHTML(exercise?.equipment || '')} · отдых ${result.defaults.restSec || 0} сек</div>
           <div class="hero-meta">${previous}${suggestion}</div>
           ${exercise?.safety ? `<div class="notice warning" style="margin-top:10px">${escapeHTML(exercise.safety)}</div>` : ''}
-          ${renderExerciseGuide(result.exerciseId)}
+          <details class="exercise-guide">
+            <summary><span>ⓘ Техника и подсказки</span><span class="exercise-chevron" aria-hidden="true">⌄</span></summary>
+            ${renderGuideBody(result.exerciseId)}
+          </details>
           <div class="exercise-tools">
             <button class="button secondary small replace-exercise" data-index="${exerciseIndex}" type="button">Заменить</button>
             <button class="button ghost small skip-exercise" data-index="${exerciseIndex}" type="button">${result.skipped ? 'Вернуть' : 'Пропустить'}</button>
