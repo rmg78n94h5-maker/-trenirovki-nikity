@@ -214,13 +214,7 @@ button { color: inherit; }
 .exercise-guide > summary::-webkit-details-marker { display: none; }
 .guide-body { padding: 12px 13px 14px; border-top: 1px solid var(--line); }
 .guide-body.compact { padding: 10px 0 2px; border-top: 0; }
-.guide-image-button { position: relative; display: block; width: 100%; padding: 0; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: #101315; cursor: zoom-in; }
-.guide-image-button img { display: block; width: 100%; max-height: 330px; object-fit: contain; background: #101315; }
-.guide-body.compact .guide-image-button img { max-height: 260px; }
-.guide-zoom { position: absolute; right: 8px; bottom: 8px; display: grid; place-items: center; width: 31px; height: 31px; border-radius: 10px; background: var(--accent); color: #071006; font-size: 17px; font-weight: 950; }
-.guide-image-caption { margin-top: 7px; color: var(--muted); font-size: 12px; text-align: center; }
-.guide-source-note { margin-top: 8px; padding: 9px 10px; border-left: 3px solid var(--accent); border-radius: 8px; background: rgba(199,255,47,.06); color: var(--muted); font-size: 12px; line-height: 1.4; }
-.guide-section { margin-top: 13px; }
+.guide-body.compact .guide-section { margin-top: 13px; }
 .guide-section h4 { margin: 0 0 7px; font-size: 15px; }
 .guide-section ol { margin: 0; padding-left: 21px; color: var(--muted); }
 .guide-section li { margin-bottom: 6px; line-height: 1.45; }
@@ -228,12 +222,27 @@ button { color: inherit; }
 .guide-facts > div { display: grid; gap: 4px; padding: 9px 10px; border-radius: 11px; background: rgba(255,255,255,.035); }
 .guide-facts strong { color: var(--accent); font-size: 13px; }
 .guide-facts span { color: var(--muted); font-size: 13px; line-height: 1.4; }
-.guide-lightbox { position: fixed; inset: 0; z-index: 150; display: grid; grid-template-rows: auto 1fr auto; min-height: 100dvh; padding: max(12px, env(safe-area-inset-top)) 12px max(16px, env(safe-area-inset-bottom)); background: rgba(0,0,0,.97); color: white; }
-.guide-lightbox-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; }
-.guide-lightbox-title { color: rgba(255,255,255,.72); font-size: 13px; font-weight: 800; }
-.guide-lightbox-close { display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid rgba(255,255,255,.2); border-radius: 14px; background: rgba(255,255,255,.1); color: white; font-size: 30px; }
-.guide-lightbox-stage { display: grid; place-items: center; min-height: 0; overflow: hidden; }
-.guide-lightbox-stage img { display: block; max-width: 100%; max-height: calc(100dvh - 130px); object-fit: contain; border-radius: 14px; touch-action: pinch-zoom; }
-.guide-lightbox-caption { padding: 10px 6px 0; text-align: center; font-weight: 800; }
 @media (max-width: 390px) { .home-guide-wrap { padding-left: 0; } }
 
+
+
+/* Текстовые описания упражнений без изображений */
+.home-guide-wrap {
+  padding-top: 2px;
+  padding-bottom: 15px;
+}
+.home-exercise-details[open] > summary {
+  background: rgba(199,255,47,.035);
+}
+.home-exercise-details[open] .exercise-name {
+  color: var(--accent);
+}
+.guide-section.first { margin-top: 0; }
+.guide-body.compact {
+  margin: 0 8px;
+  padding: 12px 13px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(7,9,11,.52);
+}
+.guide-body.compact .guide-facts { margin-top: 12px; }

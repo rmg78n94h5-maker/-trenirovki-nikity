@@ -133,11 +133,6 @@
     el.timerMinus.addEventListener('click', () => adjustTimer(-15));
     el.timerPlus.addEventListener('click', () => adjustTimer(15));
     el.timerSkip.addEventListener('click', stopRestTimer);
-    el.main.addEventListener('click', (event) => {
-      const button = event.target.closest('.guide-image-button');
-      if (!button) return;
-      showGuideImage(button.dataset.exerciseId);
-    });
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden && state.timer.endsAt) syncTimerFromEnd();
     });
@@ -197,13 +192,7 @@
     if (!guide) return '<div class="help">Описание для этого упражнения пока не добавлено.</div>';
     return `
       <div class="guide-body ${compact ? 'compact' : ''}">
-        <button class="guide-image-button" type="button" data-exercise-id="${escapeAttr(exerciseId)}" aria-label="Открыть изображение крупно">
-          <img src="${escapeAttr(guide.image)}" alt="Иллюстрация техники упражнения" loading="lazy" decoding="async">
-          <span class="guide-zoom" aria-hidden="true">⛶</span>
-        </button>
-        <div class="guide-image-caption">${escapeHTML(guide.imageLabel)} · «Тело в форме 2.0», стр. ${guide.sourcePage}</div>
-        ${guide.sourceNote ? `<div class="guide-source-note">${escapeHTML(guide.sourceNote)}</div>` : ''}
-        <div class="guide-section">
+        <div class="guide-section first">
           <h4>Как выполнять</h4>
           <ol>${guide.steps.map((step) => `<li>${escapeHTML(step)}</li>`).join('')}</ol>
         </div>
@@ -230,24 +219,6 @@
     `;
   }
 
-  function showGuideImage(exerciseId) {
-    const guide = getExerciseGuide(exerciseId);
-    if (!guide) return;
-    el.modalRoot.innerHTML = `
-      <div class="guide-lightbox" role="dialog" aria-modal="true" aria-label="Изображение упражнения">
-        <div class="guide-lightbox-top">
-          <div class="guide-lightbox-title">«Тело в форме 2.0» · стр. ${guide.sourcePage}</div>
-          <button type="button" class="guide-lightbox-close" aria-label="Закрыть">×</button>
-        </div>
-        <div class="guide-lightbox-stage"><img src="${escapeAttr(guide.image)}" alt="Иллюстрация техники упражнения"></div>
-        <div class="guide-lightbox-caption">${escapeHTML(guide.imageLabel)}</div>
-      </div>
-    `;
-    el.modalRoot.querySelector('.guide-lightbox-close').addEventListener('click', closeModal);
-    el.modalRoot.querySelector('.guide-lightbox').addEventListener('click', (event) => {
-      if (event.target.classList.contains('guide-lightbox')) closeModal();
-    });
-  }
 
   function getActiveProgram() {
     return state.programs.find((program) => program.id === state.settings.activeProgramId) || state.programs[0];
