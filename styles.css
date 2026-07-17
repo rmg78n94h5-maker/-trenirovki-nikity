@@ -330,3 +330,19 @@ button { color: inherit; }
   background: rgba(7,9,11,.52);
 }
 .guide-body.compact .guide-facts { margin-top: 12px; }
+
+/* v1.2.5 — чистый выбор программ и конструктор */
+.program-tabs { gap: 8px; padding-right: 2px; }
+.program-tabs .tab { max-width: min(76vw, 360px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tab-create { border-color: rgba(199,255,47,.42); color: var(--accent); background: rgba(199,255,47,.08); }
+.program-tabs-help { margin: 6px 2px 0; }
+.plan-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.plan-actions .button.primary { grid-column: 1 / -1; }
+.day-count-picker { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 7px; }
+.day-count-option { min-height: 44px; border-radius: 13px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); font-weight: 900; font-variant-numeric: tabular-nums; }
+.day-count-option.active { background: var(--accent); border-color: var(--accent); color: #080a0c; }
+.compact-empty { padding: 16px 10px; }
+@media (max-width: 360px) {
+  .day-count-picker { gap: 5px; }
+  .day-count-option { min-height: 40px; border-radius: 11px; }
+}

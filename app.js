@@ -259,6 +259,64 @@
     return Boolean(program && !program.ownerProfileId);
   }
 
+  function normalizedProgramName(program) {
+    return String(program?.name || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  }
+
+  function getTemplateForProgram(program) {
+    const templateId = program?.templateId;
+    if (!templateId) return null;
+    return state.allPrograms.find((item) => !item.ownerProfileId && item.id === templateId) || null;
+  }
+
+  function isUntouchedTemplateCopy(program) {
+    if (!program?.ownerProfileId || !program.templateId) return false;
+    const template = getTemplateForProgram(program);
+    return Boolean(template && normalizedProgramName(program) === normalizedProgramName(template));
+  }
+
+  function programChoiceKey(program) {
+    if (!program) return '';
+    if (isProgramTemplate(program)) return `template:${program.id}`;
+    if (isUntouchedTemplateCopy(program)) return `template:${program.templateId}`;
+    return `program:${program.id}`;
+  }
+
+  function programSortTime(program) {
+    return new Date(program?.updatedAt || program?.createdAt || 0).getTime() || 0;
+  }
+
+  function getProgramChoices() {
+    const active = getActiveProgram();
+    const groups = new Map();
+    for (const program of state.programs) {
+      const key = programChoiceKey(program);
+      if (!key) continue;
+      const current = groups.get(key);
+      const currentScore = current ? (current.id === active?.id ? 4 : current.ownerProfileId ? 2 : 1) : 0;
+      const nextScore = (program.id === active?.id ? 4 : program.ownerProfileId ? 2 : 1);
+      const shouldReplace = !current || nextScore > currentScore || (nextScore === currentScore && programSortTime(program) > programSortTime(current));
+      if (shouldReplace) groups.set(key, program);
+    }
+    const choices = [...groups.values()];
+    choices.sort((a, b) => {
+      if (a.id === active?.id) return -1;
+      if (b.id === active?.id) return 1;
+      const aTemplate = isProgramTemplate(a) || isUntouchedTemplateCopy(a);
+      const bTemplate = isProgramTemplate(b) || isUntouchedTemplateCopy(b);
+      if (aTemplate !== bTemplate) return aTemplate ? -1 : 1;
+      return String(a.name || '').localeCompare(String(b.name || ''), 'ru');
+    });
+    return choices;
+  }
+
+  function findPersonalProgramForTemplate(templateId) {
+    const template = state.allPrograms.find((item) => !item.ownerProfileId && item.id === templateId);
+    return state.programs
+      .filter((program) => program.ownerProfileId === state.activeProfileId && program.templateId === templateId && (!template || normalizedProgramName(program) === normalizedProgramName(template)))
+      .sort((a, b) => programSortTime(b) - programSortTime(a))[0] || null;
+  }
+
   async function createPersonalProgramFromTemplate(template, profileId = state.activeProfileId) {
     const personal = clone(template);
     personal.id = uid(`program-${profileId}`);
@@ -276,7 +334,8 @@
   async function ensurePersonalActiveProgram() {
     const active = getActiveProgram();
     if (!active || !isProgramTemplate(active)) return active;
-    const personal = await createPersonalProgramFromTemplate(active);
+    const existing = findPersonalProgramForTemplate(active.id);
+    const personal = existing || await createPersonalProgramFromTemplate(active);
     state.settings.activeProgramId = personal.id;
     state.settings.currentDayIndex = Math.min(Number(state.settings.currentDayIndex || 0), Math.max(personal.days.length - 1, 0));
     await DB.setSettingsObject({
@@ -1035,23 +1094,26 @@
 
   function renderPlan() {
     const active = getActiveProgram();
+    const programChoices = getProgramChoices();
     setTopbar('Недельный план', active.name);
     el.main.innerHTML = `
       <section class="section">
-        <div class="tabs">
-          ${state.programs.map((program) => `<button class="tab ${program.id === active.id ? 'active' : ''} switch-program" data-id="${program.id}">${escapeHTML(program.name)}</button>`).join('')}
+        <div class="tabs program-tabs">
+          ${programChoices.map((program) => `<button class="tab ${program.id === active.id ? 'active' : ''} switch-program" data-id="${program.id}" title="${escapeAttr(program.name)}">${escapeHTML(program.name)}</button>`).join('')}
+          <button class="tab tab-create" id="open-program-builder" type="button">＋ Создать</button>
         </div>
+        <div class="help program-tabs-help">Вверху показываются уникальные программы: стандартные копии больше не размножаются в ленте.</div>
       </section>
       <section class="section">
         <div class="card hero-card">
           <div class="eyebrow">Активная программа</div>
           <h2>${escapeHTML(active.name)}</h2>
-          <p>${escapeHTML(active.description || '')}</p>
+          <p>${escapeHTML(active.description || 'Пустая программа-конструктор: добавь дни и упражнения под себя.')}</p>
           <div class="hero-meta"><span class="chip">${active.days.length} дней в цикле</span><span class="chip">Текущий: ${Number(state.settings.currentDayIndex) + 1}</span></div>
-          <div class="button-row three">
+          <div class="button-row plan-actions">
             <button class="button secondary" id="duplicate-program">Дублировать</button>
             <button class="button secondary" id="add-program-day">Добавить день</button>
-            <button class="button primary" id="new-program">Новая программа</button>
+            <button class="button primary" id="new-program">Создать программу</button>
           </div>
         </div>
       </section>
@@ -1063,7 +1125,7 @@
               <button class="mini-button edit-day" data-index="${index}">✎</button>
             </div>
             <div class="exercise-list">
-              ${day.exercises.map((entry, i) => { const exercise = getExercise(entry.exerciseId); return `<div class="exercise-line"><span class="exercise-index">${i + 1}</span><div><div class="exercise-name">${escapeHTML(exercise?.name || entry.exerciseId)}</div><div class="exercise-sub">${workPrescription(exercise, entry)}</div></div><span class="muted">${exercise?.equipment || ''}</span></div>`; }).join('')}
+              ${day.exercises.length ? day.exercises.map((entry, i) => { const exercise = getExercise(entry.exerciseId); return `<div class="exercise-line"><span class="exercise-index">${i + 1}</span><div><div class="exercise-name">${escapeHTML(exercise?.name || entry.exerciseId)}</div><div class="exercise-sub">${workPrescription(exercise, entry)}</div></div><span class="muted">${escapeHTML(exercise?.equipment || '')}</span></div>`; }).join('') : '<div class="empty compact-empty"><strong>День пустой</strong>Нажми карандаш и добавь упражнения.</div>'}
             </div>
             <div class="button-row">
               <button class="button secondary small start-specific" data-index="${index}">Начать этот день</button>
@@ -1079,12 +1141,15 @@
     document.getElementById('duplicate-program').addEventListener('click', duplicateActiveProgram);
     document.getElementById('add-program-day').addEventListener('click', addProgramDay);
     document.getElementById('new-program').addEventListener('click', showNewProgramModal);
+    document.getElementById('open-program-builder').addEventListener('click', showNewProgramModal);
   }
 
   async function switchProgram(id) {
     let program = state.programs.find((item) => item.id === id);
     if (!program) return;
-    if (isProgramTemplate(program)) program = await createPersonalProgramFromTemplate(program);
+    if (isProgramTemplate(program)) {
+      program = findPersonalProgramForTemplate(program.id) || await createPersonalProgramFromTemplate(program);
+    }
     state.settings.activeProgramId = program.id;
     state.settings.currentDayIndex = 0;
     await DB.setSettingsObject({ activeProgramId: program.id, currentDayIndex: 0 }, state.activeProfileId);
@@ -1114,7 +1179,9 @@
     copy.name = `${active.name} — копия`;
     copy.createdAt = new Date().toISOString();
     copy.ownerProfileId = state.activeProfileId;
-    copy.templateId = active.templateId || active.id;
+    copy.sourceTemplateId = active.templateId || active.sourceTemplateId || (isProgramTemplate(active) ? active.id : null);
+    delete copy.templateId;
+    copy.updatedAt = copy.createdAt;
     copy.days = copy.days.map((day) => ({ ...day, id: uid('day') }));
     await DB.put('programs', copy);
     state.programs.push(copy);
@@ -1125,22 +1192,37 @@
 
   function showNewProgramModal() {
     showModal(`
-      <div class="modal-head"><h2>Новая программа</h2><button class="modal-close" data-close>×</button></div>
+      <div class="modal-head"><h2>Конструктор программы</h2><button class="modal-close" data-close>×</button></div>
       <div class="form-grid">
         <div class="field"><label>Название</label><input id="new-program-name" value="Моя программа"></div>
-        <div class="field"><label>Описание</label><textarea id="new-program-description" placeholder="Для чего эта программа"></textarea></div>
-        <div class="field"><label>Количество дней</label><input id="new-program-days" type="number" min="1" max="14" value="7"></div>
+        <div class="field"><label>Описание</label><textarea id="new-program-description" placeholder="Например: 4 дня, упор на форму, пресс и спину"></textarea></div>
+        <div class="field">
+          <label>Сколько тренировочных дней в цикле</label>
+          <div class="day-count-picker" id="day-count-picker">
+            ${[1,2,3,4,5,6,7].map((n) => `<button class="day-count-option ${n === 4 ? 'active' : ''}" type="button" data-value="${n}">${n}</button>`).join('')}
+          </div>
+          <input id="new-program-days" type="hidden" value="4">
+          <div class="help">После создания откроется пустой план. На каждом дне нажимаешь ✎ и собираешь упражнения, подходы, повторы, вес и отдых.</div>
+        </div>
       </div>
-      <button class="button primary full" id="create-program" style="margin-top:14px">Создать</button>
+      <button class="button primary full" id="create-program" style="margin-top:14px">Создать и открыть план</button>
     `);
+    el.modalRoot.querySelectorAll('.day-count-option').forEach((button) => {
+      button.addEventListener('click', () => {
+        el.modalRoot.querySelectorAll('.day-count-option').forEach((item) => item.classList.toggle('active', item === button));
+        document.getElementById('new-program-days').value = button.dataset.value;
+      });
+    });
     document.getElementById('create-program').addEventListener('click', async () => {
-      const count = Math.max(1, Math.min(14, Number(document.getElementById('new-program-days').value || 7)));
+      const count = Math.max(1, Math.min(7, Number(document.getElementById('new-program-days').value || 4)));
+      const now = new Date().toISOString();
       const program = {
         id: uid('program'),
         name: document.getElementById('new-program-name').value.trim() || 'Моя программа',
-        description: document.getElementById('new-program-description').value.trim(),
+        description: document.getElementById('new-program-description').value.trim() || `${count} тренировочных дн. · собери упражнения под себя`,
         ownerProfileId: state.activeProfileId,
-        createdAt: new Date().toISOString(),
+        createdAt: now,
+        updatedAt: now,
         days: Array.from({ length: count }, (_, i) => ({ id: uid('day'), name: `День ${i + 1}`, durationMin: 45, focus: '', exercises: [], short: [] })),
       };
       await DB.put('programs', program);
@@ -1148,6 +1230,7 @@
       state.allPrograms.push(program);
       closeModal();
       await switchProgram(program.id);
+      toast('Программа создана. Нажимай ✎ и собирай дни.');
     });
   }
 
