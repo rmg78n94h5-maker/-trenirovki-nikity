@@ -346,3 +346,19 @@ button { color: inherit; }
   .day-count-picker { gap: 5px; }
   .day-count-option { min-height: 40px; border-radius: 11px; }
 }
+
+/* v1.3.0 — умный старт */
+.smart-start-card .exercise-list { margin-bottom: 16px; }
+.smart-start-topline { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.smart-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 14px; }
+.smart-actions.primary-line .button.primary { grid-column: 1 / -1; }
+.smart-start-help { margin: 10px 2px 0; line-height: 1.42; }
+.button:disabled { opacity: .45; cursor: not-allowed; }
+.choose-workout-day { width: 100%; border: 0; background: transparent; color: inherit; text-align: left; }
+.choose-workout-day:active { background: rgba(199,255,47,.06); }
+.smart-day-list { overflow: hidden; padding: 0; }
+.small-badge { width: 34px; height: 34px; border-radius: 11px; font-size: 15px; flex: 0 0 34px; }
+@media (max-width: 390px) {
+  .smart-actions { grid-template-columns: 1fr; }
+  .smart-actions.primary-line .button.primary { grid-column: auto; }
+}

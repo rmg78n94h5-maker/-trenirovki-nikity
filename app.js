@@ -378,15 +378,15 @@
     el.main.innerHTML = `
       ${draft ? `
         <section class="section">
-          <div class="card hero-card">
+          <div class="card hero-card smart-start-card draft-card">
             <span class="chip accent">НЕЗАВЕРШЁННАЯ</span>
             <h2>${escapeHTML(draft.dayName)}</h2>
-            <p>Черновик сохранён на телефоне. Новая тренировка не перезапишет его.</p>
+            <p>Черновик сохранён на телефоне. Сначала продолжи его или удали — новая тренировка не перезапишет данные.</p>
             <div class="hero-meta">
               <span class="chip">Выполнено ${workoutCompletion(draft)}%</span>
               <span class="chip">Идёт ${formatDuration(elapsedSeconds(draft.startedAt))}</span>
             </div>
-            <div class="button-row">
+            <div class="button-row smart-actions">
               <button class="button primary" id="resume-draft" type="button">Продолжить черновик</button>
               <button class="button danger" id="delete-draft-home" type="button">Удалить</button>
             </div>
@@ -394,8 +394,11 @@
         </section>
       ` : ''}
       <section class="section">
-        <div class="card hero-card">
-          <span class="chip accent">${day.recovery ? 'ВОССТАНОВЛЕНИЕ' : 'СЕГОДНЯ'}</span>
+        <div class="card hero-card smart-start-card">
+          <div class="smart-start-topline">
+            <span class="chip accent">${day.recovery ? 'ВОССТАНОВЛЕНИЕ' : 'УМНЫЙ СТАРТ'}</span>
+            <span class="chip">Цикл не привязан к дням недели</span>
+          </div>
           <h2>${escapeHTML(day.name)}</h2>
           <p>${escapeHTML(day.focus || program.description)}</p>
           <div class="hero-meta">
@@ -411,12 +414,15 @@
             ` : ''}
           </div>
           ${draft ? `
-            <div class="notice"><strong>Сначала разберись с черновиком выше.</strong><br>Его можно продолжить или удалить — приложение не заменит его новой тренировкой молча.</div>
+            <div class="notice"><strong>Сначала разберись с черновиком выше.</strong><br>После этого можно продолжить цикл, повторить прошлую или выбрать другой день.</div>
           ` : `
-            <div class="button-row">
-              <button class="button primary" id="start-workout">Начать тренировку</button>
-              <button class="button secondary" id="start-short">Нет сил · 15–20 мин</button>
+            <div class="button-row smart-actions primary-line">
+              <button class="button primary" id="start-cycle" type="button">Продолжить цикл</button>
+              <button class="button secondary" id="choose-workout" type="button">Выбрать другую</button>
+              <button class="button secondary" id="repeat-last" type="button" ${lastWorkout ? '' : 'disabled'}>Повторить прошлую</button>
+              <button class="button ghost" id="start-short" type="button">Нет сил · 15–20 мин</button>
             </div>
+            <div class="help smart-start-help">«Повторить прошлую» и «Выбрать другую» не сдвигают основной цикл. Цикл двигается только после кнопки «Продолжить цикл».</div>
           `}
         </div>
       </section>
@@ -465,8 +471,10 @@
       <div class="notice warning"><strong>Судно и безопасность.</strong> При сильной качке замени упражнения стоя с тяжёлым весом на варианты сидя, лёжа или с опорой. При боли в паху, животе, пояснице или суставах — остановись, а не геройствуй.</div>
     `;
 
-    document.getElementById('start-workout')?.addEventListener('click', () => startWorkout(false));
-    document.getElementById('start-short')?.addEventListener('click', () => startWorkout(true));
+    document.getElementById('start-cycle')?.addEventListener('click', () => startWorkout({ shortMode: false, startMode: 'cycle', shouldAdvanceCycle: true }));
+    document.getElementById('start-short')?.addEventListener('click', () => startWorkout({ shortMode: true, startMode: 'cycle', shouldAdvanceCycle: true }));
+    document.getElementById('repeat-last')?.addEventListener('click', repeatLastWorkout);
+    document.getElementById('choose-workout')?.addEventListener('click', showChooseWorkoutModal);
     document.getElementById('resume-draft')?.addEventListener('click', () => navigate('workout'));
     document.getElementById('delete-draft-home')?.addEventListener('click', discardDraftFromHome);
     document.getElementById('add-measurement-home').addEventListener('click', showMeasurementModal);
@@ -480,6 +488,58 @@
     el.main.querySelectorAll('.view-workout').forEach((button) => button.addEventListener('click', () => showWorkoutDetails(button.dataset.id)));
   }
 
+  function currentDayIndexSafe() {
+    const program = getActiveProgram();
+    const raw = Number(state.settings.currentDayIndex || 0);
+    return Math.min(Math.max(raw, 0), Math.max((program?.days?.length || 1) - 1, 0));
+  }
+
+  function findRepeatDayIndex(workout) {
+    const program = getActiveProgram();
+    if (!workout || !program?.days?.length) return -1;
+    const sameDay = program.days.findIndex((day) => day.id === workout.dayId);
+    if (sameDay >= 0) return sameDay;
+    const rawIndex = Number(workout.dayIndex);
+    if (Number.isInteger(rawIndex) && rawIndex >= 0 && rawIndex < program.days.length) return rawIndex;
+    return -1;
+  }
+
+  async function repeatLastWorkout() {
+    const lastWorkout = state.workouts.find((w) => w.status === 'completed');
+    if (!lastWorkout) return toast('Пока нечего повторять: история тренировок пустая');
+    const dayIndex = findRepeatDayIndex(lastWorkout);
+    if (dayIndex < 0) return toast('Не нашёл этот день в активной программе');
+    await startWorkout({ dayIndex, startMode: 'repeat', shouldAdvanceCycle: false });
+  }
+
+  function showChooseWorkoutModal() {
+    const { program } = getCurrentDay();
+    showModal(`
+      <div class="modal-head"><h2>Выбрать тренировку</h2><button class="modal-close" data-close>×</button></div>
+      <p class="muted">Запуск другого дня не меняет текущий день цикла. Это удобно, если хочется переставить тренировки местами без наказаний.</p>
+      <div class="card list-card smart-day-list" style="margin-top:12px">
+        ${program.days.map((day, index) => `
+          <button class="list-row choose-workout-day" type="button" data-index="${index}">
+            <div class="day-badge small-badge">${index + 1}</div>
+            <div class="list-row-main">
+              <div class="list-row-title">${escapeHTML(day.name)}</div>
+              <div class="list-row-sub">≈ ${day.durationMin} мин · ${day.exercises.length} упражнений</div>
+            </div>
+            <span class="muted">›</span>
+          </button>
+        `).join('')}
+      </div>
+      <div class="notice" style="margin-top:12px"><strong>Цикл останется на месте.</strong><br>После сохранения этой тренировки приложение не перепрыгнет на следующий день.</div>
+    `);
+    el.modalRoot.querySelectorAll('.choose-workout-day').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const dayIndex = Number(button.dataset.index);
+        closeModal();
+        await startWorkout({ dayIndex, startMode: 'selected', shouldAdvanceCycle: false });
+      });
+    });
+  }
+
   function workPrescription(exercise, entry = {}) {
     if (!exercise) return '';
     const d = { ...exercise.defaults, ...entry };
@@ -488,16 +548,30 @@
     return `${d.sets} × ${d.repsMin}${d.repsMax && d.repsMax !== d.repsMin ? `–${d.repsMax}` : ''}`;
   }
 
-  async function startWorkout(shortMode) {
+  async function startWorkout(options = {}) {
+    const config = typeof options === 'boolean' ? { shortMode: options } : { ...options };
+    const shortMode = Boolean(config.shortMode);
     if (state.currentWorkout) {
       toast('Сначала продолжи или удали сохранённый черновик');
       navigate('workout');
       return;
     }
-    const { program, day, index } = getCurrentDay();
+    const program = getActiveProgram();
+    const fallbackIndex = Number(state.settings.currentDayIndex || 0);
+    const requestedIndex = Number.isFinite(Number(config.dayIndex)) ? Number(config.dayIndex) : fallbackIndex;
+    const index = Math.min(Math.max(requestedIndex, 0), Math.max(program.days.length - 1, 0));
+    const day = program.days[index];
+    const startMode = config.startMode || (index === fallbackIndex ? 'cycle' : 'selected');
+    const shouldAdvanceCycle = config.shouldAdvanceCycle ?? (startMode === 'cycle');
     const selected = shortMode
       ? (day.short || day.exercises.slice(0, 5).map((x) => x.exerciseId)).map((id) => day.exercises.find((x) => x.exerciseId === id) || { exerciseId: id })
       : day.exercises;
+
+    if (!selected.length) {
+      toast('В этом дне пока нет упражнений. Открой План и добавь их через ✎');
+      navigate('plan');
+      return;
+    }
 
     const exerciseResults = [];
     for (const entry of selected) {
@@ -541,6 +615,12 @@
       });
     }
 
+    if (!exerciseResults.length) {
+      toast('Не удалось собрать тренировку: упражнения не найдены');
+      return;
+    }
+
+    const suffix = shortMode ? 'короткая' : startMode === 'repeat' ? 'повтор' : startMode === 'selected' ? 'выбрана вручную' : '';
     state.currentWorkout = {
       id: uid('workout'),
       profileId: state.activeProfileId,
@@ -550,8 +630,11 @@
       programName: program.name,
       dayId: day.id,
       dayIndex: index,
-      dayName: shortMode ? `${day.name} · короткая` : day.name,
+      cycleDayIndex: fallbackIndex,
+      dayName: suffix ? `${day.name} · ${suffix}` : day.name,
       shortMode,
+      startMode,
+      shouldAdvanceCycle,
       status: 'in_progress',
       exercises: exerciseResults,
       comment: '',
@@ -1000,15 +1083,19 @@
     workout.totalLoadKg = calculateLoad(workout);
     workout.progression = workout.exercises.map((result) => ({ exerciseId: result.exerciseId, ...postWorkoutSuggestion(result) }));
     await DB.put('workouts', workout);
-    const program = getActiveProgram();
-    state.settings.currentDayIndex = (Number(workout.dayIndex) + 1) % program.days.length;
-    await DB.setSettingsObject({ currentDayIndex: state.settings.currentDayIndex }, state.activeProfileId);
+    const shouldAdvanceCycle = workout.shouldAdvanceCycle !== false;
+    if (shouldAdvanceCycle) {
+      const program = state.programs.find((item) => item.id === workout.programId) || getActiveProgram();
+      const nextIndex = (Number(workout.dayIndex) + 1) % Math.max(program.days.length, 1);
+      state.settings.currentDayIndex = nextIndex;
+      await DB.setSettingsObject({ currentDayIndex: state.settings.currentDayIndex }, state.activeProfileId);
+    }
     await DB.remove('meta', draftWorkoutKey());
     state.workouts.unshift(workout);
     state.currentWorkout = null;
     clearInterval(state.workoutClockInterval);
     closeModal();
-    toast('Тренировка сохранена');
+    toast(shouldAdvanceCycle ? 'Тренировка сохранена, цикл сдвинут дальше' : 'Тренировка сохранена, цикл не сдвинут');
     navigate('home');
   }
 
