@@ -18,6 +18,7 @@
     workouts: [],
     measurements: [],
     photos: [],
+    painEntries: [],
     currentWorkout: null,
     historyFilter: 'month',
     progressTab: 'body',
@@ -51,6 +52,92 @@
     ['hard', 'Тяжело'],
     ['failure', 'До отказа'],
   ];
+
+
+  const painAreas = [
+    { id: 'neck', label: 'Шея' },
+    { id: 'shoulder', label: 'Плечо' },
+    { id: 'elbow', label: 'Локоть' },
+    { id: 'wrist', label: 'Кисть / запястье' },
+    { id: 'chest', label: 'Грудь' },
+    { id: 'upper-back', label: 'Спина верх' },
+    { id: 'lower-back', label: 'Поясница' },
+    { id: 'abs', label: 'Пресс / живот' },
+    { id: 'groin', label: 'Паховая область / низ живота' },
+    { id: 'hip', label: 'Таз / ягодица' },
+    { id: 'thigh', label: 'Бедро' },
+    { id: 'knee', label: 'Колено' },
+    { id: 'shin-foot', label: 'Голень / стопа' },
+    { id: 'other', label: 'Другое' },
+  ];
+
+  const painRiskRules = {
+    groin: {
+      exerciseIds: ['goblet-squat', 'chair-squat', 'barbell-squat', 'romanian-deadlift', 'good-morning-bodyweight', 'bulgarian-split-squat', 'reverse-lunge', 'hip-thrust', 'single-leg-bridge', 'wall-sit', 'dead-bug', 'reverse-crunch', 'lying-leg-raise', 'side-plank', 'front-plank', 'russian-twist', 'ab-roller', 'barbell-row', 'farmer-hold', 'suitcase-hold', 'db-shoulder-press'],
+      keywords: ['присед', 'выпад', 'тяга', 'наклон', 'мост', 'планка', 'скруч', 'ролик', 'подъём', 'кор', 'пресс', 'ягод', 'ног'],
+      reason: 'может повышать давление на паховую область и низ живота',
+    },
+    abs: {
+      exerciseIds: ['dead-bug', 'reverse-crunch', 'lying-leg-raise', 'side-plank', 'front-plank', 'russian-twist', 'ab-roller', 'goblet-squat', 'barbell-squat', 'romanian-deadlift', 'farmer-hold', 'suitcase-hold'],
+      keywords: ['пресс', 'кор', 'скруч', 'планка', 'ролик', 'подъём ног', 'тяга', 'присед'],
+      reason: 'сильно включает пресс и внутрибрюшное давление',
+    },
+    'lower-back': {
+      exerciseIds: ['barbell-row', 'romanian-deadlift', 'good-morning-bodyweight', 'goblet-squat', 'barbell-squat', 'ab-roller', 'lying-leg-raise', 'front-plank', 'bird-dog', 'suitcase-hold'],
+      keywords: ['поясница', 'тяга', 'наклон', 'присед', 'ролик', 'планка', 'кор'],
+      reason: 'может грузить поясницу и корпус',
+    },
+    knee: {
+      exerciseIds: ['goblet-squat', 'chair-squat', 'barbell-squat', 'bulgarian-split-squat', 'reverse-lunge', 'wall-sit', 'stepper-easy', 'stepper-intervals', 'stepper-short', 'calf-raise'],
+      keywords: ['присед', 'выпад', 'степпер', 'стульчик', 'ноги', 'икры'],
+      reason: 'даёт нагрузку на колено и ноги',
+    },
+    shoulder: {
+      exerciseIds: ['pushups', 'chair-incline-pushups', 'db-floor-press', 'machine-chest-press', 'pec-deck', 'db-fly-floor', 'db-shoulder-press', 'pike-pushups', 'lateral-raise', 'rear-delt-fly', 'face-pull-machine', 'db-pullover', 'overhead-triceps', 'close-pushups', 'ab-roller'],
+      keywords: ['жим', 'отжим', 'плеч', 'развод', 'дельт', 'пуловер', 'трицепс', 'ролик'],
+      reason: 'может раздражать плечо и жимовую зону',
+    },
+    elbow: {
+      exerciseIds: ['pushups', 'chair-incline-pushups', 'db-floor-press', 'db-shoulder-press', 'barbell-curl', 'db-curl', 'hammer-curl', 'reverse-curl', 'overhead-triceps', 'close-pushups', 'triceps-pushdown', 'farmer-hold', 'suitcase-hold'],
+      keywords: ['сгибание', 'трицепс', 'бицепс', 'жим', 'отжим', 'удержание'],
+      reason: 'нагружает локоть и сухожилия рук',
+    },
+    wrist: {
+      exerciseIds: ['pushups', 'chair-incline-pushups', 'pike-pushups', 'close-pushups', 'barbell-curl', 'db-curl', 'hammer-curl', 'reverse-curl', 'farmer-hold', 'suitcase-hold', 'ab-roller'],
+      keywords: ['отжим', 'сгибание', 'удержание', 'хват', 'предплеч', 'ролик'],
+      reason: 'может давить на кисть, запястье или хват',
+    },
+    chest: {
+      exerciseIds: ['pushups', 'chair-incline-pushups', 'db-floor-press', 'machine-chest-press', 'pec-deck', 'db-fly-floor', 'db-pullover', 'close-pushups'],
+      keywords: ['груд', 'жим', 'отжим', 'развод', 'бабочка', 'пуловер'],
+      reason: 'нагружает грудь и жимовые мышцы',
+    },
+    'upper-back': {
+      exerciseIds: ['rear-delt-fly', 'face-pull-machine', 'one-arm-row', 'barbell-row', 'lat-pulldown', 'seated-row-machine', 'shrugs', 'farmer-hold'],
+      keywords: ['спина', 'тяга', 'дельта', 'трапеции', 'шраги'],
+      reason: 'нагружает верх спины и лопатки',
+    },
+    neck: {
+      exerciseIds: ['shrugs', 'farmer-hold', 'suitcase-hold', 'db-shoulder-press', 'pike-pushups', 'rear-delt-fly', 'face-pull-machine'],
+      keywords: ['шраги', 'трапеции', 'плеч', 'удержание', 'дельт'],
+      reason: 'может усиливать напряжение шеи и трапеций',
+    },
+    hip: {
+      exerciseIds: ['goblet-squat', 'chair-squat', 'barbell-squat', 'romanian-deadlift', 'good-morning-bodyweight', 'bulgarian-split-squat', 'reverse-lunge', 'hip-thrust', 'single-leg-bridge', 'side-plank'],
+      keywords: ['таз', 'ягод', 'присед', 'выпад', 'тяга', 'мост', 'бедро'],
+      reason: 'нагружает таз, ягодицы и тазобедренную зону',
+    },
+    thigh: {
+      exerciseIds: ['goblet-squat', 'chair-squat', 'barbell-squat', 'bulgarian-split-squat', 'reverse-lunge', 'wall-sit', 'romanian-deadlift', 'stepper-easy', 'stepper-intervals', 'stepper-short'],
+      keywords: ['ноги', 'бедро', 'присед', 'выпад', 'степпер', 'тяга'],
+      reason: 'нагружает бедро и ноги',
+    },
+    'shin-foot': {
+      exerciseIds: ['stepper-easy', 'stepper-intervals', 'stepper-short', 'calf-raise', 'reverse-lunge', 'bulgarian-split-squat'],
+      keywords: ['степпер', 'икры', 'носки', 'выпад', 'голень', 'стопа'],
+      reason: 'нагружает голень, стопу и устойчивость',
+    },
+  };
 
   document.addEventListener('DOMContentLoaded', init);
 
@@ -120,6 +207,7 @@
       state.workouts = [];
       state.measurements = [];
       state.photos = [];
+      state.painEntries = [];
       updateProfileButton();
       return;
     }
@@ -131,13 +219,14 @@
 
   async function loadActiveProfileData() {
     const profileId = state.activeProfileId;
-    const [profile, nutrition, settings, workouts, measurements, photos] = await Promise.all([
+    const [profile, nutrition, settings, workouts, measurements, photos, painEntries] = await Promise.all([
       DB.get('profile', profileId),
       DB.get('nutrition', profileId),
       DB.getSettingsObject(profileId),
       DB.getAllForProfile('workouts', profileId),
       DB.getAllForProfile('measurements', profileId),
       DB.getAllForProfile('photos', profileId),
+      DB.getAllForProfile('painEntries', profileId).catch(() => []),
     ]);
     state.profile = profile;
     state.nutrition = nutrition || { id: profileId, ...clone(window.NIKITA_SEED.nutrition) };
@@ -147,6 +236,7 @@
     state.workouts = workouts.sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt));
     state.measurements = measurements.sort((a, b) => b.date.localeCompare(a.date));
     state.photos = photos.sort((a, b) => b.date.localeCompare(a.date));
+    state.painEntries = painEntries.sort((a, b) => String(b.createdAt || b.date || '').localeCompare(String(a.createdAt || a.date || '')));
     updateProfileButton();
   }
 
@@ -548,6 +638,219 @@
     return `${d.sets} × ${d.repsMin}${d.repsMax && d.repsMax !== d.repsMin ? `–${d.repsMax}` : ''}`;
   }
 
+
+  function getPainArea(id) {
+    return painAreas.find((area) => area.id === id) || painAreas[painAreas.length - 1];
+  }
+
+  function painLevelMeta(score) {
+    const value = Math.max(1, Math.min(10, Number(score) || 1));
+    if (value >= 7) return { score: value, level: 'high', label: 'сильная боль', title: 'Не рекомендуется' };
+    if (value >= 4) return { score: value, level: 'moderate', label: 'осторожный режим', title: 'Осторожно' };
+    return { score: value, level: 'low', label: 'лёгкий дискомфорт', title: 'Аккуратно' };
+  }
+
+  function normalizePainInput(input = {}) {
+    if (!input || !input.hasPain) return { hasPain: false };
+    const area = getPainArea(input.areaId);
+    const meta = painLevelMeta(input.score);
+    return {
+      hasPain: true,
+      areaId: area.id,
+      areaLabel: area.label,
+      score: meta.score,
+      level: meta.level,
+      levelLabel: meta.label,
+      comment: String(input.comment || '').trim(),
+      createdAt: input.createdAt || new Date().toISOString(),
+    };
+  }
+
+  function exerciseMatchesPainRule(exercise, rule) {
+    if (!exercise || !rule) return false;
+    if (rule.exerciseIds?.includes(exercise.id)) return true;
+    const haystack = `${exercise.id} ${exercise.name} ${exercise.group} ${exercise.equipment}`.toLowerCase();
+    return (rule.keywords || []).some((word) => haystack.includes(String(word).toLowerCase()));
+  }
+
+  function analyzeExercisePainRisk(pain, exercise) {
+    const normalized = normalizePainInput(pain);
+    if (!normalized.hasPain) return null;
+    const rule = painRiskRules[normalized.areaId];
+    if (!exerciseMatchesPainRule(exercise, rule)) return null;
+    const meta = painLevelMeta(normalized.score);
+    if (meta.score <= 3) {
+      return {
+        areaId: normalized.areaId,
+        areaLabel: normalized.areaLabel,
+        score: meta.score,
+        level: meta.level,
+        title: meta.title,
+        reason: rule.reason,
+        message: `Лёгкий дискомфорт в зоне «${normalized.areaLabel}»: работай без отказа и без резкого увеличения веса.`,
+        action: null,
+      };
+    }
+    return {
+      areaId: normalized.areaId,
+      areaLabel: normalized.areaLabel,
+      score: meta.score,
+      level: meta.level,
+      title: meta.title,
+      reason: rule.reason,
+      message: meta.level === 'high'
+        ? `Сильная боль в зоне «${normalized.areaLabel}»: это упражнение лучше не делать сегодня, потому что оно ${rule.reason}.`
+        : `Боль в зоне «${normalized.areaLabel}»: упражнение ${rule.reason}. Лучше снизить нагрузку, заменить или пропустить.`,
+      action: null,
+    };
+  }
+
+  function painRiskClass(risk) {
+    if (!risk) return '';
+    return risk.level === 'high' ? 'pain-high' : risk.level === 'moderate' ? 'pain-moderate' : 'pain-low';
+  }
+
+  function renderPainRiskNotice(risk, exerciseIndex) {
+    if (!risk) return '';
+    const high = risk.level === 'high';
+    return `
+      <div class="pain-warning ${painRiskClass(risk)}">
+        <div class="pain-warning-icon" aria-hidden="true">⚠️</div>
+        <div class="pain-warning-body">
+          <strong>${escapeHTML(risk.title)} · ${escapeHTML(risk.areaLabel)} ${risk.score}/10</strong>
+          <div>${escapeHTML(risk.message)}</div>
+          ${risk.action ? `<div class="help">Действие: ${escapeHTML(painActionLabel(risk.action))}</div>` : ''}
+          <div class="pain-actions">
+            <button class="button secondary small pain-action" data-index="${exerciseIndex}" data-action="reduce" type="button">Снизить вес</button>
+            <button class="button secondary small pain-action" data-index="${exerciseIndex}" data-action="replace" type="button">Заменить</button>
+            <button class="button ${high ? 'danger' : 'ghost'} small pain-action" data-index="${exerciseIndex}" data-action="skip" type="button">Пропустить</button>
+            <button class="button ghost small pain-action" data-index="${exerciseIndex}" data-action="keep" type="button">Оставить</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function painActionLabel(action) {
+    return ({ reduce: 'вес снижен', replace: 'выбрана замена', skip: 'упражнение пропущено', keep: 'оставлено как есть' })[action] || action || 'отмечено';
+  }
+
+  function renderWorkoutPainBanner(workout) {
+    const pain = normalizePainInput(workout?.preWorkoutPain);
+    if (!pain.hasPain) return '';
+    const meta = painLevelMeta(pain.score);
+    return `
+      <section class="card pain-session-banner ${meta.level}">
+        <div class="pain-session-icon">⚠️</div>
+        <div>
+          <div class="eyebrow">Контроль боли включён</div>
+          <strong>${escapeHTML(pain.areaLabel)} · ${pain.score}/10 · ${escapeHTML(meta.label)}</strong>
+          <div class="help">Рискованные упражнения помечены предупреждением. Приложение подскажет снизить вес, заменить или пропустить.</div>
+          ${pain.comment ? `<div class="help">Комментарий: ${escapeHTML(pain.comment)}</div>` : ''}
+        </div>
+      </section>`;
+  }
+
+  function renderPainEntry(entry) {
+    const meta = painLevelMeta(entry.score);
+    const source = entry.source === 'exercise' ? `во время: ${entry.exerciseName || 'упражнение'}` : entry.source === 'risk_action' ? 'действие по предупреждению' : 'перед тренировкой';
+    return `<div class="list-row pain-history-row">
+      <div class="pain-dot ${meta.level}">!</div>
+      <div class="list-row-main">
+        <div class="list-row-title">${escapeHTML(entry.areaLabel || getPainArea(entry.areaId).label)} · ${entry.score}/10</div>
+        <div class="list-row-sub">${formatShortDate(entry.date || todayISO())} · ${escapeHTML(source)}${entry.comment ? `<br>${escapeHTML(entry.comment)}` : ''}</div>
+      </div>
+    </div>`;
+  }
+
+  async function savePainEntry(entry) {
+    if (!state.activeProfileId) return null;
+    const row = {
+      id: entry.id || uid('pain'),
+      profileId: state.activeProfileId,
+      date: entry.date || todayISO(),
+      createdAt: entry.createdAt || new Date().toISOString(),
+      workoutId: entry.workoutId || state.currentWorkout?.id || null,
+      source: entry.source || 'pre_workout',
+      areaId: entry.areaId,
+      areaLabel: entry.areaLabel || getPainArea(entry.areaId).label,
+      score: Number(entry.score) || 1,
+      level: painLevelMeta(entry.score).level,
+      exerciseId: entry.exerciseId || null,
+      exerciseName: entry.exerciseName || null,
+      action: entry.action || null,
+      comment: String(entry.comment || '').trim(),
+    };
+    await DB.put('painEntries', row);
+    state.painEntries.unshift(row);
+    return row;
+  }
+
+
+  function showPreWorkoutPainModal(startConfig = {}) {
+    showModal(`
+      <div class="modal-head"><h2>Самочувствие перед тренировкой</h2><button class="modal-close" data-close>×</button></div>
+      <div class="notice"><strong>Есть боль или дискомфорт сегодня?</strong><br>Если да — выбери область и степень. Приложение пометит упражнения, которые лучше облегчить, заменить или пропустить.</div>
+      <div class="button-row" style="margin-top:12px">
+        <button class="button primary" id="start-without-pain" type="button">Нет, всё нормально</button>
+        <button class="button secondary" id="show-pain-form" type="button">Да, отметить</button>
+      </div>
+      <div id="pre-pain-form" class="pain-form" hidden>
+        <div class="field" style="margin-top:14px">
+          <label>Область боли</label>
+          <div class="pain-area-grid">
+            ${painAreas.map((area) => `<button class="pain-area-option" type="button" data-area="${area.id}">${escapeHTML(area.label)}</button>`).join('')}
+          </div>
+          <input id="pre-pain-area" type="hidden" value="">
+        </div>
+        <div class="field">
+          <label>Степень боли</label>
+          <div class="pain-level-picker">
+            ${Array.from({ length: 10 }, (_, i) => i + 1).map((n) => `<button class="pain-level-option ${n === 4 ? 'active' : ''}" type="button" data-score="${n}">${n}</button>`).join('')}
+          </div>
+          <input id="pre-pain-score" type="hidden" value="4">
+          <div class="help">1–3 — лёгкий дискомфорт, 4–6 — осторожный режим, 7–10 — лучше не делать рискованные упражнения.</div>
+        </div>
+        <div class="field"><label>Комментарий</label><textarea id="pre-pain-comment" placeholder="Например: паховая область ноет после смены"></textarea></div>
+        <button class="button primary full" id="start-with-pain" type="button">Включить контроль боли и начать</button>
+      </div>
+    `);
+    document.getElementById('start-without-pain').addEventListener('click', async () => {
+      closeModal();
+      await startWorkout({ ...startConfig, painCheckDone: true, preWorkoutPain: { hasPain: false } });
+    });
+    document.getElementById('show-pain-form').addEventListener('click', () => {
+      document.getElementById('pre-pain-form').hidden = false;
+      document.getElementById('show-pain-form').classList.add('active');
+    });
+    el.modalRoot.querySelectorAll('.pain-area-option').forEach((button) => {
+      button.addEventListener('click', () => {
+        el.modalRoot.querySelectorAll('.pain-area-option').forEach((item) => item.classList.toggle('active', item === button));
+        document.getElementById('pre-pain-area').value = button.dataset.area;
+      });
+    });
+    el.modalRoot.querySelectorAll('.pain-level-option').forEach((button) => {
+      button.addEventListener('click', () => {
+        el.modalRoot.querySelectorAll('.pain-level-option').forEach((item) => item.classList.toggle('active', item === button));
+        document.getElementById('pre-pain-score').value = button.dataset.score;
+      });
+    });
+    document.getElementById('start-with-pain').addEventListener('click', async () => {
+      const areaId = document.getElementById('pre-pain-area').value;
+      if (!areaId) {
+        toast('Выбери область боли');
+        return;
+      }
+      const preWorkoutPain = normalizePainInput({
+        hasPain: true,
+        areaId,
+        score: Number(document.getElementById('pre-pain-score').value || 4),
+        comment: document.getElementById('pre-pain-comment').value,
+      });
+      closeModal();
+      await startWorkout({ ...startConfig, painCheckDone: true, preWorkoutPain });
+    });
+  }
+
   async function startWorkout(options = {}) {
     const config = typeof options === 'boolean' ? { shortMode: options } : { ...options };
     const shortMode = Boolean(config.shortMode);
@@ -573,6 +876,12 @@
       return;
     }
 
+    if (!config.painCheckDone) {
+      showPreWorkoutPainModal({ ...config, shortMode, dayIndex: index, startMode, shouldAdvanceCycle });
+      return;
+    }
+
+    const preWorkoutPain = normalizePainInput(config.preWorkoutPain);
     const exerciseResults = [];
     for (const entry of selected) {
       const exercise = getExercise(entry.exerciseId);
@@ -601,6 +910,7 @@
         difficulty: 'normal',
         completed: false,
       }));
+      const painRisk = analyzeExercisePainRisk(preWorkoutPain, exercise);
       exerciseResults.push({
         exerciseId: exercise.id,
         name: exercise.name,
@@ -610,6 +920,8 @@
         previous: last ? summarizePrevious(last) : null,
         prefilledFromLast: completedSets(last).length > 0,
         suggestion,
+        painRisk,
+        painEvents: [],
         defaults,
         sets: setRows,
       });
@@ -636,9 +948,14 @@
       startMode,
       shouldAdvanceCycle,
       status: 'in_progress',
+      preWorkoutPain,
+      painCheckedAt: new Date().toISOString(),
       exercises: exerciseResults,
       comment: '',
     };
+    if (preWorkoutPain.hasPain) {
+      await savePainEntry({ ...preWorkoutPain, source: 'pre_workout', workoutId: state.currentWorkout.id });
+    }
     await saveDraftWorkout();
     navigate('workout');
   }
@@ -660,6 +977,7 @@
         </div>
       </div>
 
+      ${renderWorkoutPainBanner(workout)}
       ${workout.exercises.map((result, exerciseIndex) => renderWorkoutExercise(result, exerciseIndex)).join('')}
 
       <section class="card">
@@ -684,12 +1002,13 @@
     const prefilled = result.prefilledFromLast ? `<span class="chip success">Значения подставлены из прошлого раза</span>` : '';
     const suggestion = result.suggestion?.text ? `<span class="chip ${result.suggestion.kind === 'increase' ? 'success' : result.suggestion.kind === 'reduce' ? 'warning' : ''}">${escapeHTML(result.suggestion.text)}</span>` : '';
     return `
-      <article class="workout-exercise ${result.skipped ? 'muted' : ''}" data-exercise-index="${exerciseIndex}">
+      <article class="workout-exercise ${result.skipped ? 'muted' : ''} ${painRiskClass(result.painRisk)}" data-exercise-index="${exerciseIndex}">
         <div class="workout-exercise-head">
           <div class="eyebrow">${exerciseIndex + 1} · ${escapeHTML(exercise?.group || '')}</div>
           <h3>${escapeHTML(result.name)}</h3>
           <div class="exercise-meta">${escapeHTML(exercise?.equipment || '')} · отдых ${result.defaults.restSec || 0} сек</div>
           <div class="hero-meta">${previous}${prefilled}${suggestion}</div>
+          ${renderPainRiskNotice(result.painRisk, exerciseIndex)}
           ${exercise?.safety ? `<div class="notice warning" style="margin-top:10px">${escapeHTML(exercise.safety)}</div>` : ''}
           <details class="exercise-guide">
             <summary><span>ⓘ Техника и подсказки</span><span class="exercise-chevron" aria-hidden="true">⌄</span></summary>
@@ -699,7 +1018,9 @@
             <button class="button secondary small replace-exercise" data-index="${exerciseIndex}" type="button">Заменить</button>
             <button class="button ghost small skip-exercise" data-index="${exerciseIndex}" type="button">${result.skipped ? 'Вернуть' : 'Пропустить'}</button>
             <button class="button ghost small comment-exercise" data-index="${exerciseIndex}" type="button">Комментарий</button>
+            <button class="button ghost small pain-exercise" data-index="${exerciseIndex}" type="button">⚠️ Боль</button>
           </div>
+          ${result.painEvents?.length ? `<div class="help" style="margin-top:9px">⚠️ Боль отмечена: ${result.painEvents.map((event) => `${escapeHTML(event.areaLabel)} ${event.score}/10`).join(' · ')}</div>` : ''}
           ${result.comment ? `<div class="help" style="margin-top:9px">“${escapeHTML(result.comment)}”</div>` : ''}
         </div>
         <div class="set-list" aria-label="Подходы упражнения ${escapeHTML(result.name)}">
@@ -813,6 +1134,8 @@
     el.main.querySelectorAll('.replace-exercise').forEach((button) => button.addEventListener('click', () => showReplacementModal(Number(button.dataset.index))));
     el.main.querySelectorAll('.skip-exercise').forEach((button) => button.addEventListener('click', () => toggleSkipExercise(Number(button.dataset.index))));
     el.main.querySelectorAll('.comment-exercise').forEach((button) => button.addEventListener('click', () => showExerciseCommentModal(Number(button.dataset.index))));
+    el.main.querySelectorAll('.pain-exercise').forEach((button) => button.addEventListener('click', () => showExercisePainModal(Number(button.dataset.index))));
+    el.main.querySelectorAll('.pain-action').forEach((button) => button.addEventListener('click', () => applyPainAction(Number(button.dataset.index), button.dataset.action)));
     el.main.querySelectorAll('.add-set').forEach((button) => button.addEventListener('click', () => addWorkoutSet(Number(button.dataset.index))));
     el.main.querySelectorAll('.remove-set').forEach((button) => button.addEventListener('click', () => removeLastWorkoutSet(Number(button.dataset.index))));
     document.getElementById('workout-comment').addEventListener('input', (event) => {
@@ -993,6 +1316,7 @@
       difficulty: 'normal',
       completed: false,
     }));
+    const painRisk = analyzeExercisePainRisk(state.currentWorkout.preWorkoutPain, exercise);
     state.currentWorkout.exercises[index] = {
       exerciseId: exercise.id,
       name: exercise.name,
@@ -1002,12 +1326,158 @@
       previous: last ? summarizePrevious(last) : null,
       prefilledFromLast: completedSets(last).length > 0,
       suggestion,
+      painRisk,
+      painEvents: old.painEvents || [],
       defaults: { ...exercise.defaults },
       sets,
     };
     await saveDraftWorkout();
     closeModal();
     renderWorkout();
+  }
+
+
+  function showExercisePainModal(index) {
+    const result = state.currentWorkout?.exercises?.[index];
+    if (!result) return;
+    showModal(`
+      <div class="modal-head"><h2>Боль в упражнении</h2><button class="modal-close" data-close>×</button></div>
+      <p class="muted">${escapeHTML(result.name)}</p>
+      <div class="field">
+        <label>Где болит</label>
+        <div class="pain-area-grid">
+          ${painAreas.map((area) => `<button class="pain-area-option" type="button" data-area="${area.id}">${escapeHTML(area.label)}</button>`).join('')}
+        </div>
+        <input id="exercise-pain-area" type="hidden" value="">
+      </div>
+      <div class="field">
+        <label>Степень боли</label>
+        <div class="pain-level-picker">
+          ${Array.from({ length: 10 }, (_, i) => i + 1).map((n) => `<button class="pain-level-option ${n === 4 ? 'active' : ''}" type="button" data-score="${n}">${n}</button>`).join('')}
+        </div>
+        <input id="exercise-pain-score" type="hidden" value="4">
+      </div>
+      <div class="field"><label>Комментарий</label><textarea id="exercise-pain-comment" placeholder="Например: потянуло на втором подходе"></textarea></div>
+      <button class="button primary full" id="save-exercise-pain" type="button">Сохранить отметку</button>
+      <div class="button-row" style="margin-top:10px">
+        <button class="button secondary" id="pain-reduce-now" type="button">Снизить вес</button>
+        <button class="button danger" id="pain-skip-now" type="button">Пропустить</button>
+      </div>
+    `);
+    el.modalRoot.querySelectorAll('.pain-area-option').forEach((button) => {
+      button.addEventListener('click', () => {
+        el.modalRoot.querySelectorAll('.pain-area-option').forEach((item) => item.classList.toggle('active', item === button));
+        document.getElementById('exercise-pain-area').value = button.dataset.area;
+      });
+    });
+    el.modalRoot.querySelectorAll('.pain-level-option').forEach((button) => {
+      button.addEventListener('click', () => {
+        el.modalRoot.querySelectorAll('.pain-level-option').forEach((item) => item.classList.toggle('active', item === button));
+        document.getElementById('exercise-pain-score').value = button.dataset.score;
+      });
+    });
+    const savePain = async (action = null) => {
+      const areaId = document.getElementById('exercise-pain-area').value;
+      if (!areaId) {
+        toast('Выбери область боли');
+        return null;
+      }
+      const event = normalizePainInput({
+        hasPain: true,
+        areaId,
+        score: Number(document.getElementById('exercise-pain-score').value || 4),
+        comment: document.getElementById('exercise-pain-comment').value,
+      });
+      const exercise = getExercise(result.exerciseId);
+      const risk = analyzeExercisePainRisk(event, exercise) || {
+        areaId: event.areaId,
+        areaLabel: event.areaLabel,
+        score: event.score,
+        level: event.level,
+        title: painLevelMeta(event.score).title,
+        reason: 'боль отмечена во время выполнения',
+        message: `Боль отмечена во время упражнения: ${event.areaLabel} ${event.score}/10.`,
+        action: null,
+      };
+      if (action) risk.action = action;
+      const painEvent = { ...event, source: 'exercise', exerciseId: result.exerciseId, exerciseName: result.name, action };
+      result.painEvents = [...(result.painEvents || []), painEvent];
+      result.painRisk = risk;
+      await savePainEntry({ ...painEvent, workoutId: state.currentWorkout.id });
+      await saveDraftWorkout();
+      return painEvent;
+    };
+    document.getElementById('save-exercise-pain').addEventListener('click', async () => {
+      const saved = await savePain();
+      if (!saved) return;
+      closeModal();
+      renderWorkout();
+      toast('Боль отмечена');
+    });
+    document.getElementById('pain-reduce-now').addEventListener('click', async () => {
+      const saved = await savePain('reduce');
+      if (!saved) return;
+      await reduceExerciseWeight(index, 0.8, false);
+      closeModal();
+      renderWorkout();
+      toast('Боль отмечена, вес снижен');
+    });
+    document.getElementById('pain-skip-now').addEventListener('click', async () => {
+      const saved = await savePain('skip');
+      if (!saved) return;
+      result.skipped = true;
+      result.sets.forEach((set) => { set.completed = false; });
+      closeModal();
+      await saveDraftWorkout();
+      renderWorkout();
+      toast('Боль отмечена, упражнение пропущено');
+    });
+  }
+
+  async function applyPainAction(index, action) {
+    const result = state.currentWorkout?.exercises?.[index];
+    if (!result || !result.painRisk) return;
+    result.painRisk.action = action;
+    if (action === 'reduce') {
+      await reduceExerciseWeight(index, result.painRisk.level === 'high' ? 0.75 : 0.85);
+      return;
+    }
+    if (action === 'replace') {
+      await saveDraftWorkout();
+      showReplacementModal(index);
+      return;
+    }
+    if (action === 'skip') {
+      result.skipped = true;
+      result.sets.forEach((set) => { set.completed = false; });
+      await saveDraftWorkout();
+      renderWorkout();
+      toast('Упражнение пропущено из-за боли');
+      return;
+    }
+    await saveDraftWorkout();
+    renderWorkout();
+    toast('Оставлено как есть, отметка сохранена');
+  }
+
+  async function reduceExerciseWeight(index, multiplier = 0.8, rerender = true) {
+    const result = state.currentWorkout?.exercises?.[index];
+    if (!result || result.defaults.unit !== 'reps') {
+      toast('Здесь нет рабочего веса для снижения');
+      return;
+    }
+    result.sets.forEach((set) => {
+      const weight = Number(set.weightKg);
+      if (Number.isFinite(weight) && weight > 0) set.weightKg = roundHalf(weight * multiplier);
+    });
+    result.comment = result.comment ? `${result.comment}
+Вес снижен из-за боли.` : 'Вес снижен из-за боли.';
+    if (result.painRisk) result.painRisk.action = 'reduce';
+    await saveDraftWorkout();
+    if (rerender) {
+      renderWorkout();
+      toast('Вес снижен');
+    }
   }
 
   function showExerciseCommentModal(index) {
@@ -1507,14 +1977,18 @@
         <div class="stat"><div class="stat-value">${formatCompactLoad(workout.totalLoadKg || 0)}</div><div class="stat-label">нагрузка, кг</div></div>
         <div class="stat"><div class="stat-value">${workout.exercises.filter((x)=>x.skipped).length}</div><div class="stat-label">пропущено</div></div>
       </div>
+      ${workout.preWorkoutPain?.hasPain ? `<div class="notice warning" style="margin-top:12px"><strong>Перед стартом:</strong> ${escapeHTML(workout.preWorkoutPain.areaLabel)} · ${workout.preWorkoutPain.score}/10${workout.preWorkoutPain.comment ? `<br>${escapeHTML(workout.preWorkoutPain.comment)}` : ''}</div>` : ''}
       <div class="card list-card" style="margin-top:12px">
-        ${workout.exercises.map((result) => `<div class="list-row"><div class="list-row-main"><div class="list-row-title">${result.skipped ? '○ ' : '✓ '}${escapeHTML(result.name)}</div><div class="list-row-sub">${result.skipped ? 'Пропущено' : result.sets.filter((s)=>s.completed).map((s)=> result.defaults.unit === 'reps' ? `${s.weightKg || 0}×${s.reps}` : `${s.durationMin || s.durationSec}`).join(' · ') || 'Нет выполненных подходов'}${result.comment ? `<br>Комментарий: ${escapeHTML(result.comment)}` : ''}</div></div></div>`).join('')}
+        ${workout.exercises.map((result) => `<div class="list-row"><div class="list-row-main"><div class="list-row-title">${result.painRisk ? '⚠️ ' : ''}${result.skipped ? '○ ' : '✓ '}${escapeHTML(result.name)}</div><div class="list-row-sub">${result.skipped ? 'Пропущено' : result.sets.filter((s)=>s.completed).map((s)=> result.defaults.unit === 'reps' ? `${s.weightKg || 0}×${s.reps}` : `${s.durationMin || s.durationSec}`).join(' · ') || 'Нет выполненных подходов'}${result.painRisk ? `<br>Боль/риск: ${escapeHTML(result.painRisk.areaLabel)} ${result.painRisk.score}/10 · ${escapeHTML(result.painRisk.title)}${result.painRisk.action ? ` · ${escapeHTML(painActionLabel(result.painRisk.action))}` : ''}` : ''}${result.painEvents?.length ? `<br>Отмечено в упражнении: ${result.painEvents.map((event) => `${escapeHTML(event.areaLabel)} ${event.score}/10`).join(' · ')}` : ''}${result.comment ? `<br>Комментарий: ${escapeHTML(result.comment)}` : ''}</div></div></div>`).join('')}
       </div>
       ${workout.comment ? `<div class="notice" style="margin-top:12px">${escapeHTML(workout.comment)}</div>` : ''}
       <button class="button danger full" id="delete-workout" style="margin-top:14px">Удалить тренировку</button>
     `);
     document.getElementById('delete-workout').addEventListener('click', async () => {
       await DB.remove('workouts', id);
+      const relatedPain = state.painEntries.filter((entry) => entry.workoutId === id);
+      await Promise.all(relatedPain.map((entry) => DB.remove('painEntries', entry.id)));
+      state.painEntries = state.painEntries.filter((entry) => entry.workoutId !== id);
       state.workouts = state.workouts.filter((w) => w.id !== id);
       closeModal();
       renderHistory();
@@ -1902,9 +2376,11 @@
 
       <section class="section"><div class="section-head"><h2>Сигналы таймера</h2></div><div class="card list-card"><label class="list-row"><div><div class="list-row-title">Звук</div><div class="list-row-sub">Сигнал после отдыха</div></div><input id="sound-toggle" type="checkbox" ${state.settings.soundEnabled ? 'checked' : ''}></label><label class="list-row"><div><div class="list-row-title">Вибрация</div><div class="list-row-sub">На iPhone Safari может не поддерживаться</div></div><input id="vibration-toggle" type="checkbox" ${state.settings.vibrationEnabled ? 'checked' : ''}></label></div></section>
 
+      <section class="section"><div class="section-head"><h2>История боли</h2><button class="link-button" id="open-pain-history">Показать всё</button></div><div class="card list-card">${state.painEntries.length ? state.painEntries.slice(0, 4).map(renderPainEntry).join('') : '<div class="empty compact-empty"><strong>Пока пусто</strong>Отметки появятся после тренировок с контролем боли.</div>'}</div></section>
+
       <section class="section"><div class="section-head"><h2>Резервная копия всех профилей</h2></div><div class="card"><div class="button-row"><button class="button primary" id="export-data">Данные JSON</button><button class="button secondary" id="export-full">С фото</button></div><button class="button ghost full" id="import-data" style="margin-top:10px">Импортировать копию</button><input id="import-file" type="file" accept="application/json" hidden><div class="help" style="margin-top:10px">Копия включает все профили. «Данные JSON» не содержит фото; перед импортом такой копии приложение отдельно предупредит о возможном удалении локальных фотографий.</div></div></section>
 
-      <section class="section"><div class="section-head"><h2>Установка PWA</h2></div><div class="card"><ol class="muted" style="padding-left:20px;line-height:1.6"><li>Открой опубликованный адрес в Safari.</li><li>Нажми «Поделиться».</li><li>Выбери «На экран Домой».</li><li>Открой иконку один раз при интернете — после этого оболочка работает офлайн.</li></ol><button class="button secondary full" id="storage-info">Проверить хранилище</button><div class="help" style="margin-top:10px">Версия приложения ${escapeHTML(APP_VERSION)} · база IndexedDB v2</div></div></section>
+      <section class="section"><div class="section-head"><h2>Установка PWA</h2></div><div class="card"><ol class="muted" style="padding-left:20px;line-height:1.6"><li>Открой опубликованный адрес в Safari.</li><li>Нажми «Поделиться».</li><li>Выбери «На экран Домой».</li><li>Открой иконку один раз при интернете — после этого оболочка работает офлайн.</li></ol><button class="button secondary full" id="storage-info">Проверить хранилище</button><div class="help" style="margin-top:10px">Версия приложения ${escapeHTML(APP_VERSION)} · база IndexedDB v3</div></div></section>
 
       <section class="section"><div class="notice warning"><strong>Ограничение iPhone.</strong> Данные PWA могут исчезнуть после удаления иконки, очистки данных Safari или при критической нехватке памяти. Экспорт — обязательная страховка.</div></section>
     `;
@@ -1914,6 +2390,7 @@
     document.getElementById('edit-nutrition').addEventListener('click', showNutritionModal);
     document.getElementById('sound-toggle').addEventListener('change', (e)=>saveToggle('soundEnabled',e.target.checked));
     document.getElementById('vibration-toggle').addEventListener('change', (e)=>saveToggle('vibrationEnabled',e.target.checked));
+    document.getElementById('open-pain-history').addEventListener('click', showPainHistoryModal);
     document.getElementById('export-data').addEventListener('click', ()=>exportBackup(false));
     document.getElementById('export-full').addEventListener('click', ()=>exportBackup(true));
     document.getElementById('import-data').addEventListener('click', ()=>document.getElementById('import-file').click());
@@ -2014,6 +2491,17 @@
     } finally {
       event.target.value = '';
     }
+  }
+
+
+  function showPainHistoryModal() {
+    showModal(`
+      <div class="modal-head"><h2>История боли</h2><button class="modal-close" data-close>×</button></div>
+      <div class="notice"><strong>Это дневник ощущений, не диагноз.</strong><br>Если боль сильная, новая, нарастает или появляется выпуклость/отёк — лучше остановиться и обратиться к врачу.</div>
+      <div class="card list-card" style="margin-top:12px">
+        ${state.painEntries.length ? state.painEntries.slice(0, 60).map(renderPainEntry).join('') : '<div class="empty compact-empty"><strong>Пока нет записей</strong>Отметь боль перед тренировкой или возле упражнения.</div>'}
+      </div>
+    `);
   }
 
   async function showStorageInfo() {

@@ -1,7 +1,7 @@
 (() => {
   const DB_NAME = 'nikita-workouts-db';
-  const DB_VERSION = 2;
-  const STORES = ['meta', 'settings', 'profile', 'nutrition', 'exercises', 'programs', 'workouts', 'measurements', 'photos'];
+  const DB_VERSION = 3;
+  const STORES = ['meta', 'settings', 'profile', 'nutrition', 'exercises', 'programs', 'workouts', 'measurements', 'photos', 'painEntries'];
   let dbPromise = null;
 
   function openDB() {
@@ -47,6 +47,18 @@
         } else {
           const store = tx.objectStore('photos');
           if (!store.indexNames.contains('profileId')) store.createIndex('profileId', 'profileId', { unique: false });
+        }
+
+        if (!db.objectStoreNames.contains('painEntries')) {
+          const store = db.createObjectStore('painEntries', { keyPath: 'id' });
+          store.createIndex('date', 'date', { unique: false });
+          store.createIndex('profileId', 'profileId', { unique: false });
+          store.createIndex('workoutId', 'workoutId', { unique: false });
+        } else {
+          const store = tx.objectStore('painEntries');
+          if (!store.indexNames.contains('date')) store.createIndex('date', 'date', { unique: false });
+          if (!store.indexNames.contains('profileId')) store.createIndex('profileId', 'profileId', { unique: false });
+          if (!store.indexNames.contains('workoutId')) store.createIndex('workoutId', 'workoutId', { unique: false });
         }
 
         // Обновление старой однопользовательской базы: все прежние данные
@@ -98,7 +110,7 @@
       cursor.continue();
     };
 
-    for (const storeName of ['workouts', 'measurements', 'photos']) {
+    for (const storeName of ['workouts', 'measurements', 'photos', 'painEntries']) {
       const store = tx.objectStore(storeName);
       store.openCursor().onsuccess = (event) => {
         const cursor = event.target.result;
@@ -243,7 +255,7 @@
   }
 
   async function deleteProfile(profileId) {
-    const storesToOpen = ['profile', 'nutrition', 'settings', 'programs', 'exercises', 'workouts', 'measurements', 'photos', 'meta'];
+    const storesToOpen = ['profile', 'nutrition', 'settings', 'programs', 'exercises', 'workouts', 'measurements', 'photos', 'painEntries', 'meta'];
     await transaction(storesToOpen, 'readwrite', async (stores) => {
       stores.profile.delete(profileId);
       stores.nutrition.delete(profileId);
@@ -256,7 +268,7 @@
         cursor.continue();
       };
 
-      for (const storeName of ['workouts', 'measurements', 'photos']) {
+      for (const storeName of ['workouts', 'measurements', 'photos', 'painEntries']) {
         stores[storeName].openCursor().onsuccess = (event) => {
           const cursor = event.target.result;
           if (!cursor) return;
@@ -297,12 +309,12 @@
   async function exportData(includePhotos = false) {
     const result = {
       format: 'nikita-workouts-backup',
-      version: 2,
+      version: 3,
       appVersion: globalThis.NIKITA_APP?.version || null,
       exportedAt: new Date().toISOString(),
       data: {},
     };
-    for (const store of ['meta', 'settings', 'profile', 'nutrition', 'exercises', 'programs', 'workouts', 'measurements']) {
+    for (const store of ['meta', 'settings', 'profile', 'nutrition', 'exercises', 'programs', 'workouts', 'measurements', 'painEntries']) {
       result.data[store] = await getAll(store);
     }
     if (includePhotos) {
@@ -321,7 +333,7 @@
     if (!backup || backup.format !== 'nikita-workouts-backup' || !backup.data) {
       throw new Error('Это не резервная копия приложения «Тренировки»');
     }
-    const stores = ['meta', 'settings', 'profile', 'nutrition', 'exercises', 'programs', 'workouts', 'measurements', 'photos'];
+    const stores = ['meta', 'settings', 'profile', 'nutrition', 'exercises', 'programs', 'workouts', 'measurements', 'photos', 'painEntries'];
     await transaction(stores, 'readwrite', async (s) => {
       if (mode === 'replace') {
         for (const store of stores) s[store].clear();
@@ -353,7 +365,7 @@
         for (const row of backup.data.settings || []) {
           if (!String(row.key).includes(':')) s.settings.put({ key: `${fallbackProfileId}:${row.key}`, value: row.value });
         }
-        for (const storeName of ['workouts', 'measurements', 'photos']) {
+        for (const storeName of ['workouts', 'measurements', 'photos', 'painEntries']) {
           for (const oldRow of backup.data[storeName] || []) {
             s[storeName].put({ ...oldRow, profileId: oldRow.profileId || fallbackProfileId });
           }

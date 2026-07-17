@@ -362,3 +362,31 @@ button { color: inherit; }
   .smart-actions { grid-template-columns: 1fr; }
   .smart-actions.primary-line .button.primary { grid-column: auto; }
 }
+
+/* v1.4.0 — контроль боли */
+.pain-form[hidden] { display: none; }
+.pain-area-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.pain-area-option, .pain-level-option { border: 1px solid var(--line); background: var(--surface-2); color: var(--text); border-radius: 12px; min-height: 42px; padding: 8px 10px; font-weight: 800; }
+.pain-area-option.active, .pain-level-option.active { background: rgba(255,190,61,.16); border-color: rgba(255,190,61,.78); color: var(--warning); }
+.pain-level-picker { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 6px; }
+.pain-level-option { min-height: 38px; padding: 6px 0; }
+.pain-session-banner { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: flex-start; margin-bottom: 12px; border-left: 4px solid var(--warning); }
+.pain-session-banner.high { border-left-color: var(--danger); }
+.pain-session-icon { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 14px; background: rgba(255,190,61,.14); font-size: 24px; }
+.workout-exercise.pain-moderate { border-color: rgba(255,190,61,.62); }
+.workout-exercise.pain-high { border-color: rgba(255,94,108,.62); }
+.pain-warning { display: grid; grid-template-columns: auto 1fr; gap: 10px; margin-top: 12px; padding: 12px; border: 1px solid rgba(255,190,61,.42); border-left: 4px solid var(--warning); border-radius: 14px; background: rgba(255,190,61,.08); color: var(--text); }
+.pain-warning.pain-high { border-color: rgba(255,94,108,.55); border-left-color: var(--danger); background: rgba(255,94,108,.08); }
+.pain-warning.pain-low { opacity: .92; }
+.pain-warning-icon { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 12px; background: rgba(255,190,61,.18); font-size: 22px; }
+.pain-warning-body { min-width: 0; line-height: 1.45; }
+.pain-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.pain-dot { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 999px; background: rgba(255,190,61,.14); color: var(--warning); border: 1px solid rgba(255,190,61,.35); font-weight: 950; }
+.pain-dot.high { background: rgba(255,94,108,.13); color: var(--danger); border-color: rgba(255,94,108,.35); }
+.pain-dot.low { background: rgba(255,255,255,.05); color: var(--muted); }
+.pain-history-row { align-items: flex-start; }
+@media (max-width: 380px) {
+  .pain-area-grid { grid-template-columns: 1fr; }
+  .pain-level-picker { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .pain-actions { grid-template-columns: 1fr; }
+}
