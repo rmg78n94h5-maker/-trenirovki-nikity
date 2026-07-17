@@ -298,6 +298,7 @@
     const result = {
       format: 'nikita-workouts-backup',
       version: 2,
+      appVersion: globalThis.NIKITA_APP?.version || null,
       exportedAt: new Date().toISOString(),
       data: {},
     };

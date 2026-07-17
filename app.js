@@ -2,6 +2,7 @@
   'use strict';
 
   const DB = window.NikitaDB;
+  const APP_VERSION = window.NIKITA_APP?.version || 'неизвестна';
   const state = {
     route: 'home',
     profiles: [],
@@ -65,7 +66,13 @@
       }
       await ensurePersonalActiveProgram();
       await restoreDraftWorkout();
-      navigate(state.currentWorkout ? 'workout' : routeFromHash() || 'home', false);
+      const initialRoute = routeFromHash() || 'home';
+      if (initialRoute === 'workout') {
+        history.replaceState(null, '', '#/home');
+        navigate('home', false);
+      } else {
+        navigate(initialRoute, false);
+      }
     } catch (error) {
       console.error(error);
       el.main.innerHTML = `<div class="notice danger"><strong>Не удалось запустить приложение.</strong><br>${escapeHTML(error.message)}</div>`;
@@ -134,7 +141,11 @@
     el.timerPlus.addEventListener('click', () => adjustTimer(15));
     el.timerSkip.addEventListener('click', stopRestTimer);
     document.addEventListener('visibilitychange', () => {
+      if (document.hidden) flushDraftSave().catch((error) => console.warn('Draft save on hide failed', error));
       if (!document.hidden && state.timer.endsAt) syncTimerFromEnd();
+    });
+    window.addEventListener('pagehide', () => {
+      flushDraftSave().catch((error) => console.warn('Draft save on pagehide failed', error));
     });
   }
 
@@ -270,6 +281,7 @@
     const lastWorkout = state.workouts.find((w) => w.status === 'completed');
     const latestMeasurement = state.measurements[0];
     const streak = calculateStreak();
+    const draft = state.currentWorkout?.status === 'in_progress' ? state.currentWorkout : null;
     const nutrition = day.recovery ? {
       calories: state.nutrition.recoveryCalories,
       protein: state.nutrition.proteinG,
@@ -285,6 +297,23 @@
     setTopbar(formatDate(today, { weekday: 'long', day: 'numeric', month: 'long' }), `День ${index + 1} из ${program.days.length}`);
 
     el.main.innerHTML = `
+      ${draft ? `
+        <section class="section">
+          <div class="card hero-card">
+            <span class="chip accent">НЕЗАВЕРШЁННАЯ</span>
+            <h2>${escapeHTML(draft.dayName)}</h2>
+            <p>Черновик сохранён на телефоне. Новая тренировка не перезапишет его.</p>
+            <div class="hero-meta">
+              <span class="chip">Выполнено ${workoutCompletion(draft)}%</span>
+              <span class="chip">Идёт ${formatDuration(elapsedSeconds(draft.startedAt))}</span>
+            </div>
+            <div class="button-row">
+              <button class="button primary" id="resume-draft" type="button">Продолжить черновик</button>
+              <button class="button danger" id="delete-draft-home" type="button">Удалить</button>
+            </div>
+          </div>
+        </section>
+      ` : ''}
       <section class="section">
         <div class="card hero-card">
           <span class="chip accent">${day.recovery ? 'ВОССТАНОВЛЕНИЕ' : 'СЕГОДНЯ'}</span>
@@ -302,10 +331,14 @@
               <button class="show-more-exercises" id="toggle-extra-exercises" type="button">Показать ещё ${day.exercises.length - 6}</button>
             ` : ''}
           </div>
-          <div class="button-row">
-            <button class="button primary" id="start-workout">Начать тренировку</button>
-            <button class="button secondary" id="start-short">Нет сил · 15–20 мин</button>
-          </div>
+          ${draft ? `
+            <div class="notice"><strong>Сначала разберись с черновиком выше.</strong><br>Его можно продолжить или удалить — приложение не заменит его новой тренировкой молча.</div>
+          ` : `
+            <div class="button-row">
+              <button class="button primary" id="start-workout">Начать тренировку</button>
+              <button class="button secondary" id="start-short">Нет сил · 15–20 мин</button>
+            </div>
+          `}
         </div>
       </section>
 
@@ -353,8 +386,10 @@
       <div class="notice warning"><strong>Судно и безопасность.</strong> При сильной качке замени упражнения стоя с тяжёлым весом на варианты сидя, лёжа или с опорой. При боли в паху, животе, пояснице или суставах — остановись, а не геройствуй.</div>
     `;
 
-    document.getElementById('start-workout').addEventListener('click', () => startWorkout(false));
-    document.getElementById('start-short').addEventListener('click', () => startWorkout(true));
+    document.getElementById('start-workout')?.addEventListener('click', () => startWorkout(false));
+    document.getElementById('start-short')?.addEventListener('click', () => startWorkout(true));
+    document.getElementById('resume-draft')?.addEventListener('click', () => navigate('workout'));
+    document.getElementById('delete-draft-home')?.addEventListener('click', discardDraftFromHome);
     document.getElementById('add-measurement-home').addEventListener('click', showMeasurementModal);
     document.getElementById('toggle-extra-exercises')?.addEventListener('click', (event) => {
       const extra = document.getElementById('home-extra-exercises');
@@ -376,6 +411,7 @@
 
   async function startWorkout(shortMode) {
     if (state.currentWorkout) {
+      toast('Сначала продолжи или удали сохранённый черновик');
       navigate('workout');
       return;
     }
@@ -687,16 +723,27 @@
         <button class="button danger" id="discard-workout">Удалить</button>
       </div>
     `);
-    document.getElementById('keep-draft').addEventListener('click', () => {
-      clearInterval(state.workoutClockInterval);
-      state.currentWorkout = null;
-      closeModal();
-      navigate('home');
+    document.getElementById('keep-draft').addEventListener('click', async () => {
+      try {
+        await flushDraftSave();
+        stopRestTimer(false);
+        clearInterval(state.workoutClockInterval);
+        closeModal();
+        toast('Черновик сохранён');
+        navigate('home');
+      } catch (error) {
+        console.error(error);
+        toast(`Не удалось сохранить черновик: ${error.message}`);
+      }
     });
     document.getElementById('discard-workout').addEventListener('click', async () => {
+      clearDraftSaveTimer();
+      stopRestTimer(false);
+      clearInterval(state.workoutClockInterval);
       state.currentWorkout = null;
       await DB.remove('meta', draftWorkoutKey());
       closeModal();
+      toast('Черновик удалён');
       navigate('home');
     });
   }
@@ -716,6 +763,7 @@
   }
 
   async function finishWorkout() {
+    clearDraftSaveTimer();
     const workout = state.currentWorkout;
     workout.status = 'completed';
     workout.finishedAt = new Date().toISOString();
@@ -1488,7 +1536,7 @@
     await restoreDraftWorkout();
     closeModal();
     toast(`Выбран профиль «${state.profile.name}»`);
-    navigate(state.currentWorkout ? 'workout' : 'home');
+    navigate('home');
   }
 
   async function deleteProfileById(profileId) {
@@ -1515,9 +1563,9 @@
 
       <section class="section"><div class="section-head"><h2>Сигналы таймера</h2></div><div class="card list-card"><label class="list-row"><div><div class="list-row-title">Звук</div><div class="list-row-sub">Сигнал после отдыха</div></div><input id="sound-toggle" type="checkbox" ${state.settings.soundEnabled ? 'checked' : ''}></label><label class="list-row"><div><div class="list-row-title">Вибрация</div><div class="list-row-sub">На iPhone Safari может не поддерживаться</div></div><input id="vibration-toggle" type="checkbox" ${state.settings.vibrationEnabled ? 'checked' : ''}></label></div></section>
 
-      <section class="section"><div class="section-head"><h2>Резервная копия всех профилей</h2></div><div class="card"><div class="button-row"><button class="button primary" id="export-data">Данные JSON</button><button class="button secondary" id="export-full">С фото</button></div><button class="button ghost full" id="import-data" style="margin-top:10px">Импортировать копию</button><input id="import-file" type="file" accept="application/json" hidden><div class="help" style="margin-top:10px">Копия включает все профили на этом устройстве. Вариант с фотографиями может быть большим.</div></div></section>
+      <section class="section"><div class="section-head"><h2>Резервная копия всех профилей</h2></div><div class="card"><div class="button-row"><button class="button primary" id="export-data">Данные JSON</button><button class="button secondary" id="export-full">С фото</button></div><button class="button ghost full" id="import-data" style="margin-top:10px">Импортировать копию</button><input id="import-file" type="file" accept="application/json" hidden><div class="help" style="margin-top:10px">Копия включает все профили. «Данные JSON» не содержит фото; перед импортом такой копии приложение отдельно предупредит о возможном удалении локальных фотографий.</div></div></section>
 
-      <section class="section"><div class="section-head"><h2>Установка PWA</h2></div><div class="card"><ol class="muted" style="padding-left:20px;line-height:1.6"><li>Открой опубликованный адрес в Safari.</li><li>Нажми «Поделиться».</li><li>Выбери «На экран Домой».</li><li>Открой иконку один раз при интернете — после этого оболочка работает офлайн.</li></ol><button class="button secondary full" id="storage-info">Проверить хранилище</button></div></section>
+      <section class="section"><div class="section-head"><h2>Установка PWA</h2></div><div class="card"><ol class="muted" style="padding-left:20px;line-height:1.6"><li>Открой опубликованный адрес в Safari.</li><li>Нажми «Поделиться».</li><li>Выбери «На экран Домой».</li><li>Открой иконку один раз при интернете — после этого оболочка работает офлайн.</li></ol><button class="button secondary full" id="storage-info">Проверить хранилище</button><div class="help" style="margin-top:10px">Версия приложения ${escapeHTML(APP_VERSION)} · база IndexedDB v2</div></div></section>
 
       <section class="section"><div class="notice warning"><strong>Ограничение iPhone.</strong> Данные PWA могут исчезнуть после удаления иконки, очистки данных Safari или при критической нехватке памяти. Экспорт — обязательная страховка.</div></section>
     `;
@@ -1589,10 +1637,44 @@
   }
 
   async function importBackupFile(event) {
-    const file = event.target.files[0]; if(!file) return;
-    try { const backup=JSON.parse(await file.text()); await DB.importData(backup,'replace'); await loadState(); toast('Копия восстановлена'); renderMore(); }
-    catch(error){ toast(`Не удалось импортировать: ${error.message}`); }
-    event.target.value='';
+    const file = event.target.files[0];
+    if (!file) return;
+    try {
+      const backup = JSON.parse(await file.text());
+      if (!backup || backup.format !== 'nikita-workouts-backup' || !backup.data) {
+        throw new Error('Это не резервная копия приложения «Тренировки»');
+      }
+
+      const existingPhotos = await DB.getAll('photos');
+      const backupIncludesPhotos = Array.isArray(backup.data.photos);
+      const confirmation = backupIncludesPhotos
+        ? 'Импорт полностью заменит текущие профили, историю, замеры, настройки и фотографии данными из файла. Продолжить?'
+        : existingPhotos.length
+          ? `ВНИМАНИЕ: эта копия создана без фотографий. При полной замене будут удалены локальные фото: ${existingPhotos.length}. Сначала сделай копию «С фото», если они нужны. Продолжить импорт?`
+          : 'Эта копия создана без фотографий. Импорт полностью заменит текущие профили, историю, замеры и настройки. Продолжить?';
+      if (!window.confirm(confirmation)) return;
+
+      clearDraftSaveTimer();
+      stopRestTimer(false);
+      clearInterval(state.workoutClockInterval);
+      state.currentWorkout = null;
+      await DB.importData(backup, 'replace');
+      await loadState();
+      if (!state.profiles.length) {
+        showProfileOnboarding();
+        toast('Копия импортирована — создай профиль');
+        return;
+      }
+      await ensurePersonalActiveProgram();
+      await restoreDraftWorkout();
+      toast('Копия восстановлена');
+      navigate('home');
+    } catch (error) {
+      console.error(error);
+      toast(`Не удалось импортировать: ${error.message}`);
+    } finally {
+      event.target.value = '';
+    }
   }
 
   async function showStorageInfo() {
@@ -1627,19 +1709,62 @@
   function showStorageWarningIfNeeded() {}
 
   function draftWorkoutKey(profileId = state.activeProfileId) { return `draftWorkout:${profileId}`; }
-  async function saveDraftWorkout() {
-    if (state.currentWorkout && state.activeProfileId) {
-      state.currentWorkout.profileId = state.activeProfileId;
-      await DB.put('meta', { key: draftWorkoutKey(), value: state.currentWorkout });
-    }
+
+  async function saveDraftWorkout(workout = state.currentWorkout, profileId = state.activeProfileId) {
+    if (!workout || !profileId || workout.status !== 'in_progress') return;
+    const snapshot = clone({ ...workout, profileId });
+    await DB.put('meta', { key: draftWorkoutKey(profileId), value: snapshot });
   }
-  let draftSaveTimer=null;
-  function debounceDraftSave(){clearTimeout(draftSaveTimer);draftSaveTimer=setTimeout(saveDraftWorkout,350);updateWorkoutProgress();}
-  async function restoreDraftWorkout(){
+
+  let draftSaveTimer = null;
+
+  function clearDraftSaveTimer() {
+    if (draftSaveTimer) clearTimeout(draftSaveTimer);
+    draftSaveTimer = null;
+  }
+
+  async function flushDraftSave() {
+    clearDraftSaveTimer();
+    await saveDraftWorkout();
+  }
+
+  function debounceDraftSave() {
+    clearDraftSaveTimer();
+    const workoutId = state.currentWorkout?.id;
+    const profileId = state.activeProfileId;
+    draftSaveTimer = setTimeout(async () => {
+      draftSaveTimer = null;
+      if (!workoutId || state.currentWorkout?.id !== workoutId || state.activeProfileId !== profileId) return;
+      try {
+        await saveDraftWorkout(state.currentWorkout, profileId);
+      } catch (error) {
+        console.error('Draft autosave failed', error);
+        toast('Не удалось автоматически сохранить черновик');
+      }
+    }, 350);
+    updateWorkoutProgress();
+  }
+
+  async function restoreDraftWorkout() {
+    clearDraftSaveTimer();
     state.currentWorkout = null;
     if (!state.activeProfileId) return;
-    const row=await DB.get('meta',draftWorkoutKey());
-    if(row?.value?.status==='in_progress' && row.value.profileId===state.activeProfileId)state.currentWorkout=row.value;
+    const row = await DB.get('meta', draftWorkoutKey());
+    if (row?.value?.status === 'in_progress' && row.value.profileId === state.activeProfileId) {
+      state.currentWorkout = row.value;
+    }
+  }
+
+  async function discardDraftFromHome() {
+    if (!state.currentWorkout) return;
+    if (!window.confirm(`Удалить черновик «${state.currentWorkout.dayName}»? Выполненные подходы восстановить не получится.`)) return;
+    clearDraftSaveTimer();
+    stopRestTimer(false);
+    clearInterval(state.workoutClockInterval);
+    state.currentWorkout = null;
+    await DB.remove('meta', draftWorkoutKey());
+    toast('Черновик удалён');
+    renderHome();
   }
 
   function findLastExerciseResult(exerciseId) {

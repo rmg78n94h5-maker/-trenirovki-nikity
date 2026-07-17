@@ -1,8 +1,11 @@
-const CACHE_NAME = 'nikita-workouts-v1.2.1-text-guides';
+importScripts('./version.js');
+
+const CACHE_NAME = self.NIKITA_APP.cacheName;
 const APP_SHELL = [
   './',
   './index.html',
   './styles.css',
+  './version.js',
   './seed.js',
   './exercise-guides.js',
   './db.js',
