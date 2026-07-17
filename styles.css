@@ -113,16 +113,48 @@ button { color: inherit; }
 .workout-exercise-head h3 { margin: 5px 0 4px; font-size: 21px; }
 .exercise-meta { color: var(--muted); font-size: 13px; line-height: 1.4; }
 .exercise-tools { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
-.set-table { width: 100%; border-collapse: collapse; }
-.set-table th { text-align: left; color: var(--muted); font-size: 11px; padding: 10px 8px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-.set-table td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
-.set-table tr.done { background: rgba(87,227,137,.05); }
-.set-number { font-weight: 900; color: var(--accent); text-align: center; width: 34px; }
 .set-input { width: 72px; min-height: 42px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); padding: 8px; text-align: center; }
 .set-select { min-height: 42px; max-width: 105px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); padding: 7px; }
 .check-button { width: 42px; height: 42px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface-2); font-size: 18px; }
 .check-button.done { background: var(--accent); color: #080a0c; border-color: var(--accent); }
 .workout-footer { position: sticky; bottom: calc(72px + var(--safe-bottom)); display: grid; grid-template-columns: 1fr 1.4fr; gap: 9px; padding: 10px 0; background: linear-gradient(0deg, var(--bg) 75%, rgba(8,10,12,0)); }
+
+
+/* v1.2.3 — крупный ввод веса, повторов и длительности */
+.set-list { border-top: 1px solid var(--line); margin-bottom: 12px; }
+.set-row { padding: 13px 14px 15px; border-bottom: 1px solid var(--line); transition: background .18s ease; }
+.set-row:last-child { border-bottom: 0; }
+.set-row.done { background: rgba(87,227,137,.055); }
+.set-row-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 11px; }
+.set-badge { display: inline-flex; align-items: baseline; gap: 7px; color: var(--muted); font-size: 13px; font-weight: 800; }
+.set-badge strong { color: var(--accent); font-size: 23px; line-height: 1; font-variant-numeric: tabular-nums; }
+.set-row-actions { display: flex; align-items: end; justify-content: flex-end; gap: 8px; }
+.set-difficulty-wrap { display: grid; gap: 4px; }
+.set-difficulty-wrap > span, .set-control-label { color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: .045em; text-transform: uppercase; }
+.set-row .set-select { width: 122px; max-width: none; min-height: 44px; }
+.set-row .check-button { width: 46px; height: 46px; flex: 0 0 46px; font-size: 21px; }
+.set-control-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.set-control-grid.single { grid-template-columns: minmax(0, 280px); }
+.set-control { display: grid; gap: 6px; min-width: 0; }
+.set-stepper { display: grid; grid-template-columns: 48px minmax(0, 1fr) 48px; min-height: 52px; overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-2); }
+.stepper-button { min-width: 48px; border: 0; background: var(--surface-3); color: var(--text); font-size: 29px; font-weight: 950; line-height: 1; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+.stepper-button:first-child { border-right: 1px solid var(--line); }
+.stepper-button:last-child { border-left: 1px solid var(--line); }
+.stepper-button:active { background: var(--accent); color: #080a0c; }
+.stepper-button:disabled { opacity: .45; }
+.set-stepper .set-input { width: 100%; min-width: 0; min-height: 50px; padding: 6px 3px; border: 0; border-radius: 0; background: transparent; color: var(--text); font-size: 20px; font-weight: 900; font-variant-numeric: tabular-nums; text-align: center; outline: none; appearance: textfield; -moz-appearance: textfield; }
+.set-stepper .set-input::-webkit-inner-spin-button, .set-stepper .set-input::-webkit-outer-spin-button { margin: 0; appearance: none; -webkit-appearance: none; }
+.set-stepper .set-input:focus { background: rgba(199,255,47,.065); box-shadow: inset 0 0 0 2px rgba(199,255,47,.45); }
+.set-stepper .set-input.stepper-pulse { animation: stepper-pulse .16s ease-out; }
+@keyframes stepper-pulse { from { background: rgba(199,255,47,.22); } to { background: transparent; } }
+
+@media (max-width: 360px) {
+  .set-row { padding-left: 10px; padding-right: 10px; }
+  .set-control-grid { gap: 7px; }
+  .set-stepper { grid-template-columns: 44px minmax(0, 1fr) 44px; }
+  .stepper-button { min-width: 44px; }
+  .set-row .set-select { width: 112px; font-size: 12px; }
+}
 
 .timer-overlay { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; padding: 20px; background: rgba(0,0,0,.82); backdrop-filter: blur(8px); }
 .timer-card { width: min(100%, 360px); background: var(--surface); border: 1px solid var(--line); border-radius: 24px; padding: 24px; text-align: center; box-shadow: var(--shadow); }
@@ -173,8 +205,7 @@ button { color: inherit; }
 
 @media (max-width: 390px) {
   .main-content { padding-left: 12px; padding-right: 12px; }
-  .set-input { width: 62px; }
-  .set-select { width: 88px; font-size: 12px; }
+  .set-stepper .set-input { width: 100%; }
   .button-row.three { grid-template-columns: 1fr; }
 }
 .timer-overlay[hidden] {

@@ -433,10 +433,18 @@
       const setsCount = shortMode ? Math.min(defaults.sets || 1, defaults.unit === 'reps' ? 2 : 1) : (defaults.sets || 1);
       const setRows = Array.from({ length: setsCount }, (_, i) => ({
         number: i + 1,
-        weightKg: defaults.unit === 'reps' ? (suggestion.weightKg ?? last?.sets?.find((s) => s.completed)?.weightKg ?? defaults.weightKg ?? '') : '',
-        reps: defaults.unit === 'reps' ? (last?.sets?.[i]?.reps || defaults.repsMin || '') : '',
-        durationSec: defaults.unit === 'seconds' ? (defaults.durationSec || 30) : null,
-        durationMin: defaults.unit === 'minutes' ? (defaults.durationMin || 10) : null,
+        weightKg: defaults.unit === 'reps'
+          ? previousSetValue(last, i, 'weightKg', defaults.weightKg ?? suggestion.weightKg ?? '')
+          : '',
+        reps: defaults.unit === 'reps'
+          ? previousSetValue(last, i, 'reps', defaults.repsMin ?? '')
+          : '',
+        durationSec: defaults.unit === 'seconds'
+          ? previousSetValue(last, i, 'durationSec', defaults.durationSec || 30)
+          : null,
+        durationMin: defaults.unit === 'minutes'
+          ? previousSetValue(last, i, 'durationMin', defaults.durationMin || 10)
+          : null,
         difficulty: 'normal',
         completed: false,
       }));
@@ -447,6 +455,7 @@
         replacementOf: null,
         comment: '',
         previous: last ? summarizePrevious(last) : null,
+        prefilledFromLast: completedSets(last).length > 0,
         suggestion,
         defaults,
         sets: setRows,
@@ -509,8 +518,8 @@
 
   function renderWorkoutExercise(result, exerciseIndex) {
     const exercise = getExercise(result.exerciseId);
-    const unit = result.defaults.unit;
     const previous = result.previous ? `<span class="chip">Прошлый: ${escapeHTML(result.previous)}</span>` : `<span class="chip">Первое выполнение</span>`;
+    const prefilled = result.prefilledFromLast ? `<span class="chip success">Значения подставлены из прошлого раза</span>` : '';
     const suggestion = result.suggestion?.text ? `<span class="chip ${result.suggestion.kind === 'increase' ? 'success' : result.suggestion.kind === 'reduce' ? 'warning' : ''}">${escapeHTML(result.suggestion.text)}</span>` : '';
     return `
       <article class="workout-exercise ${result.skipped ? 'muted' : ''}" data-exercise-index="${exerciseIndex}">
@@ -518,7 +527,7 @@
           <div class="eyebrow">${exerciseIndex + 1} · ${escapeHTML(exercise?.group || '')}</div>
           <h3>${escapeHTML(result.name)}</h3>
           <div class="exercise-meta">${escapeHTML(exercise?.equipment || '')} · отдых ${result.defaults.restSec || 0} сек</div>
-          <div class="hero-meta">${previous}${suggestion}</div>
+          <div class="hero-meta">${previous}${prefilled}${suggestion}</div>
           ${exercise?.safety ? `<div class="notice warning" style="margin-top:10px">${escapeHTML(exercise.safety)}</div>` : ''}
           <details class="exercise-guide">
             <summary><span>ⓘ Техника и подсказки</span><span class="exercise-chevron" aria-hidden="true">⌄</span></summary>
@@ -531,23 +540,9 @@
           </div>
           ${result.comment ? `<div class="help" style="margin-top:9px">“${escapeHTML(result.comment)}”</div>` : ''}
         </div>
-        <table class="set-table">
-          <thead><tr><th>№</th>${unit === 'reps' ? '<th>КГ</th><th>ПОВТ.</th>' : `<th>${unit === 'minutes' ? 'МИН.' : 'СЕК.'}</th>`}<th>ТЯЖЕСТЬ</th><th></th></tr></thead>
-          <tbody>
-            ${result.sets.map((set, setIndex) => `
-              <tr class="${set.completed ? 'done' : ''}" data-set-index="${setIndex}">
-                <td class="set-number">${set.number}</td>
-                ${unit === 'reps' ? `
-                  <td><input class="set-input set-weight" type="number" inputmode="decimal" min="0" step="0.5" value="${set.weightKg}" ${result.skipped ? 'disabled' : ''}></td>
-                  <td><input class="set-input set-reps" type="number" inputmode="numeric" min="0" step="1" value="${set.reps}" ${result.skipped ? 'disabled' : ''}></td>
-                ` : `
-                  <td><input class="set-input set-duration" type="number" inputmode="numeric" min="1" step="1" value="${unit === 'minutes' ? set.durationMin : set.durationSec}" ${result.skipped ? 'disabled' : ''}></td>
-                `}
-                <td><select class="set-select set-difficulty" ${result.skipped ? 'disabled' : ''}>${difficultyOptions.map(([value, label]) => `<option value="${value}" ${set.difficulty === value ? 'selected' : ''}>${label}</option>`).join('')}</select></td>
-                <td><button class="check-button ${set.completed ? 'done' : ''} complete-set" type="button" ${result.skipped ? 'disabled' : ''}>${set.completed ? '✓' : '○'}</button></td>
-              </tr>`).join('')}
-          </tbody>
-        </table>
+        <div class="set-list" aria-label="Подходы упражнения ${escapeHTML(result.name)}">
+          ${result.sets.map((set, setIndex) => renderWorkoutSet(result, set, setIndex)).join('')}
+        </div>
         <div class="button-row" style="padding:0 14px 14px">
           <button class="button secondary small add-set" data-index="${exerciseIndex}" type="button" ${result.skipped ? 'disabled' : ''}>＋ Добавить подход</button>
           ${result.sets.length > 1 ? `<button class="button ghost small remove-set" data-index="${exerciseIndex}" type="button" ${result.skipped ? 'disabled' : ''}>− Убрать последний</button>` : ''}
@@ -556,10 +551,90 @@
     `;
   }
 
+  function renderWorkoutSet(result, set, setIndex) {
+    const unit = result.defaults.unit;
+    const disabled = result.skipped ? 'disabled' : '';
+    const setLabel = `Подход ${set.number}`;
+    const controls = unit === 'reps'
+      ? `
+        <div class="set-control-grid">
+          ${renderSetStepper({
+            label: 'Вес, кг',
+            inputClass: 'set-weight',
+            field: 'weightKg',
+            value: set.weightKg,
+            step: 0.5,
+            min: 0,
+            inputMode: 'decimal',
+            setLabel,
+            disabled,
+          })}
+          ${renderSetStepper({
+            label: 'Повторы',
+            inputClass: 'set-reps',
+            field: 'reps',
+            value: set.reps,
+            step: 1,
+            min: 0,
+            inputMode: 'numeric',
+            setLabel,
+            disabled,
+          })}
+        </div>
+      `
+      : `
+        <div class="set-control-grid single">
+          ${renderSetStepper({
+            label: unit === 'minutes' ? 'Минуты' : 'Секунды',
+            inputClass: 'set-duration',
+            field: unit === 'minutes' ? 'durationMin' : 'durationSec',
+            value: unit === 'minutes' ? set.durationMin : set.durationSec,
+            step: 1,
+            min: 1,
+            inputMode: 'numeric',
+            setLabel,
+            disabled,
+          })}
+        </div>
+      `;
+
+    return `
+      <div class="set-row ${set.completed ? 'done' : ''}" data-set-index="${setIndex}">
+        <div class="set-row-head">
+          <div class="set-badge"><span>Подход</span><strong>${set.number}</strong></div>
+          <div class="set-row-actions">
+            <label class="set-difficulty-wrap">
+              <span>Тяжесть</span>
+              <select class="set-select set-difficulty" aria-label="Тяжесть, ${setLabel}" ${disabled}>${difficultyOptions.map(([value, label]) => `<option value="${value}" ${set.difficulty === value ? 'selected' : ''}>${label}</option>`).join('')}</select>
+            </label>
+            <button class="check-button ${set.completed ? 'done' : ''} complete-set" type="button" aria-label="${set.completed ? 'Снять отметку' : 'Завершить'}, ${setLabel}" ${disabled}>${set.completed ? '✓' : '○'}</button>
+          </div>
+        </div>
+        ${controls}
+      </div>
+    `;
+  }
+
+  function renderSetStepper({ label, inputClass, field, value, step, min, inputMode, setLabel, disabled }) {
+    const safeValue = value === null || value === undefined ? '' : value;
+    const minusLabel = `Уменьшить: ${label.toLowerCase()}, ${setLabel}`;
+    const plusLabel = `Увеличить: ${label.toLowerCase()}, ${setLabel}`;
+    return `
+      <label class="set-control">
+        <span class="set-control-label">${escapeHTML(label)}</span>
+        <span class="set-stepper">
+          <button class="stepper-button adjust-set" type="button" data-field="${field}" data-delta="-${step}" aria-label="${escapeHTML(minusLabel)}" ${disabled}>−</button>
+          <input class="set-input ${inputClass}" type="number" inputmode="${inputMode}" min="${min}" step="${step}" value="${escapeHTML(String(safeValue))}" aria-label="${escapeHTML(`${label}, ${setLabel}`)}" ${disabled}>
+          <button class="stepper-button adjust-set" type="button" data-field="${field}" data-delta="${step}" aria-label="${escapeHTML(plusLabel)}" ${disabled}>＋</button>
+        </span>
+      </label>
+    `;
+  }
+
   function bindWorkoutEvents() {
     el.main.querySelectorAll('.workout-exercise').forEach((card) => {
       const exerciseIndex = Number(card.dataset.exerciseIndex);
-      card.querySelectorAll('tbody tr').forEach((row) => {
+      card.querySelectorAll('.set-row').forEach((row) => {
         const setIndex = Number(row.dataset.setIndex);
         row.querySelector('.set-weight')?.addEventListener('input', (event) => updateSet(exerciseIndex, setIndex, 'weightKg', numberOrBlank(event.target.value)));
         row.querySelector('.set-reps')?.addEventListener('input', (event) => updateSet(exerciseIndex, setIndex, 'reps', numberOrBlank(event.target.value)));
@@ -567,6 +642,8 @@
           const unit = state.currentWorkout.exercises[exerciseIndex].defaults.unit;
           updateSet(exerciseIndex, setIndex, unit === 'minutes' ? 'durationMin' : 'durationSec', numberOrBlank(event.target.value));
         });
+        row.querySelectorAll('.set-input').forEach((input) => input.addEventListener('focus', () => input.select()));
+        row.querySelectorAll('.adjust-set').forEach((button) => bindSetStepper(button, exerciseIndex, setIndex, row));
         row.querySelector('.set-difficulty')?.addEventListener('change', (event) => updateSet(exerciseIndex, setIndex, 'difficulty', event.target.value));
         row.querySelector('.complete-set')?.addEventListener('click', () => toggleSetComplete(exerciseIndex, setIndex));
       });
@@ -586,6 +663,69 @@
 
   function updateSet(exerciseIndex, setIndex, field, value) {
     state.currentWorkout.exercises[exerciseIndex].sets[setIndex][field] = value;
+    debounceDraftSave();
+  }
+
+  function bindSetStepper(button, exerciseIndex, setIndex, row) {
+    let holdTimer = null;
+    let repeatTimer = null;
+    let suppressClick = false;
+
+    const applyStep = () => {
+      const field = button.dataset.field;
+      const delta = Number(button.dataset.delta);
+      const input = row.querySelector(`.set-input.${field === 'weightKg' ? 'set-weight' : field === 'reps' ? 'set-reps' : 'set-duration'}`);
+      adjustSetValue(exerciseIndex, setIndex, field, delta, input);
+    };
+
+    const stopHold = () => {
+      clearTimeout(holdTimer);
+      clearInterval(repeatTimer);
+      holdTimer = null;
+      repeatTimer = null;
+      if (suppressClick) setTimeout(() => { suppressClick = false; }, 250);
+    };
+
+    button.addEventListener('pointerdown', (event) => {
+      if (button.disabled || event.button !== 0) return;
+      holdTimer = setTimeout(() => {
+        suppressClick = true;
+        applyStep();
+        repeatTimer = setInterval(applyStep, 120);
+      }, 420);
+    });
+    button.addEventListener('pointerup', stopHold);
+    button.addEventListener('pointercancel', stopHold);
+    button.addEventListener('pointerleave', stopHold);
+    button.addEventListener('contextmenu', (event) => event.preventDefault());
+    button.addEventListener('click', (event) => {
+      event.preventDefault();
+      if (suppressClick) {
+        suppressClick = false;
+        return;
+      }
+      applyStep();
+    });
+  }
+
+  function adjustSetValue(exerciseIndex, setIndex, field, delta, input) {
+    const set = state.currentWorkout?.exercises?.[exerciseIndex]?.sets?.[setIndex];
+    if (!set || !Number.isFinite(delta)) return;
+
+    const minimum = field === 'durationMin' || field === 'durationSec' ? 1 : 0;
+    const current = Number(set[field]);
+    const base = Number.isFinite(current) ? current : minimum;
+    const decimals = field === 'weightKg' ? 2 : 0;
+    const next = Math.max(minimum, Number((base + delta).toFixed(decimals)));
+
+    set[field] = next;
+    if (input) {
+      input.value = String(next);
+      input.classList.remove('stepper-pulse');
+      void input.offsetWidth;
+      input.classList.add('stepper-pulse');
+    }
+    if (state.settings.vibrationEnabled && navigator.vibrate) navigator.vibrate(8);
     debounceDraftSave();
   }
 
@@ -676,10 +816,18 @@
     const suggestion = progressionSuggestion(exercise, last);
     const sets = Array.from({ length: Math.min(exercise.defaults.sets, state.currentWorkout.shortMode ? 2 : exercise.defaults.sets) }, (_, i) => ({
       number: i + 1,
-      weightKg: suggestion.weightKg ?? last?.sets?.[i]?.weightKg ?? exercise.defaults.weightKg ?? '',
-      reps: last?.sets?.[i]?.reps || exercise.defaults.repsMin || '',
-      durationSec: exercise.defaults.durationSec || null,
-      durationMin: exercise.defaults.durationMin || null,
+      weightKg: exercise.defaults.unit === 'reps'
+        ? previousSetValue(last, i, 'weightKg', exercise.defaults.weightKg ?? suggestion.weightKg ?? '')
+        : '',
+      reps: exercise.defaults.unit === 'reps'
+        ? previousSetValue(last, i, 'reps', exercise.defaults.repsMin ?? '')
+        : '',
+      durationSec: exercise.defaults.unit === 'seconds'
+        ? previousSetValue(last, i, 'durationSec', exercise.defaults.durationSec || 30)
+        : null,
+      durationMin: exercise.defaults.unit === 'minutes'
+        ? previousSetValue(last, i, 'durationMin', exercise.defaults.durationMin || 10)
+        : null,
       difficulty: 'normal',
       completed: false,
     }));
@@ -690,6 +838,7 @@
       skipped: false,
       comment: `Замена: ${old.name}`,
       previous: last ? summarizePrevious(last) : null,
+      prefilledFromLast: completedSets(last).length > 0,
       suggestion,
       defaults: { ...exercise.defaults },
       sets,
@@ -1765,6 +1914,18 @@
     await DB.remove('meta', draftWorkoutKey());
     toast('Черновик удалён');
     renderHome();
+  }
+
+  function completedSets(result) {
+    return result?.sets?.filter((set) => set.completed) || [];
+  }
+
+  function previousSetValue(lastResult, setIndex, field, fallback) {
+    const sets = completedSets(lastResult);
+    const exactSet = lastResult?.sets?.[setIndex];
+    const previousSet = exactSet?.completed ? exactSet : sets[sets.length - 1];
+    const value = previousSet?.[field];
+    return value === '' || value === null || value === undefined ? fallback : value;
   }
 
   function findLastExerciseResult(exerciseId) {
