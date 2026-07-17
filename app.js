@@ -3,6 +3,7 @@
 
   const DB = window.NikitaDB;
   const APP_VERSION = window.NIKITA_APP?.version || 'неизвестна';
+  const BOOT_STARTED_AT = Date.now();
   const state = {
     route: 'home',
     profiles: [],
@@ -25,6 +26,7 @@
   };
 
   const el = {
+    splash: document.getElementById('app-splash'),
     main: document.getElementById('main'),
     topbarTitle: document.getElementById('topbar-title'),
     topbarEyebrow: document.getElementById('topbar-eyebrow'),
@@ -62,6 +64,7 @@
       await loadState();
       if (!state.profiles.length) {
         showProfileOnboarding();
+        hideSplash();
         return;
       }
       await ensurePersonalActiveProgram();
@@ -73,10 +76,27 @@
       } else {
         navigate(initialRoute, false);
       }
+      hideSplash();
     } catch (error) {
       console.error(error);
+      hideSplash(true);
       el.main.innerHTML = `<div class="notice danger"><strong>Не удалось запустить приложение.</strong><br>${escapeHTML(error.message)}</div>`;
     }
+  }
+
+
+  function hideSplash(force = false) {
+    const splash = el.splash;
+    if (!splash || splash.dataset.state === 'hiding') return;
+    splash.dataset.state = 'hiding';
+    const minimumVisibleMs = 650;
+    const delay = force ? 0 : Math.max(0, minimumVisibleMs - (Date.now() - BOOT_STARTED_AT));
+    window.setTimeout(() => {
+      splash.classList.add('app-splash-exit');
+      const removeSplash = () => splash.remove();
+      splash.addEventListener('transitionend', removeSplash, { once: true });
+      window.setTimeout(removeSplash, 520);
+    }, delay);
   }
 
   async function loadState() {

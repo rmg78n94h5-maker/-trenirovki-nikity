@@ -24,6 +24,59 @@ body { overscroll-behavior-y: contain; }
 button, input, select, textarea { font: inherit; }
 button { color: inherit; }
 
+/* v1.2.4 — короткая заставка при запуске */
+.app-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  padding: calc(24px + var(--safe-top)) 24px calc(24px + var(--safe-bottom));
+  background:
+    radial-gradient(circle at 50% 36%, rgba(199,255,47,.18), transparent 34%),
+    radial-gradient(circle at 85% 12%, rgba(158,219,0,.11), transparent 28%),
+    linear-gradient(180deg, #0c1014 0%, var(--bg) 100%);
+  opacity: 1;
+  transform: scale(1);
+  transition: opacity .28s ease, transform .28s ease;
+}
+.app-splash-exit { opacity: 0; transform: scale(1.025); pointer-events: none; }
+.splash-card { display: grid; justify-items: center; gap: 11px; text-align: center; transform: translateY(-8px); animation: splash-card-in .42s cubic-bezier(.2,.9,.2,1) both; }
+.splash-mark {
+  position: relative;
+  width: 92px;
+  height: 92px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid rgba(199,255,47,.28);
+  border-radius: 28px;
+  background: linear-gradient(145deg, rgba(199,255,47,.18), rgba(255,255,255,.035));
+  box-shadow: 0 22px 52px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.08);
+  animation: splash-mark-breathe 1.25s ease-in-out infinite;
+}
+.splash-mark::after {
+  content: '';
+  position: absolute;
+  inset: 12px;
+  border-radius: 22px;
+  border: 1px solid rgba(255,255,255,.07);
+}
+.splash-bar { width: 42px; height: 8px; border-radius: 999px; background: var(--accent); box-shadow: 0 0 22px rgba(199,255,47,.34); }
+.splash-plate { width: 11px; height: 32px; border-radius: 999px; background: var(--accent); box-shadow: 0 0 16px rgba(199,255,47,.26); }
+.splash-title { margin-top: 5px; font-size: 30px; font-weight: 950; letter-spacing: -.8px; }
+.splash-subtitle { color: var(--muted); font-size: 13px; font-weight: 750; letter-spacing: .02em; }
+.splash-loader { width: 118px; height: 5px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,.10); }
+.splash-loader span { display: block; width: 42%; height: 100%; border-radius: inherit; background: var(--accent); animation: splash-loader-run 1.05s ease-in-out infinite; }
+@keyframes splash-card-in { from { opacity: 0; transform: translateY(8px) scale(.96); } to { opacity: 1; transform: translateY(-8px) scale(1); } }
+@keyframes splash-mark-breathe { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-2px) scale(1.035); } }
+@keyframes splash-loader-run { 0% { transform: translateX(-110%); } 55%, 100% { transform: translateX(250%); } }
+@media (prefers-reduced-motion: reduce) {
+  .app-splash, .splash-card, .splash-mark, .splash-loader span { animation: none; transition: opacity .12s ease; }
+  .app-splash-exit { transform: none; }
+}
+
 .app-shell { min-height: 100vh; padding-top: var(--safe-top); padding-bottom: calc(82px + var(--safe-bottom)); }
 .topbar { position: sticky; top: 0; z-index: 20; display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 16px 18px 12px; background: linear-gradient(180deg, rgba(8,10,12,.98), rgba(8,10,12,.90), rgba(8,10,12,0)); backdrop-filter: blur(16px); }
 .topbar h1 { margin: 2px 0 0; font-size: 28px; letter-spacing: -.7px; }
