@@ -328,6 +328,9 @@
     window.addEventListener('hashchange', () => navigate(routeFromHash(), false));
     window.addEventListener('online', updateOnlineStatus);
     window.addEventListener('offline', updateOnlineStatus);
+    window.addEventListener('scroll', scheduleWorkoutStickyOffsetSync, { passive: true });
+    window.addEventListener('resize', scheduleWorkoutStickyOffsetSync);
+    window.addEventListener('orientationchange', scheduleWorkoutStickyOffsetSync);
     el.timerMinus.addEventListener('click', () => adjustTimer(-15));
     el.timerPlus.addEventListener('click', () => adjustTimer(15));
     el.timerSkip.addEventListener('click', stopRestTimer);
@@ -355,6 +358,7 @@
     el.profileSwitch.classList.toggle('hidden', state.route === 'workout');
     render();
     window.scrollTo({ top: 0, behavior: 'auto' });
+    scheduleWorkoutStickyOffsetSync();
   }
 
   function render() {
@@ -1831,6 +1835,21 @@
     toast(shouldAdvanceCycle ? 'Тренировка сохранена, цикл сдвинут дальше' : 'Тренировка сохранена, цикл не сдвинут');
     navigate('home');
     if (workout.records?.length) window.setTimeout(() => showWorkoutRecordsModal(workout), 120);
+  }
+
+  let workoutStickySyncFrame = 0;
+
+  function scheduleWorkoutStickyOffsetSync() {
+    if (state.route !== 'workout') return;
+    if (workoutStickySyncFrame) cancelAnimationFrame(workoutStickySyncFrame);
+    workoutStickySyncFrame = requestAnimationFrame(() => {
+      workoutStickySyncFrame = 0;
+      const topbar = document.querySelector('.topbar');
+      const header = document.querySelector('.sport-workout-header');
+      if (!topbar || !header) return;
+      const stickyTop = Math.max(0, Math.ceil(topbar.getBoundingClientRect().bottom));
+      header.style.setProperty('--workout-sticky-top', `${stickyTop}px`);
+    });
   }
 
   function updateWorkoutClock() {

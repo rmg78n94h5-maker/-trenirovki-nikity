@@ -1084,9 +1084,11 @@ button { color: inherit; }
   padding-bottom: calc(70px + var(--safe-bottom));
 }
 .sport-workout-header {
-  top: 72px;
+  top: var(--workout-sticky-top, calc(var(--safe-top) + 72px));
+  z-index: 19;
   padding: 4px 2px 7px;
   margin: -4px -2px 7px;
+  will-change: top;
 }
 .workout-live-banner {
   position: relative;
