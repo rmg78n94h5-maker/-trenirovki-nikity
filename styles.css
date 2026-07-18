@@ -484,3 +484,40 @@ button { color: inherit; }
 @media (max-width: 430px) {
   .update-status-grid { grid-template-columns: 1fr; }
 }
+
+/* v1.6.0 — нагрузка мышц */
+.muscle-home-card { display: grid; gap: 12px; }
+.muscle-home-top { display:flex; justify-content:space-between; gap:12px; align-items:center; }
+.muscle-mini-grid { display:grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap:8px; }
+.muscle-mini-cell { min-height: 58px; padding: 9px 8px; border-radius: 14px; background: var(--surface-2); border: 1px solid var(--line); display:grid; gap:4px; align-content:center; }
+.muscle-mini-cell span { color: var(--muted); font-size: 12px; line-height: 1.1; }
+.muscle-mini-cell strong { font-size: 22px; line-height: 1; }
+.muscle-mini-cell.normal { border-color: rgba(112, 255, 176, .34); background: rgba(112, 255, 176, .06); }
+.muscle-mini-cell.high { border-color: rgba(255,190,61,.42); background: rgba(255,190,61,.08); }
+.muscle-mini-cell.overload { border-color: rgba(255,94,108,.48); background: rgba(255,94,108,.08); }
+.muscle-mini-cell.low { opacity: .9; }
+.period-toggle { justify-content: center; }
+.muscle-load-grid { display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:12px; }
+.muscle-load-card { display:grid; gap:12px; border-left: 4px solid var(--line); }
+.muscle-load-card.normal { border-left-color: var(--success); }
+.muscle-load-card.high { border-left-color: var(--warning); }
+.muscle-load-card.overload { border-left-color: var(--danger); }
+.muscle-load-head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
+.muscle-load-head h3 { margin: 3px 0 0; }
+.muscle-status { display:inline-flex; align-items:center; min-height:28px; padding:5px 9px; border-radius:999px; border:1px solid var(--line); color:var(--muted); font-size:12px; font-weight:850; white-space:nowrap; }
+.muscle-status.normal { color: var(--success); border-color: rgba(112,255,176,.32); background: rgba(112,255,176,.07); }
+.muscle-status.high { color: var(--warning); border-color: rgba(255,190,61,.42); background: rgba(255,190,61,.08); }
+.muscle-status.overload { color: var(--danger); border-color: rgba(255,94,108,.48); background: rgba(255,94,108,.08); }
+.muscle-load-value { display:flex; align-items:flex-end; gap:8px; }
+.muscle-load-value strong { font-size:34px; line-height:1; }
+.muscle-load-value span { color:var(--muted); padding-bottom:4px; }
+.muscle-load-bar { height:10px; border-radius:999px; background: var(--surface-3); overflow:hidden; }
+.muscle-load-bar span { display:block; height:100%; border-radius:inherit; background: var(--accent); }
+.muscle-load-card.high .muscle-load-bar span { background: var(--warning); }
+.muscle-load-card.overload .muscle-load-bar span { background: var(--danger); }
+.muscle-advice-card { display:grid; gap:10px; }
+@media (max-width: 520px) {
+  .muscle-load-grid { grid-template-columns: 1fr; }
+  .muscle-mini-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .muscle-home-top { align-items:flex-start; flex-direction:column; }
+}

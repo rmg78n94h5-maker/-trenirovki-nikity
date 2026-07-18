@@ -1,0 +1,17 @@
+# TEST REPORT v1.6.0
+
+Проверки:
+
+- node --check app.js — OK
+- node --check db.js — OK
+- node --check seed.js — OK
+- node --check exercise-guides.js — OK
+- manifest.webmanifest — JSON валиден
+- version.js содержит 1.6.0
+- service-worker.js содержит SERVICE_WORKER_RELEASE 1.6.0
+- CACHE_NAME формируется как nikita-workouts-v1.6.0-muscle-load
+- Все файлы APP_SHELL из service-worker.js присутствуют
+- IndexedDB осталась v3, новых object store нет
+- ZIP проверен после сборки
+
+Интерактивный iPhone/PWA-прогон в sandbox не выполнялся: среда не даёт корректно проверить установленную iOS PWA и Service Worker как на телефоне.

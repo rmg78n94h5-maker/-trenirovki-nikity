@@ -24,6 +24,7 @@
     currentWorkout: null,
     historyFilter: 'month',
     progressTab: 'body',
+    musclePeriodDays: null,
     timer: { seconds: 0, interval: null, nextLabel: '' },
     photoUrls: new Map(),
     swRegistration: null,
@@ -152,6 +153,66 @@
       reason: 'нагружает голень, стопу и устойчивость',
     },
   };
+
+  const muscleGroups = [
+    { id: 'chest', label: 'Грудь', hint: 'жимы, отжимания, разводки' },
+    { id: 'back', label: 'Спина', hint: 'тяги, широчайшие, верх спины' },
+    { id: 'shoulders', label: 'Плечи', hint: 'жимы вверх, дельты, стабилизация' },
+    { id: 'biceps', label: 'Бицепс', hint: 'сгибания и тяги' },
+    { id: 'triceps', label: 'Трицепс', hint: 'жимы и разгибания' },
+    { id: 'legs', label: 'Ноги', hint: 'приседы, выпады, квадрицепс, икры' },
+    { id: 'glutes', label: 'Ягодицы', hint: 'мосты, тяги, выпады' },
+    { id: 'abs', label: 'Пресс', hint: 'кор, бока, стабилизация' },
+  ];
+
+  const muscleGroupMap = {
+    pushups: ['chest', 'triceps'],
+    'chair-incline-pushups': ['chest', 'triceps'],
+    'db-floor-press': ['chest', 'triceps'],
+    'machine-chest-press': ['chest', 'triceps'],
+    'pec-deck': ['chest'],
+    'db-fly-floor': ['chest'],
+    'db-shoulder-press': ['shoulders', 'triceps'],
+    'pike-pushups': ['shoulders', 'triceps'],
+    'lateral-raise': ['shoulders'],
+    'rear-delt-fly': ['shoulders', 'back'],
+    'face-pull-machine': ['shoulders', 'back'],
+    'one-arm-row': ['back', 'biceps'],
+    'barbell-row': ['back', 'biceps'],
+    'lat-pulldown': ['back', 'biceps'],
+    'seated-row-machine': ['back', 'biceps'],
+    'db-pullover': ['back', 'chest'],
+    shrugs: ['back', 'shoulders'],
+    'farmer-hold': ['abs', 'back'],
+    'suitcase-hold': ['abs'],
+    'barbell-curl': ['biceps'],
+    'db-curl': ['biceps'],
+    'hammer-curl': ['biceps'],
+    'reverse-curl': ['biceps'],
+    'overhead-triceps': ['triceps'],
+    'close-pushups': ['triceps', 'chest'],
+    'triceps-pushdown': ['triceps'],
+    'goblet-squat': ['legs', 'glutes'],
+    'chair-squat': ['legs', 'glutes'],
+    'barbell-squat': ['legs', 'glutes'],
+    'romanian-deadlift': ['glutes', 'legs', 'back'],
+    'good-morning-bodyweight': ['glutes', 'legs', 'back'],
+    'bulgarian-split-squat': ['legs', 'glutes'],
+    'reverse-lunge': ['legs', 'glutes'],
+    'hip-thrust': ['glutes'],
+    'single-leg-bridge': ['glutes'],
+    'calf-raise': ['legs'],
+    'wall-sit': ['legs', 'glutes'],
+    'dead-bug': ['abs'],
+    'bird-dog': ['abs', 'back'],
+    'reverse-crunch': ['abs'],
+    'lying-leg-raise': ['abs'],
+    'side-plank': ['abs'],
+    'front-plank': ['abs'],
+    'russian-twist': ['abs'],
+    'ab-roller': ['abs'],
+  };
+
 
   document.addEventListener('DOMContentLoaded', init);
 
@@ -543,6 +604,8 @@
         </div>
       </section>
 
+      ${renderHomeMuscleLoadCard()}
+
       <section class="section">
         <div class="section-head"><h2>Текущие данные</h2><button class="link-button" id="add-measurement-home">Добавить</button></div>
         <div class="card">
@@ -584,6 +647,7 @@
     document.getElementById('resume-draft')?.addEventListener('click', () => navigate('workout'));
     document.getElementById('delete-draft-home')?.addEventListener('click', discardDraftFromHome);
     document.getElementById('add-measurement-home').addEventListener('click', showMeasurementModal);
+    document.getElementById('open-muscle-progress-home')?.addEventListener('click', () => { state.progressTab = 'muscles'; navigate('progress'); });
     document.getElementById('toggle-extra-exercises')?.addEventListener('click', (event) => {
       const extra = document.getElementById('home-extra-exercises');
       const opening = extra.hidden;
@@ -2019,7 +2083,7 @@
     setTopbar('Прогресс', 'Без самообмана — только данные');
     el.main.innerHTML = `
       <section class="section"><div class="tabs">
-        ${[['body','Тело'],['training','Тренировки'],['records','Рекорды'],['strength','Рабочие веса'],['stepper','Степпер'],['photos','Фото']].map(([value,label]) => `<button class="tab ${state.progressTab === value ? 'active' : ''} progress-tab" data-tab="${value}">${label}</button>`).join('')}
+        ${[['body','Тело'],['training','Тренировки'],['muscles','Мышцы'],['records','Рекорды'],['strength','Рабочие веса'],['stepper','Степпер'],['photos','Фото']].map(([value,label]) => `<button class="tab ${state.progressTab === value ? 'active' : ''} progress-tab" data-tab="${value}">${label}</button>`).join('')}
       </div></section>
       <div id="progress-content">${renderProgressContent()}</div>
     `;
@@ -2030,6 +2094,7 @@
   function renderProgressContent() {
     if (state.progressTab === 'body') return renderBodyProgress();
     if (state.progressTab === 'training') return renderTrainingProgress();
+    if (state.progressTab === 'muscles') return renderMuscleProgress();
     if (state.progressTab === 'records') return renderRecordsProgress();
     if (state.progressTab === 'strength') return renderStrengthProgress();
     if (state.progressTab === 'stepper') return renderStepperProgress();
@@ -2055,6 +2120,71 @@
         <div class="stat"><div class="stat-value">${Math.round(avgCompletion(state.workouts))}%</div><div class="stat-label">среднее выполнение</div></div>
       </div></section>
       <section class="section"><div class="card"><div class="section-head"><h2>Тренировки по неделям</h2></div>${barChart(weeks.map(x=>({label:x.label,value:x.count})), 'трен.')}</div></section>`;
+  }
+
+
+  function renderHomeMuscleLoadCard() {
+    const summary = muscleLoadSummary(7);
+    const problemRows = summary.rows.filter((row) => ['overload', 'high', 'low'].includes(row.status)).slice(0, 3);
+    const headline = summary.completedWorkouts
+      ? `${summary.totalSets} рабочих подходов · ${summary.normalCount} норм · ${summary.warningCount} внимание`
+      : 'Появится после сохранённых тренировок';
+    return `
+      <section class="section">
+        <div class="section-head"><h2>Мышцы за 7 дней</h2><button class="link-button" id="open-muscle-progress-home" type="button">Подробнее</button></div>
+        <div class="card muscle-home-card">
+          <div class="muscle-home-top"><strong>${escapeHTML(headline)}</strong><span class="chip ${summary.warningCount ? 'warning' : 'success'}">${summary.warningCount ? 'есть перекосы' : 'ровно'}</span></div>
+          ${summary.completedWorkouts ? `<div class="muscle-mini-grid">${summary.rows.slice(0, 8).map(renderMuscleMiniCell).join('')}</div>${problemRows.length ? `<div class="help" style="margin-top:10px">${escapeHTML(muscleShortAdvice(problemRows))}</div>` : '<div class="help" style="margin-top:10px">Сильных перекосов не видно. Держим курс, капитан.</div>'}` : '<div class="empty compact-empty"><strong>Пока нет данных</strong>Сохрани пару тренировок — приложение посчитает нагрузку по группам.</div>'}
+        </div>
+      </section>`;
+  }
+
+  function renderMuscleMiniCell(row) {
+    return `<div class="muscle-mini-cell ${row.status}"><span>${escapeHTML(row.shortLabel)}</span><strong>${row.sets}</strong></div>`;
+  }
+
+  function renderMuscleProgress() {
+    const days = Number(state.musclePeriodDays || state.settings.musclePeriodDays || 7) === 14 ? 14 : 7;
+    const summary = muscleLoadSummary(days);
+    const overloaded = summary.rows.filter((row) => row.status === 'overload');
+    const high = summary.rows.filter((row) => row.status === 'high');
+    const low = summary.rows.filter((row) => row.status === 'low');
+    return `
+      <section class="section"><div class="button-row period-toggle">
+        <button class="button ${days === 7 ? 'primary' : 'secondary'} small muscle-period" data-days="7" type="button">7 дней</button>
+        <button class="button ${days === 14 ? 'primary' : 'secondary'} small muscle-period" data-days="14" type="button">14 дней</button>
+      </div></section>
+      <section class="section"><div class="stats-grid">
+        <div class="stat"><div class="stat-value">${summary.completedWorkouts}</div><div class="stat-label">тренировки</div></div>
+        <div class="stat"><div class="stat-value">${summary.totalSets}</div><div class="stat-label">раб. подходы</div></div>
+        <div class="stat"><div class="stat-value">${summary.normalCount}</div><div class="stat-label">норма</div></div>
+        <div class="stat"><div class="stat-value">${summary.warningCount}</div><div class="stat-label">внимание</div></div>
+      </div></section>
+      <section class="section"><div class="section-head"><h2>Нагрузка по группам</h2><span class="muted">${days} дней</span></div><div class="muscle-load-grid">${summary.rows.map(renderMuscleLoadCard).join('')}</div></section>
+      <section class="section"><div class="card muscle-advice-card"><div class="section-head"><h2>Вывод</h2></div>${renderMuscleAdvice(summary, { overloaded, high, low })}</div></section>
+      <div class="notice">Считаются только выполненные рабочие подходы текущего профиля. Упражнения-комбо могут засчитываться сразу в несколько групп: например жим — грудь и трицепс, тяга — спина и бицепс.</div>`;
+  }
+
+  function renderMuscleLoadCard(row) {
+    const percent = Math.min(100, Math.round((row.sets / Math.max(row.thresholds.overload, 1)) * 100));
+    const topSources = row.sources.slice(0, 3).map((source) => `${source.name}: ${source.sets}`).join(' · ');
+    return `<div class="card muscle-load-card ${row.status}">
+      <div class="muscle-load-head"><div><div class="eyebrow">${escapeHTML(row.hint)}</div><h3>${escapeHTML(row.label)}</h3></div><span class="muscle-status ${row.status}">${escapeHTML(row.statusLabel)}</span></div>
+      <div class="muscle-load-value"><strong>${row.sets}</strong><span>рабочих подходов</span></div>
+      <div class="muscle-load-bar"><span style="width:${percent}%"></span></div>
+      <div class="list-row-sub">Норма: ${row.thresholds.minNormal}–${row.thresholds.maxNormal} · много: до ${row.thresholds.overload}</div>
+      ${topSources ? `<div class="help">Основное: ${escapeHTML(topSources)}</div>` : '<div class="help">За период почти не было упражнений на эту группу.</div>'}
+    </div>`;
+  }
+
+  function renderMuscleAdvice(summary, buckets) {
+    if (!summary.completedWorkouts) return '<div class="empty compact-empty"><strong>Пока рано делать выводы</strong>После нескольких сохранённых тренировок здесь появятся подсказки по перекосам.</div>';
+    const notes = [];
+    if (buckets.overloaded.length) notes.push(`<div class="notice danger"><strong>Перегруз:</strong><br>${escapeHTML(buckets.overloaded.map((row) => row.label).join(', '))}. На ближайшей тренировке лучше не добавлять вес и убрать 1–2 подхода на эти зоны.</div>`);
+    if (buckets.high.length) notes.push(`<div class="notice warning"><strong>Много нагрузки:</strong><br>${escapeHTML(buckets.high.map((row) => row.label).join(', '))}. Нормально, если самочувствие хорошее, но следи за болью и восстановлением.</div>`);
+    if (buckets.low.length) notes.push(`<div class="notice"><strong>Недобор:</strong><br>${escapeHTML(buckets.low.map((row) => row.label).join(', '))}. Можно добавить лёгкие подходы или не пропускать эти группы в следующем цикле.</div>`);
+    if (!notes.length) notes.push('<div class="notice success"><strong>Баланс нормальный.</strong><br>По мышечным группам нет явного перекоса. Продолжай цикл без героизма и без резких скачков веса.</div>');
+    return notes.join('');
   }
 
   function renderRecordsProgress() {
@@ -2111,6 +2241,12 @@
     document.getElementById('add-measurement')?.addEventListener('click', showMeasurementModal);
     document.getElementById('measurement-history')?.addEventListener('click', showMeasurementsModal);
     el.main.querySelectorAll('.delete-measurement').forEach((button) => button.addEventListener('click', () => deleteMeasurement(button.dataset.id)));
+    el.main.querySelectorAll('.muscle-period').forEach((button) => button.addEventListener('click', async () => {
+      state.musclePeriodDays = Number(button.dataset.days) === 14 ? 14 : 7;
+      state.settings.musclePeriodDays = state.musclePeriodDays;
+      await DB.setSettingsObject({ musclePeriodDays: state.musclePeriodDays }, state.activeProfileId);
+      renderProgress();
+    }));
     document.getElementById('strength-exercise-select')?.addEventListener('change', async (event) => {
       state.settings.strengthExerciseId = event.target.value;
       await DB.setSettingsObject({ strengthExerciseId: event.target.value }, state.activeProfileId);
@@ -2710,6 +2846,102 @@
     const exercise = getExercise(result?.exerciseId);
     const haystack = `${exercise?.equipment || ''} ${exercise?.name || ''} ${result?.name || ''}`.toLowerCase();
     return haystack.includes('степпер');
+  }
+
+
+  function muscleShortAdvice(rows) {
+    const overloaded = rows.filter((row) => row.status === 'overload').map((row) => row.label);
+    if (overloaded.length) return `Перегруз: ${overloaded.join(', ')}. Лучше не добивать эти зоны сегодня.`;
+    const high = rows.filter((row) => row.status === 'high').map((row) => row.label);
+    if (high.length) return `Много нагрузки: ${high.join(', ')}. Следи за восстановлением.`;
+    const low = rows.filter((row) => row.status === 'low').map((row) => row.label);
+    if (low.length) return `Недобор: ${low.join(', ')}. Можно добавить в следующем цикле.`;
+    return 'Баланс нормальный.';
+  }
+
+  function getMuscleGroupsForExercise(exercise, result = null) {
+    const direct = muscleGroupMap[result?.exerciseId || exercise?.id];
+    if (direct?.length) return direct;
+    const haystack = `${exercise?.group || ''} ${exercise?.name || ''} ${result?.name || ''}`.toLowerCase();
+    const groups = new Set();
+    if (/груд|жим|отжим|развод|бабоч/.test(haystack)) groups.add('chest');
+    if (/спин|тяга|широч|лопат|пуловер|трапец/.test(haystack)) groups.add('back');
+    if (/плеч|дельт|шраг/.test(haystack)) groups.add('shoulders');
+    if (/бицеп|сгибан/.test(haystack)) groups.add('biceps');
+    if (/трицеп|разгибан|узкие/.test(haystack)) groups.add('triceps');
+    if (/ног|квадрицеп|икр|бедр|присед|выпад|стульчик/.test(haystack)) groups.add('legs');
+    if (/ягод|мост|задняя цепь/.test(haystack)) groups.add('glutes');
+    if (/пресс|кор|бок|планк|скруч|живот/.test(haystack)) groups.add('abs');
+    return [...groups];
+  }
+
+  function muscleThresholds(days) {
+    const scale = Math.max(1, Number(days) / 7);
+    return {
+      minNormal: Math.round(4 * scale),
+      maxNormal: Math.round(10 * scale),
+      high: Math.round(16 * scale),
+      overload: Math.round(17 * scale),
+    };
+  }
+
+  function muscleStatusForCount(count, days) {
+    const thresholds = muscleThresholds(days);
+    if (count < thresholds.minNormal) return { status: 'low', label: 'мало', thresholds };
+    if (count <= thresholds.maxNormal) return { status: 'normal', label: 'нормально', thresholds };
+    if (count < thresholds.overload) return { status: 'high', label: 'много', thresholds };
+    return { status: 'overload', label: 'перегруз', thresholds };
+  }
+
+  function muscleLoadSummary(days = 7) {
+    const periodDays = Number(days) === 14 ? 14 : 7;
+    const from = startOfDay(new Date(Date.now() - (periodDays - 1) * 86400000));
+    const workouts = completedWorkoutList(state.workouts).filter((workout) => new Date(workout.startedAt || workout.date) >= from);
+    const groups = new Map(muscleGroups.map((group) => [group.id, { ...group, sets: 0, sourcesMap: new Map() }]));
+
+    for (const workout of workouts) {
+      for (const result of workout.exercises || []) {
+        if (result.skipped) continue;
+        const done = completedSets(result);
+        if (!done.length) continue;
+        const exercise = getExercise(result.exerciseId) || { id: result.exerciseId, name: result.name, group: '' };
+        const targetGroups = getMuscleGroupsForExercise(exercise, result);
+        if (!targetGroups.length) continue;
+        for (const groupId of targetGroups) {
+          const row = groups.get(groupId);
+          if (!row) continue;
+          row.sets += done.length;
+          const sourceName = result.name || exercise.name || result.exerciseId;
+          row.sourcesMap.set(sourceName, (row.sourcesMap.get(sourceName) || 0) + done.length);
+        }
+      }
+    }
+
+    const rows = muscleGroups.map((group) => {
+      const raw = groups.get(group.id);
+      const status = muscleStatusForCount(raw.sets, periodDays);
+      const sources = [...raw.sourcesMap.entries()].map(([name, sets]) => ({ name, sets })).sort((a, b) => b.sets - a.sets);
+      return {
+        ...group,
+        shortLabel: group.label.replace('Трицепс', 'Триц.').replace('Бицепс', 'Биц.').replace('Ягодицы', 'Ягод.'),
+        sets: raw.sets,
+        sources,
+        status: status.status,
+        statusLabel: status.label,
+        thresholds: status.thresholds,
+      };
+    });
+    const warningCount = rows.filter((row) => ['low', 'high', 'overload'].includes(row.status)).length;
+    const normalCount = rows.filter((row) => row.status === 'normal').length;
+    return {
+      days: periodDays,
+      from,
+      rows,
+      completedWorkouts: workouts.length,
+      totalSets: rows.reduce((sum, row) => sum + row.sets, 0),
+      warningCount,
+      normalCount,
+    };
   }
 
   function completedWorkoutList(workouts = state.workouts) {
