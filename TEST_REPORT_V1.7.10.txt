@@ -1,0 +1,38 @@
+# TEST REPORT — v1.7.10 Share App
+
+Проверки выполнены:
+
+1. Синтаксис JavaScript:
+- node --check app.js — OK
+- node --check db.js — OK
+- node --check seed.js — OK
+- node --check exercise-guides.js — OK
+
+2. manifest.webmanifest:
+- JSON валиден.
+
+3. Версии:
+- version.js: 1.7.10 — OK
+- service-worker.js: SERVICE_WORKER_RELEASE 1.7.10 — OK
+- index.html: query-параметры v=1.7.10 — OK
+- cacheName: nikita-workouts-v1.7.10-share-app — OK
+
+4. Service Worker:
+- APP_SHELL файлы существуют — OK
+- имя кэша повышено — OK
+
+5. Данные:
+- IndexedDB остаётся v3.
+- Миграций нет.
+- Профили, тренировки, программы, замеры, фото, боль, рекорды и история не трогались.
+
+6. UI/логика:
+- Раздел «Ещё» получил карточку «Поделиться приложением».
+- Кнопка системного шаринга вызывает navigator.share, если доступен.
+- При недоступности системного шаринга ссылка копируется в буфер.
+- Быстрые кнопки Telegram, WhatsApp, ВК и MAX формируют ссылки с URL encoding.
+- Копирование ссылки имеет fallback для старых WebView/Safari.
+
+7. ZIP:
+- upload-only ZIP создан.
+- Проверка целостности ZIP — OK.

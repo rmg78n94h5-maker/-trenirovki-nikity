@@ -3093,6 +3093,8 @@
 
       <section class="section"><div class="section-head"><h2>Цель</h2></div><div class="card list-card">${goals.map((g)=>`<div class="list-row"><div class="list-row-main"><div class="list-row-title">✓ ${escapeHTML(g)}</div></div></div>`).join('')}</div></section>
 
+      <section class="section"><div class="section-head"><h2>Поделиться приложением</h2></div><div class="card share-app-card"><div class="share-app-head"><div><div class="eyebrow">Ссылка на PWA</div><h3>Отправить приложение</h3><p>Передаётся только ссылка. Профили, история, фото, замеры и тренировки остаются на этом телефоне.</p></div><div class="share-app-mark" aria-hidden="true">↗</div></div><button class="button primary full" id="share-app-system" type="button">Поделиться через iPhone</button><div class="share-fast-grid" aria-label="Быстрый шаринг"><button class="share-fast-button telegram" id="share-app-telegram" type="button"><span>✈️</span><strong>Telegram</strong></button><button class="share-fast-button whatsapp" id="share-app-whatsapp" type="button"><span>🟢</span><strong>WhatsApp</strong></button><button class="share-fast-button vk" id="share-app-vk" type="button"><span>VK</span><strong>ВК</strong></button><button class="share-fast-button max" id="share-app-max" type="button"><span>MAX</span><strong>MAX</strong></button></div><div class="button-row share-link-row"><button class="button secondary" id="copy-app-link" type="button">Скопировать ссылку</button><button class="button ghost" id="open-app-link" type="button">Открыть в Safari</button></div><div class="help share-app-url" id="share-app-url">${escapeHTML(getAppShareUrl())}</div></div></section>
+
       <section class="section"><div class="section-head"><h2>Калории и БЖУ</h2><button class="link-button" id="edit-nutrition">Изменить</button></div><div class="card"><div class="stats-grid"><div><div class="stat-value">${state.nutrition.trainingCalories}</div><div class="stat-label">тренировка, ккал</div></div><div><div class="stat-value">${state.nutrition.recoveryCalories}</div><div class="stat-label">восстановление</div></div><div><div class="stat-value">${state.nutrition.proteinG}</div><div class="stat-label">белок, г</div></div><div><div class="stat-value">${state.nutrition.trainingFatG}</div><div class="stat-label">жиры, г</div></div></div><div class="divider"></div><div class="help">${escapeHTML(state.nutrition.note)}</div></div></section>
 
       <section class="section"><div class="section-head"><h2>Сигналы таймера</h2></div><div class="card list-card"><label class="list-row"><div><div class="list-row-title">Звук</div><div class="list-row-sub">Сигнал после отдыха</div></div><input id="sound-toggle" type="checkbox" ${state.settings.soundEnabled ? 'checked' : ''}></label><label class="list-row"><div><div class="list-row-title">Вибрация</div><div class="list-row-sub">На iPhone Safari может не поддерживаться</div></div><input id="vibration-toggle" type="checkbox" ${state.settings.vibrationEnabled ? 'checked' : ''}></label></div></section>
@@ -3110,6 +3112,13 @@
     document.getElementById('switch-profile').addEventListener('click', showProfileSwitcher);
     document.getElementById('new-profile').addEventListener('click', showCreateProfileModal);
     document.getElementById('edit-profile').addEventListener('click', showProfileModal);
+    document.getElementById('share-app-system').addEventListener('click', shareAppViaSystem);
+    document.getElementById('share-app-telegram').addEventListener('click', () => openShareTarget('telegram'));
+    document.getElementById('share-app-whatsapp').addEventListener('click', () => openShareTarget('whatsapp'));
+    document.getElementById('share-app-vk').addEventListener('click', () => openShareTarget('vk'));
+    document.getElementById('share-app-max').addEventListener('click', () => openShareTarget('max'));
+    document.getElementById('copy-app-link').addEventListener('click', copyAppLink);
+    document.getElementById('open-app-link').addEventListener('click', openAppSharePage);
     document.getElementById('edit-nutrition').addEventListener('click', showNutritionModal);
     document.getElementById('sound-toggle').addEventListener('change', (e)=>saveToggle('soundEnabled',e.target.checked));
     document.getElementById('vibration-toggle').addEventListener('change', (e)=>saveToggle('vibrationEnabled',e.target.checked));
@@ -3122,6 +3131,91 @@
     document.getElementById('check-app-update').addEventListener('click', () => checkForAppUpdate(true));
     document.getElementById('force-app-refresh').addEventListener('click', forceRefreshAppShell);
     document.getElementById('storage-info').addEventListener('click', showStorageInfo);
+  }
+
+  function getAppShareUrl() {
+    const url = new URL(window.location.href);
+    url.search = '';
+    url.hash = '#/home';
+    url.pathname = url.pathname.replace(/index\.html$/i, '');
+    return url.toString();
+  }
+
+  function getAppShareData() {
+    const url = getAppShareUrl();
+    const title = 'Тренировки';
+    const text = 'Тренировки — PWA-приложение для тренировок, прогресса и восстановления.';
+    return { title, text, url, message: `${text}\n${url}` };
+  }
+
+  async function shareAppViaSystem() {
+    const { title, text, url } = getAppShareData();
+    if (navigator.share) {
+      try {
+        await navigator.share({ title, text, url });
+        return;
+      } catch (error) {
+        if (error?.name === 'AbortError') return;
+      }
+    }
+    await copyAppLink();
+  }
+
+  function openShareTarget(target) {
+    const { title, text, url, message } = getAppShareData();
+    const encodedUrl = encodeURIComponent(url);
+    const encodedText = encodeURIComponent(text);
+    const encodedTitle = encodeURIComponent(title);
+    const encodedMessage = encodeURIComponent(message);
+    const links = {
+      telegram: `https://t.me/share/url?url=${encodedUrl}&text=${encodedText}`,
+      whatsapp: `https://wa.me/?text=${encodedMessage}`,
+      vk: `https://vk.com/share.php?url=${encodedUrl}&title=${encodedTitle}&description=${encodedText}`,
+      max: `https://max.ru/:share?text=${encodedMessage}`,
+    };
+    openExternalLink(links[target] || url);
+  }
+
+  function openAppSharePage() {
+    openExternalLink(getAppShareUrl());
+  }
+
+  function openExternalLink(url) {
+    const link = document.createElement('a');
+    link.href = url;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }
+
+  async function copyAppLink() {
+    const url = getAppShareUrl();
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+      } else {
+        fallbackCopyText(url);
+      }
+      toast('Ссылка на приложение скопирована');
+    } catch (error) {
+      fallbackCopyText(url);
+      toast('Ссылка скопирована');
+    }
+  }
+
+  function fallbackCopyText(value) {
+    const textarea = document.createElement('textarea');
+    textarea.value = value;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    textarea.style.pointerEvents = 'none';
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    textarea.remove();
   }
 
   function showProfileModal() {
