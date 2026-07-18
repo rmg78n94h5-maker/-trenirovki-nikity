@@ -1,10 +1,10 @@
 (() => {
   'use strict';
 
-  const version = '1.7.3';
+  const version = '1.7.4';
 
   globalThis.NIKITA_APP = Object.freeze({
     version,
-    cacheName: `nikita-workouts-v${version}-body-progress-charts`,
+    cacheName: `nikita-workouts-v${version}-smart-rest`,
   });
 })();

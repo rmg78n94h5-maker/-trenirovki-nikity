@@ -600,3 +600,32 @@ button { color: inherit; }
   .body-chart-value { font-size: 17px; }
   .body-chart-date, .body-chart-axis { font-size: 13px; }
 }
+
+/* v1.7.4 — умный отдых и календарное восстановление */
+.smart-rest-card { display: grid; gap: 10px; border-left: 4px solid var(--line); }
+.smart-rest-card.ok { border-left-color: var(--success); }
+.smart-rest-card.watch { border-left-color: var(--warning); background: linear-gradient(180deg, rgba(255,190,61,.06), rgba(255,255,255,.025)); }
+.smart-rest-card.recommended { border-left-color: var(--warning); background: linear-gradient(180deg, rgba(255,190,61,.09), rgba(255,255,255,.025)); }
+.smart-rest-card.critical { border-left-color: var(--danger); background: linear-gradient(180deg, rgba(255,94,108,.10), rgba(255,255,255,.025)); }
+.rest-week-strip { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 7px; }
+.rest-day { min-height: 54px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-2); display: grid; place-items: center; gap: 2px; padding: 7px 4px; }
+.rest-day span { width: 25px; height: 25px; display: grid; place-items: center; border-radius: 999px; background: rgba(255,255,255,.06); color: var(--muted); font-weight: 950; font-size: 12px; }
+.rest-day strong { color: var(--muted); font-size: 10px; line-height: 1; }
+.rest-day.training { border-color: rgba(199,255,47,.42); background: rgba(199,255,47,.08); }
+.rest-day.training span { background: var(--accent); color: #080a0c; }
+.rest-day.light { border-color: rgba(87,227,137,.35); background: rgba(87,227,137,.07); }
+.rest-day.light span { background: rgba(87,227,137,.22); color: var(--success); }
+.rest-day.recovery { border-color: rgba(255,190,61,.38); background: rgba(255,190,61,.07); }
+.rest-day.recovery span { background: rgba(255,190,61,.20); color: var(--warning); }
+.rest-day.rest { opacity: .72; }
+.smart-rest-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.smart-rest-modal-actions { grid-template-columns: 1fr; }
+.smart-rest-signal-list .list-row { align-items: flex-start; }
+.recovery-summary-card { border-left: 4px solid var(--success); background: linear-gradient(135deg, rgba(87,227,137,.075), var(--surface)); }
+@media (max-width: 430px) {
+  .rest-week-strip { gap: 5px; }
+  .rest-day { min-height: 48px; border-radius: 12px; padding: 6px 2px; }
+  .rest-day span { width: 22px; height: 22px; font-size: 11px; }
+  .rest-day strong { font-size: 9px; }
+  .smart-rest-actions { grid-template-columns: 1fr; }
+}

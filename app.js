@@ -526,7 +526,7 @@
     const weekWorkouts = workoutsSince(startOfWeek(today));
     const completedThisWeek = weekWorkouts.filter((w) => w.status === 'completed').length;
     const totalMinutes = Math.round(weekWorkouts.reduce((sum, w) => sum + (w.durationSec || 0), 0) / 60);
-    const lastWorkout = state.workouts.find((w) => w.status === 'completed');
+    const lastWorkout = completedWorkoutList(state.workouts)[0];
     const latestMeasurement = state.measurements[0];
     const streak = calculateStreak();
     const draft = state.currentWorkout?.status === 'in_progress' ? state.currentWorkout : null;
@@ -608,6 +608,7 @@
 
       ${renderHomeMuscleLoadCard()}
       ${renderHomeDeloadCard()}
+      ${renderHomeRestCard()}
 
       <section class="section">
         <div class="section-head"><h2>Текущие данные</h2><button class="link-button" id="add-measurement-home">Добавить</button></div>
@@ -652,6 +653,9 @@
     document.getElementById('add-measurement-home').addEventListener('click', showMeasurementModal);
     document.getElementById('open-muscle-progress-home')?.addEventListener('click', () => { state.progressTab = 'muscles'; navigate('progress'); });
     document.getElementById('open-deload-progress-home')?.addEventListener('click', () => { state.progressTab = 'recovery'; navigate('progress'); });
+    document.getElementById('open-rest-progress-home')?.addEventListener('click', () => { state.progressTab = 'recovery'; navigate('progress'); });
+    document.getElementById('log-rest-home')?.addEventListener('click', () => recordRecoveryDay({ source: 'home' }));
+    document.getElementById('start-light-home')?.addEventListener('click', () => startWorkout({ shortMode: true, startMode: 'cycle', shouldAdvanceCycle: false, recoveryCheckDone: true }));
     document.getElementById('toggle-extra-exercises')?.addEventListener('click', (event) => {
       const extra = document.getElementById('home-extra-exercises');
       const opening = extra.hidden;
@@ -679,7 +683,7 @@
   }
 
   async function repeatLastWorkout() {
-    const lastWorkout = state.workouts.find((w) => w.status === 'completed');
+    const lastWorkout = completedWorkoutList(state.workouts)[0];
     if (!lastWorkout) return toast('Пока нечего повторять: история тренировок пустая');
     const dayIndex = findRepeatDayIndex(lastWorkout);
     if (dayIndex < 0) return toast('Не нашёл этот день в активной программе');
@@ -712,6 +716,94 @@
         await startWorkout({ dayIndex, startMode: 'selected', shouldAdvanceCycle: false });
       });
     });
+  }
+
+
+  function shouldShowSmartRestGate({ shortMode = false, day = null } = {}) {
+    if (shortMode || day?.recovery) return false;
+    const analysis = smartRestAnalysis({ includeTodayTraining: true });
+    return analysis.gateWorkout;
+  }
+
+  function showSmartRestModal(startConfig = {}) {
+    const analysis = smartRestAnalysis({ includeTodayTraining: true });
+    const primaryRest = analysis.status === 'critical' || analysis.shouldRest;
+    showModal(`
+      <div class="modal-head"><div><div class="eyebrow">Умный отдых</div><h2>${escapeHTML(analysis.modalTitle)}</h2></div><button class="modal-close" data-close>×</button></div>
+      <div class="card smart-rest-card ${analysis.status}">
+        <p>${escapeHTML(analysis.modalText)}</p>
+        <div class="rest-week-strip">${analysis.days.slice(0, 7).reverse().map((day) => `<div class="rest-day ${day.kind}"><span>${escapeHTML(day.shortLabel)}</span><strong>${escapeHTML(day.shortDate)}</strong></div>`).join('')}</div>
+        ${analysis.signals.length ? `<div class="card list-card smart-rest-signal-list" style="margin-top:12px">${analysis.signals.slice(0, 4).map((signal) => `<div class="list-row"><div class="list-row-main"><div class="list-row-title">${escapeHTML(signal.title)}</div><div class="list-row-sub">${escapeHTML(signal.label)}</div></div></div>`).join('')}</div>` : ''}
+      </div>
+      <div class="button-row smart-rest-modal-actions" style="margin-top:14px">
+        <button class="button ${primaryRest ? 'primary' : 'secondary'}" id="confirm-rest-day" type="button">День восстановления</button>
+        <button class="button secondary" id="confirm-light-workout" type="button">Лёгкая 15–20 мин</button>
+        <button class="button ghost" id="ignore-rest-advice" type="button">Продолжить всё равно</button>
+      </div>
+      <div class="help" style="margin-top:10px">Это не блокировка. Просто приложение видит календарь, нагрузку и отдых, чтобы не советовать ерунду.</div>
+    `);
+    document.getElementById('confirm-rest-day').addEventListener('click', async () => {
+      closeModal();
+      await recordRecoveryDay({ source: 'smart_rest_modal', analysis });
+    });
+    document.getElementById('confirm-light-workout').addEventListener('click', async () => {
+      closeModal();
+      await startWorkout({ ...startConfig, shortMode: true, shouldAdvanceCycle: false, recoveryCheckDone: true });
+    });
+    document.getElementById('ignore-rest-advice').addEventListener('click', async () => {
+      closeModal();
+      await startWorkout({ ...startConfig, recoveryCheckDone: true });
+    });
+  }
+
+  async function recordRecoveryDay({ source = 'manual', analysis = null } = {}) {
+    const date = todayISO();
+    if (hasRecoveryDayForDate(date)) {
+      toast('День восстановления уже записан');
+      return;
+    }
+    const todayKind = activityKindForDate(date);
+    if (todayKind === 'training' || todayKind === 'light') {
+      toast('Сегодня уже есть тренировка или лёгкая активность');
+      return;
+    }
+    const snapshot = smartRestSnapshot(analysis || smartRestAnalysis({ includeTodayTraining: false }));
+    const now = new Date().toISOString();
+    const workout = {
+      id: uid('recovery'),
+      profileId: state.activeProfileId,
+      type: 'recovery_day',
+      date,
+      startedAt: now,
+      finishedAt: now,
+      programId: state.settings.activeProgramId || null,
+      programName: getActiveProgram()?.name || '',
+      dayId: 'recovery-day',
+      dayIndex: null,
+      dayName: 'День восстановления',
+      shortMode: false,
+      startMode: 'recovery',
+      shouldAdvanceCycle: false,
+      status: 'completed',
+      durationSec: 0,
+      completionPct: 100,
+      totalLoadKg: 0,
+      recoveryDay: {
+        source,
+        reason: snapshot.statusLabel,
+        text: snapshot.homeText,
+        signals: snapshot.signals,
+        createdAt: now,
+      },
+      exercises: [],
+      comment: 'День отдыха / восстановления. Силовая нагрузка не выполнялась.',
+    };
+    await DB.put('workouts', workout);
+    state.workouts.unshift(workout);
+    toast('День восстановления записан');
+    if (state.route === 'home') renderHome();
+    else if (state.route === 'progress') renderProgress();
+    else if (state.route === 'history') renderHistory();
   }
 
   function workPrescription(exercise, entry = {}) {
@@ -962,8 +1054,13 @@
       return;
     }
 
+    if (!config.recoveryCheckDone && shouldShowSmartRestGate({ shortMode, day })) {
+      showSmartRestModal({ ...config, shortMode, dayIndex: index, startMode, shouldAdvanceCycle, recoveryCheckDone: true });
+      return;
+    }
+
     if (!config.painCheckDone) {
-      showPreWorkoutPainModal({ ...config, shortMode, dayIndex: index, startMode, shouldAdvanceCycle });
+      showPreWorkoutPainModal({ ...config, shortMode, dayIndex: index, startMode, shouldAdvanceCycle, recoveryCheckDone: true });
       return;
     }
 
@@ -1041,6 +1138,8 @@
     };
     const deload = deloadAnalysis({ days: 14 });
     if (deload.shouldSuggest) state.currentWorkout.deload = deloadSnapshot(deload);
+    const smartRest = smartRestAnalysis({ includeTodayTraining: true });
+    if (smartRest.status !== 'ok') state.currentWorkout.smartRest = smartRestSnapshot(smartRest);
     if (preWorkoutPain.hasPain) {
       await savePainEntry({ ...preWorkoutPain, source: 'pre_workout', workoutId: state.currentWorkout.id });
     }
@@ -2054,8 +2153,14 @@
   }
 
   function workoutSummaryCard(workout) {
+    if (isRecoveryWorkout(workout)) {
+      const reason = workout.recoveryDay?.reason || 'восстановление';
+      return `<div class="card recovery-summary-card">
+        <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div><div class="eyebrow">${formatDate(new Date(workout.startedAt), { day:'numeric', month:'long', year:'numeric' })}</div><h3 style="margin:5px 0 4px">${escapeHTML(workout.dayName || 'День восстановления')}</h3><div class="muted">отдых · ${escapeHTML(reason)} · цикл не сдвинут</div></div><button class="mini-button view-workout" data-id="${workout.id}">›</button></div>
+      </div>`;
+    }
     return `<div class="card">
-      <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div><div class="eyebrow">${formatDate(new Date(workout.startedAt), { day:'numeric', month:'long', year:'numeric' })}</div><h3 style="margin:5px 0 4px">${escapeHTML(workout.dayName)}</h3><div class="muted">${formatDuration(workout.durationSec || 0)} · ${workout.completionPct ?? workoutCompletion(workout)}% · ${formatCompactLoad(workout.totalLoadKg || 0)} кг${workout.records?.length ? ` · 🔥 ${workout.records.length} рек.` : ''}${workout.deload?.applied ? ' · разгрузка' : ''}</div></div><button class="mini-button view-workout" data-id="${workout.id}">›</button></div>
+      <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div><div class="eyebrow">${formatDate(new Date(workout.startedAt), { day:'numeric', month:'long', year:'numeric' })}</div><h3 style="margin:5px 0 4px">${escapeHTML(workout.dayName)}</h3><div class="muted">${formatDuration(workout.durationSec || 0)} · ${workout.completionPct ?? workoutCompletion(workout)}% · ${formatCompactLoad(workout.totalLoadKg || 0)} кг${workout.records?.length ? ` · 🔥 ${workout.records.length} рек.` : ''}${workout.deload?.applied ? ' · разгрузка' : ''}${workout.smartRest?.status && workout.smartRest.status !== 'ok' ? ' · отдых советовали' : ''}</div></div><button class="mini-button view-workout" data-id="${workout.id}">›</button></div>
       <div class="progress-bar" style="margin-top:12px"><span style="width:${workout.completionPct ?? workoutCompletion(workout)}%"></span></div>
     </div>`;
   }
@@ -2063,6 +2168,7 @@
   function showWorkoutDetails(id) {
     const workout = state.workouts.find((w) => w.id === id);
     if (!workout) return;
+    if (isRecoveryWorkout(workout)) return showRecoveryDayDetails(workout);
     showModal(`
       <div class="modal-head"><div><div class="eyebrow">${formatDate(new Date(workout.startedAt), { day:'numeric', month:'long', year:'numeric' })}</div><h2>${escapeHTML(workout.dayName)}</h2></div><button class="modal-close" data-close>×</button></div>
       <div class="stats-grid">
@@ -2092,11 +2198,38 @@
     });
   }
 
+
+  function showRecoveryDayDetails(workout) {
+    const signals = workout.recoveryDay?.signals || [];
+    showModal(`
+      <div class="modal-head"><div><div class="eyebrow">${formatDate(new Date(workout.startedAt), { day:'numeric', month:'long', year:'numeric' })}</div><h2>${escapeHTML(workout.dayName || 'День восстановления')}</h2></div><button class="modal-close" data-close>×</button></div>
+      <div class="card smart-rest-card ok">
+        <p>${escapeHTML(workout.recoveryDay?.text || 'День без силовой нагрузки. Цикл тренировок не сдвигался.')}</p>
+        <div class="stats-grid" style="margin-top:12px">
+          <div class="stat"><div class="stat-value">0</div><div class="stat-label">подходов</div></div>
+          <div class="stat"><div class="stat-value">0</div><div class="stat-label">кг нагрузки</div></div>
+          <div class="stat"><div class="stat-value">✓</div><div class="stat-label">отдых</div></div>
+          <div class="stat"><div class="stat-value">—</div><div class="stat-label">цикл</div></div>
+        </div>
+      </div>
+      ${signals.length ? `<div class="card list-card" style="margin-top:12px">${signals.map((signal) => `<div class="list-row"><div class="list-row-main"><div class="list-row-title">${escapeHTML(signal.title)}</div><div class="list-row-sub">${escapeHTML(signal.label)}</div></div></div>`).join('')}</div>` : ''}
+      ${workout.comment ? `<div class="notice" style="margin-top:12px">${escapeHTML(workout.comment)}</div>` : ''}
+      <button class="button danger full" id="delete-recovery-day" style="margin-top:14px">Удалить запись отдыха</button>
+    `);
+    document.getElementById('delete-recovery-day').addEventListener('click', async () => {
+      await DB.remove('workouts', workout.id);
+      state.workouts = state.workouts.filter((w) => w.id !== workout.id);
+      closeModal();
+      renderHistory();
+      toast('Запись отдыха удалена');
+    });
+  }
+
   function renderProgress() {
     setTopbar('Прогресс', 'Без самообмана — только данные');
     el.main.innerHTML = `
       <section class="section"><div class="tabs">
-        ${[['body','Тело'],['training','Тренировки'],['muscles','Мышцы'],['recovery','Разгрузка'],['records','Рекорды'],['strength','Рабочие веса'],['stepper','Степпер'],['photos','Фото']].map(([value,label]) => `<button class="tab ${state.progressTab === value ? 'active' : ''} progress-tab" data-tab="${value}">${label}</button>`).join('')}
+        ${[['body','Тело'],['training','Тренировки'],['muscles','Мышцы'],['recovery','Восстановление'],['records','Рекорды'],['strength','Рабочие веса'],['stepper','Степпер'],['photos','Фото']].map(([value,label]) => `<button class="tab ${state.progressTab === value ? 'active' : ''} progress-tab" data-tab="${value}">${label}</button>`).join('')}
       </div></section>
       <div id="progress-content">${renderProgressContent()}</div>
     `;
@@ -2262,10 +2395,10 @@
     const weeks = aggregateWeeks(8);
     return `
       <section class="section"><div class="stats-grid">
-        <div class="stat"><div class="stat-value">${state.workouts.length}</div><div class="stat-label">всего тренировок</div></div>
+        <div class="stat"><div class="stat-value">${completedWorkoutList(state.workouts).length}</div><div class="stat-label">всего тренировок</div></div>
         <div class="stat"><div class="stat-value">${calculateStreak()}</div><div class="stat-label">серия дней</div></div>
-        <div class="stat"><div class="stat-value">${Math.round(state.workouts.reduce((s,w)=>s+(w.durationSec||0),0)/3600)}</div><div class="stat-label">часов</div></div>
-        <div class="stat"><div class="stat-value">${Math.round(avgCompletion(state.workouts))}%</div><div class="stat-label">среднее выполнение</div></div>
+        <div class="stat"><div class="stat-value">${Math.round(completedWorkoutList(state.workouts).reduce((s,w)=>s+(w.durationSec||0),0)/3600)}</div><div class="stat-label">часов</div></div>
+        <div class="stat"><div class="stat-value">${Math.round(avgCompletion(completedWorkoutList(state.workouts)))}%</div><div class="stat-label">среднее выполнение</div></div>
       </div></section>
       <section class="section"><div class="card"><div class="section-head"><h2>Тренировки по неделям</h2></div>${barChart(weeks.map(x=>({label:x.label,value:x.count})), 'трен.')}</div></section>`;
   }
@@ -2276,15 +2409,44 @@
     const analysis = deloadAnalysis({ days: 14 });
     const tone = analysis.status === 'recommended' ? 'warning' : analysis.status === 'critical' ? 'danger' : analysis.status === 'watch' ? 'notice' : 'success';
     if (!analysis.hasData) {
-      return `<section class="section"><div class="card deload-card"><div class="section-head"><h2>Восстановление</h2><span class="chip">нет данных</span></div><div class="empty compact-empty"><strong>Разгрузка пока не нужна</strong>Сохрани несколько тренировок — приложение начнёт отслеживать усталость, боль и падение результатов.</div></div></section>`;
+      return `<section class="section"><div class="card deload-card"><div class="section-head"><h2>Разгрузка</h2><span class="chip">нет данных</span></div><div class="empty compact-empty"><strong>Разгрузка пока не нужна</strong>Сохрани несколько тренировок — приложение начнёт отслеживать усталость, боль и падение результатов.</div></div></section>`;
     }
     const signalText = analysis.signals.length ? analysis.signals.slice(0, 3).map((signal) => signal.label).join(' · ') : 'критичных признаков нет';
     return `<section class="section">
       <div class="card deload-card ${analysis.status}">
-        <div class="section-head"><h2>Восстановление</h2><span class="chip ${analysis.shouldSuggest ? 'warning' : 'success'}">${escapeHTML(analysis.statusLabel)}</span></div>
+        <div class="section-head"><h2>Разгрузка</h2><span class="chip ${analysis.shouldSuggest ? 'warning' : 'success'}">${escapeHTML(analysis.statusLabel)}</span></div>
         <p>${escapeHTML(analysis.homeText)}</p>
         <div class="help">${escapeHTML(signalText)}</div>
         <div class="button-row" style="margin-top:12px"><button class="button secondary small" id="open-deload-progress-home" type="button">Подробнее</button></div>
+      </div>
+    </section>`;
+  }
+
+
+  function renderHomeRestCard() {
+    const analysis = smartRestAnalysis({ includeTodayTraining: true });
+    const statusClass = analysis.status;
+    const calendar = analysis.days.slice(0, 7).reverse().map((day) => `
+      <div class="rest-day ${day.kind}" title="${escapeAttr(day.label)}">
+        <span>${escapeHTML(day.shortLabel)}</span>
+        <strong>${escapeHTML(day.shortDate)}</strong>
+      </div>`).join('');
+    const signals = analysis.signals.length ? analysis.signals.slice(0, 3).map((signal) => signal.title).join(' · ') : analysis.modeNote;
+    const todayKind = activityKindForDate(todayISO());
+    const todayRestLogged = todayKind === 'recovery';
+    const todayHasTraining = todayKind === 'training' || todayKind === 'light';
+    const restButtonText = todayRestLogged ? 'Отдых записан' : todayHasTraining ? 'Сегодня была активность' : 'Отдохнуть сегодня';
+    return `<section class="section">
+      <div class="card smart-rest-card ${statusClass}">
+        <div class="section-head"><h2>Умный отдых</h2><span class="chip ${analysis.status === 'ok' ? 'success' : analysis.status === 'watch' ? 'warning' : 'warning'}">${escapeHTML(analysis.statusLabel)}</span></div>
+        <p>${escapeHTML(analysis.homeText)}</p>
+        <div class="rest-week-strip" aria-label="Календарь активности за 7 дней">${calendar}</div>
+        <div class="help">${escapeHTML(signals)}</div>
+        <div class="button-row smart-rest-actions" style="margin-top:12px">
+          <button class="button secondary small" id="open-rest-progress-home" type="button">Подробнее</button>
+          <button class="button ghost small" id="start-light-home" type="button">Лёгкая</button>
+          <button class="button ${analysis.shouldRest ? 'primary' : 'ghost'} small" id="log-rest-home" type="button" ${todayRestLogged || todayHasTraining ? 'disabled' : ''}>${escapeHTML(restButtonText)}</button>
+        </div>
       </div>
     </section>`;
   }
@@ -2355,13 +2517,34 @@
 
 
   function renderRecoveryProgress() {
+    const rest = smartRestAnalysis({ includeTodayTraining: true });
     const analysis = deloadAnalysis({ days: 14 });
-    const rows = analysis.signals.length ? analysis.signals.map((signal) => `
+    const restRows = rest.signals.length ? rest.signals.map((signal) => `
+      <div class="list-row">
+        <div class="list-row-main"><div class="list-row-title">${escapeHTML(signal.title)}</div><div class="list-row-sub">${escapeHTML(signal.label)}</div></div>
+        <span class="chip ${signal.weight >= 2 ? 'warning' : ''}">+${signal.weight}</span>
+      </div>`).join('') : '<div class="empty compact-empty"><strong>Режим нормальный</strong>Календарь не похож на перетрен: отдых между тренировками учитывается.</div>';
+    const deloadRows = analysis.signals.length ? analysis.signals.map((signal) => `
       <div class="list-row">
         <div class="list-row-main"><div class="list-row-title">${escapeHTML(signal.title)}</div><div class="list-row-sub">${escapeHTML(signal.label)}</div></div>
         <span class="chip ${signal.weight >= 2 ? 'warning' : ''}">+${signal.weight}</span>
       </div>`).join('') : '<div class="empty compact-empty"><strong>Сильных признаков усталости нет</strong>Пока можно продолжать цикл без разгрузочной недели.</div>';
     return `
+      <section class="section">
+        <div class="card smart-rest-card ${rest.status}">
+          <div class="section-head"><h2>${escapeHTML(rest.title)}</h2><span class="chip ${rest.status === 'ok' ? 'success' : 'warning'}">${escapeHTML(rest.statusLabel)}</span></div>
+          <p>${escapeHTML(rest.detailText)}</p>
+          <div class="rest-week-strip" style="margin-top:12px">${rest.days.slice(0, 14).reverse().map((day) => `<div class="rest-day ${day.kind}"><span>${escapeHTML(day.shortLabel)}</span><strong>${escapeHTML(day.shortDate)}</strong></div>`).join('')}</div>
+          <div class="stats-grid" style="margin-top:12px">
+            <div class="stat"><div class="stat-value">${rest.trainingDays7}</div><div class="stat-label">трен. за 7 дней</div></div>
+            <div class="stat"><div class="stat-value">${rest.potentialConsecutiveTrainingDays}</div><div class="stat-label">подряд, если сегодня</div></div>
+            <div class="stat"><div class="stat-value">${rest.fullRestDays7}</div><div class="stat-label">полный отдых</div></div>
+            <div class="stat"><div class="stat-value">${rest.daysWithoutFullRest}</div><div class="stat-label">дней без отдыха</div></div>
+          </div>
+          <div class="button-row" style="margin-top:12px"><button class="button secondary" id="log-rest-progress" type="button" ${hasRecoveryDayForDate(todayISO()) ? 'disabled' : ''}>${hasRecoveryDayForDate(todayISO()) ? 'Сегодня отдых уже записан' : 'Записать отдых сегодня'}</button></div>
+        </div>
+      </section>
+      <section class="section"><div class="section-head"><h2>Сигналы умного отдыха</h2><span class="muted">календарь + нагрузка</span></div><div class="card list-card">${restRows}</div></section>
       <section class="section">
         <div class="card deload-card ${analysis.status}">
           <div class="section-head"><h2>${escapeHTML(analysis.title)}</h2><span class="chip ${analysis.shouldSuggest ? 'warning' : 'success'}">${escapeHTML(analysis.statusLabel)}</span></div>
@@ -2374,7 +2557,7 @@
           </div>
         </div>
       </section>
-      <section class="section"><div class="section-head"><h2>Признаки</h2><span class="muted">14 дней</span></div><div class="card list-card">${rows}</div></section>
+      <section class="section"><div class="section-head"><h2>Признаки разгрузки</h2><span class="muted">14 дней</span></div><div class="card list-card">${deloadRows}</div></section>
       <section class="section"><div class="card deload-plan-card"><div class="section-head"><h2>Если включаешь разгрузку</h2></div>
         <div class="deload-plan-grid">
           <div><strong>Вес</strong><span>−15–20%</span></div>
@@ -2382,7 +2565,7 @@
           <div><strong>Отказ</strong><span>убрать полностью</span></div>
           <div><strong>Степпер</strong><span>лёгкий темп</span></div>
         </div>
-        <div class="notice" style="margin-top:12px"><strong>Это предложение, не приказ.</strong><br>Приложение подсвечивает признаки усталости, а решение остаётся за тобой.</div>
+        <div class="notice" style="margin-top:12px"><strong>Это предложение, не приказ.</strong><br>Приложение отличает тренировки подряд от схемы через день и не душнит, когда отдых по календарю был.</div>
       </div></section>`;
   }
 
@@ -2440,6 +2623,7 @@
     document.getElementById('add-measurement')?.addEventListener('click', showMeasurementModal);
     document.getElementById('measurement-history')?.addEventListener('click', showMeasurementsModal);
     document.getElementById('measurement-history-inline')?.addEventListener('click', showMeasurementsModal);
+    document.getElementById('log-rest-progress')?.addEventListener('click', () => recordRecoveryDay({ source: 'progress' }));
     el.main.querySelectorAll('.body-metric').forEach((button) => button.addEventListener('click', async () => {
       state.bodyProgressMetric = button.dataset.metric;
       state.settings.bodyProgressMetric = state.bodyProgressMetric;
@@ -3217,6 +3401,143 @@
     toast('Разгрузка применена: незавершённые подходы стали легче');
   }
 
+
+  function isRecoveryWorkout(workout) {
+    return workout?.type === 'recovery_day' || Boolean(workout?.recoveryDay);
+  }
+
+  function workoutTrainingSetCount(workout) {
+    if (!workout?.exercises?.length) return 0;
+    return workout.exercises.reduce((sum, result) => sum + completedSets(result).length, 0);
+  }
+
+  function isTrainingWorkout(workout) {
+    return workout?.status === 'completed' && !isRecoveryWorkout(workout) && Array.isArray(workout.exercises) && workout.exercises.length > 0;
+  }
+
+  function workoutHasOnlyLightActivity(workout) {
+    if (!isTrainingWorkout(workout)) return false;
+    const sets = workoutTrainingSetCount(workout);
+    const load = Number(workout.totalLoadKg || 0);
+    const hard = (workout.exercises || []).flatMap((result) => completedSets(result)).filter((set) => ['hard', 'failure'].includes(set.difficulty)).length;
+    const allStepper = (workout.exercises || []).filter((result) => completedSets(result).length).every((result) => getExercise(result.exerciseId)?.equipment === 'Степпер' || isTimeResult(result));
+    return allStepper || (sets > 0 && sets <= 4 && load <= 0 && hard === 0) || Boolean(workout.shortMode && hard === 0 && sets <= 6);
+  }
+
+  function hasRecoveryDayForDate(date) {
+    return state.workouts.some((workout) => workout.status === 'completed' && localDateISO(new Date(workout.startedAt || workout.date)) === date && isRecoveryWorkout(workout));
+  }
+
+  function activityKindForDate(date, workouts = state.workouts) {
+    const rows = workouts.filter((workout) => workout?.status === 'completed' && localDateISO(new Date(workout.startedAt || workout.date)) === date);
+    if (rows.some(isTrainingWorkout)) {
+      return rows.some((workout) => !workoutHasOnlyLightActivity(workout)) ? 'training' : 'light';
+    }
+    if (rows.some(isRecoveryWorkout)) return 'recovery';
+    return 'rest';
+  }
+
+  function buildActivityDays(days = 14) {
+    const today = startOfDay(new Date());
+    return Array.from({ length: days }, (_, index) => {
+      const d = new Date(today.getTime() - index * 86400000);
+      const iso = localDateISO(d);
+      const kind = activityKindForDate(iso);
+      const label = kind === 'training' ? 'Тренировка' : kind === 'light' ? 'Лёгкая активность' : kind === 'recovery' ? 'Восстановление' : 'Полный отдых';
+      const shortLabel = kind === 'training' ? 'Т' : kind === 'light' ? 'Л' : kind === 'recovery' ? 'В' : '—';
+      return { date: iso, dateObj: d, kind, label, shortLabel, shortDate: formatTinyDate(iso) };
+    });
+  }
+
+  function countConsecutiveKind(days, acceptedKinds, startIndex = 0) {
+    let count = 0;
+    for (let i = startIndex; i < days.length; i += 1) {
+      if (!acceptedKinds.includes(days[i].kind)) break;
+      count += 1;
+    }
+    return count;
+  }
+
+  function smartRestAnalysis({ includeTodayTraining = false } = {}) {
+    const days = buildActivityDays(14);
+    const todayWasTraining = days[0]?.kind === 'training' || days[0]?.kind === 'light';
+    const yesterdayTrainingRun = countConsecutiveKind(days, ['training'], todayWasTraining ? 0 : 1);
+    const currentTrainingRun = countConsecutiveKind(days, ['training'], 0);
+    const potentialConsecutiveTrainingDays = includeTodayTraining && !todayWasTraining ? yesterdayTrainingRun + 1 : currentTrainingRun;
+    const daysWithoutFullRestBase = countConsecutiveKind(days, ['training', 'light', 'recovery'], 0);
+    const daysWithoutFullRest = includeTodayTraining && days[0]?.kind === 'rest' ? 1 + countConsecutiveKind(days, ['training', 'light', 'recovery'], 1) : daysWithoutFullRestBase;
+    const last7 = days.slice(0, 7);
+    const trainingDays7 = last7.filter((day) => day.kind === 'training').length;
+    const lightDays7 = last7.filter((day) => day.kind === 'light').length;
+    const recoveryDays7 = last7.filter((day) => day.kind === 'recovery').length;
+    const fullRestDays7 = last7.filter((day) => day.kind === 'rest').length;
+    const throughDayPattern = trainingDays7 >= 3 && potentialConsecutiveTrainingDays <= 2 && fullRestDays7 >= 2;
+    const signals = [];
+    const push = (id, title, label, weight) => signals.push({ id, title, label, weight });
+
+    if (potentialConsecutiveTrainingDays >= 5) push('consecutive-critical', 'Много тренировок подряд', `${potentialConsecutiveTrainingDays} тренировочных дней подряд с учётом сегодняшней`, 3);
+    else if (potentialConsecutiveTrainingDays >= 3) push('consecutive-watch', 'Тренировки подряд', `${potentialConsecutiveTrainingDays} дня подряд — лучше не разгонять до отказа`, 1);
+
+    if (daysWithoutFullRest >= 6) push('no-full-rest-critical', 'Долго без полного отдыха', `${daysWithoutFullRest} дней подряд была активность`, 2);
+    else if (daysWithoutFullRest >= 4 && fullRestDays7 <= 1) push('no-full-rest-watch', 'Мало полного отдыха', `${daysWithoutFullRest} дня без пустого дня в календаре`, 1);
+
+    if (trainingDays7 >= 5 && fullRestDays7 <= 1) push('dense-week', 'Плотная неделя', `${trainingDays7} тренировочных дней за 7 дней и мало полного отдыха`, 2);
+    if (throughDayPattern) push('through-day-ok', 'Тренировки через отдых', `${trainingDays7} тренировки за неделю, но между ними были дни восстановления`, -2);
+
+    const completed = completedWorkoutList(state.workouts);
+    const recentHard = completed.slice(0, 4).filter(isHardWorkout).length;
+    if (recentHard >= 3) push('hard-recent', 'Много тяжёлых тренировок', `${recentHard} из последних 4 были тяжёлыми или с отказом`, 2);
+
+    const painFrom = startOfDay(new Date(Date.now() - 6 * 86400000));
+    const highPain = state.painEntries.filter((entry) => Number(entry.score) >= 7 && new Date(entry.createdAt || `${entry.date}T00:00:00`) >= painFrom).length;
+    if (highPain) push('high-pain', 'Была сильная боль', `${highPain} отметк. боли 7/10+ за 7 дней`, 3);
+
+    const muscles = muscleLoadSummary(7);
+    const overloaded = muscles.rows.filter((row) => row.status === 'overload');
+    const high = muscles.rows.filter((row) => row.status === 'high');
+    if (overloaded.length) push('muscle-overload-rest', 'Перегруз мышц', `${overloaded.map((row) => row.label).join(', ')} — перегруз за 7 дней`, 2);
+    else if (high.length >= 3) push('muscle-high-rest', 'Много нагрузки по мышцам', `${high.map((row) => row.label).join(', ')} — много подходов`, 1);
+
+    let score = signals.reduce((sum, signal) => sum + signal.weight, 0);
+    score = Math.max(0, score);
+    const status = score >= 5 ? 'critical' : score >= 3 ? 'recommended' : score >= 1 ? 'watch' : 'ok';
+    const shouldRest = status === 'critical' || (status === 'recommended' && (potentialConsecutiveTrainingDays >= 3 || daysWithoutFullRest >= 5 || highPain > 0));
+    const gateWorkout = status === 'critical' || status === 'recommended';
+    const statusLabel = status === 'critical' ? 'лучше отдых' : status === 'recommended' ? 'отдых просится' : status === 'watch' ? 'наблюдаем' : 'режим норм';
+    const title = status === 'critical' ? 'Сегодня лучше восстановиться' : status === 'recommended' ? 'Отдых сильно просится' : status === 'watch' ? 'Есть признаки усталости' : 'Режим восстановления нормальный';
+    const modeNote = throughDayPattern && status === 'ok' ? 'Тренировки идут через день — приложение это учитывает и не душнит.' : fullRestDays7 >= 2 ? 'В календаре есть дни отдыха, режим выглядит адекватно.' : 'Сохрани больше тренировок — оценка станет точнее.';
+    const homeText = status === 'critical'
+      ? 'Календарь и нагрузка намекают: силовую сегодня лучше заменить восстановлением.'
+      : status === 'recommended'
+        ? 'Не просто “много тренировок”, а сочетание нагрузки, календаря и восстановления. Лучше сделать отдых или лёгкую.'
+        : status === 'watch'
+          ? 'Есть лёгкие сигналы усталости. Если самочувствие нормальное — можно тренироваться без героизма.'
+          : modeNote;
+    const detailText = status === 'ok'
+      ? `${modeNote} Схема через день считается нормальной, если нет боли и перегруза.`
+      : homeText;
+    const modalTitle = status === 'critical' ? 'Силовая сегодня не лучший ход' : 'Может, сегодня восстановление?';
+    const modalText = `${homeText} Можно записать день восстановления, сделать короткую лёгкую тренировку или продолжить всё равно.`;
+    return { days, status, statusLabel, title, homeText, detailText, modalTitle, modalText, shouldRest, gateWorkout, score, signals: signals.filter((signal) => signal.weight > 0), modeNote, trainingDays7, lightDays7, recoveryDays7, fullRestDays7, daysWithoutFullRest, potentialConsecutiveTrainingDays };
+  }
+
+  function smartRestSnapshot(analysis) {
+    if (!analysis) return null;
+    return {
+      status: analysis.status,
+      statusLabel: analysis.statusLabel,
+      title: analysis.title,
+      homeText: analysis.homeText,
+      score: analysis.score,
+      signals: (analysis.signals || []).map((signal) => ({ id: signal.id, title: signal.title, label: signal.label, weight: signal.weight })),
+      trainingDays7: analysis.trainingDays7,
+      fullRestDays7: analysis.fullRestDays7,
+      daysWithoutFullRest: analysis.daysWithoutFullRest,
+      potentialConsecutiveTrainingDays: analysis.potentialConsecutiveTrainingDays,
+      createdAt: new Date().toISOString(),
+    };
+  }
+
   function deloadAnalysis({ days = 14 } = {}) {
     const periodDays = Number(days) || 14;
     const now = new Date();
@@ -3402,7 +3723,7 @@
   }
 
   function completedWorkoutList(workouts = state.workouts) {
-    return (workouts || []).filter((workout) => workout?.status === 'completed' && Array.isArray(workout.exercises));
+    return (workouts || []).filter((workout) => isTrainingWorkout(workout));
   }
 
   function resultHasHighPain(result, workout) {
@@ -3638,13 +3959,13 @@
     `);
   }
 
-  function workoutsSince(date){return state.workouts.filter((w)=>new Date(w.startedAt)>=date);}
-  function avgCompletion(workouts){if(!workouts.length)return 0;return workouts.reduce((s,w)=>s+(w.completionPct??workoutCompletion(w)),0)/workouts.length;}
-  function calculateStreak(){const dates=[...new Set(state.workouts.filter((w)=>w.status==='completed').map((w)=>localDateISO(new Date(w.startedAt))))].sort().reverse();if(!dates.length)return 0;let streak=0;let cursor=startOfDay(new Date());const latest=new Date(`${dates[0]}T00:00:00`);if((cursor-latest)/86400000>1)return 0;cursor=latest;for(const date of dates){const d=new Date(`${date}T00:00:00`);if(Math.round((cursor-d)/86400000)===0){streak++;cursor=new Date(cursor.getTime()-86400000);}else if(Math.round((cursor-d)/86400000)>0)break;}return streak;}
+  function workoutsSince(date){return state.workouts.filter((w)=>isTrainingWorkout(w)&&new Date(w.startedAt)>=date);}
+  function avgCompletion(workouts){const rows=(workouts||[]).filter((w)=>isTrainingWorkout(w));if(!rows.length)return 0;return rows.reduce((s,w)=>s+(w.completionPct??workoutCompletion(w)),0)/rows.length;}
+  function calculateStreak(){const dates=[...new Set(state.workouts.filter((w)=>isTrainingWorkout(w)).map((w)=>localDateISO(new Date(w.startedAt))))].sort().reverse();if(!dates.length)return 0;let streak=0;let cursor=startOfDay(new Date());const latest=new Date(`${dates[0]}T00:00:00`);if((cursor-latest)/86400000>1)return 0;cursor=latest;for(const date of dates){const d=new Date(`${date}T00:00:00`);if(Math.round((cursor-d)/86400000)===0){streak++;cursor=new Date(cursor.getTime()-86400000);}else if(Math.round((cursor-d)/86400000)>0)break;}return streak;}
 
   function strengthSeries(exerciseId){return state.workouts.slice().reverse().flatMap((w)=>{const r=w.exercises.find((x)=>x.exerciseId===exerciseId);if(!r)return[];const max=Math.max(0,...r.sets.filter((s)=>s.completed).map((s)=>Number(s.weightKg)||0));return max?[{date:localDateISO(new Date(w.startedAt)),value:max}]:[];});}
   function stepperSeries(){return state.workouts.slice().reverse().map((w)=>{let value=0;for(const r of w.exercises){const ex=getExercise(r.exerciseId);if(ex?.equipment==='Степпер')value+=r.sets.filter((s)=>s.completed).reduce((sum,s)=>sum+(Number(s.durationMin)||0),0);}return{date:localDateISO(new Date(w.startedAt)),value};}).filter((x)=>x.value>0);}
-  function aggregateWeeks(count){const rows=[];const now=startOfWeek(new Date());for(let i=count-1;i>=0;i--){const start=new Date(now.getTime()-i*7*86400000);const end=new Date(start.getTime()+7*86400000);rows.push({label:`${start.getDate()}.${start.getMonth()+1}`,count:state.workouts.filter((w)=>new Date(w.startedAt)>=start&&new Date(w.startedAt)<end).length});}return rows;}
+  function aggregateWeeks(count){const rows=[];const now=startOfWeek(new Date());for(let i=count-1;i>=0;i--){const start=new Date(now.getTime()-i*7*86400000);const end=new Date(start.getTime()+7*86400000);rows.push({label:`${start.getDate()}.${start.getMonth()+1}`,count:state.workouts.filter((w)=>isTrainingWorkout(w)&&new Date(w.startedAt)>=start&&new Date(w.startedAt)<end).length});}return rows;}
 
   function lineChart(data,key,unit,dateKey='date'){
     if(!data.length)return '<div class="empty"><strong>Пока нет данных</strong>Добавь хотя бы два значения.</div>';
