@@ -1856,46 +1856,121 @@
     }
   }
 
+  function renderPlanDayCard(day, index, currentIndex) {
+    const exercises = day.exercises || [];
+    const isCurrent = index === currentIndex;
+    const previewCount = 4;
+    const preview = exercises.slice(0, previewCount);
+    const hiddenCount = Math.max(0, exercises.length - previewCount);
+    const exerciseMini = (entry, i) => {
+      const exercise = getExercise(entry.exerciseId);
+      return `
+        <div class="premium-exercise-mini">
+          <span>${i + 1}</span>
+          <div>
+            <strong>${escapeHTML(exercise?.name || entry.exerciseId)}</strong>
+            <small>${workPrescription(exercise, entry)}</small>
+          </div>
+          <em>${escapeHTML(exercise?.equipment || '')}</em>
+        </div>`;
+    };
+    return `
+      <article class="card premium-plan-day ${isCurrent ? 'current' : ''} ${day.recovery ? 'recovery' : ''}">
+        <div class="premium-plan-day-head">
+          <div class="premium-plan-day-main">
+            <div class="premium-day-badge">${index + 1}</div>
+            <div class="premium-plan-day-title">
+              <div class="eyebrow">${isCurrent ? 'Текущий день' : day.recovery ? 'Восстановление' : 'День цикла'}</div>
+              <h3>${escapeHTML(day.name)}</h3>
+              <div class="premium-day-stats">
+                <span>◷ ≈ ${day.durationMin || 0} мин</span>
+                <span>${exercises.length} упр.</span>
+                ${day.focus ? `<span>${escapeHTML(day.focus)}</span>` : ''}
+              </div>
+            </div>
+          </div>
+          <button class="mini-button edit-day" data-index="${index}" type="button" aria-label="Редактировать день ${index + 1}">✎</button>
+        </div>
+
+        ${exercises.length ? `
+          <div class="premium-day-preview">
+            ${preview.map((entry, i) => exerciseMini(entry, i)).join('')}
+          </div>
+          ${hiddenCount ? `
+            <details class="premium-plan-all">
+              <summary>Показать все упражнения · ещё ${hiddenCount}</summary>
+              <div class="premium-day-preview all">
+                ${exercises.map((entry, i) => exerciseMini(entry, i)).join('')}
+              </div>
+            </details>` : ''}
+        ` : '<div class="empty compact-empty"><strong>День пустой</strong>Нажми карандаш и добавь упражнения.</div>'}
+
+        <div class="premium-plan-day-footer">
+          <button class="button primary small start-specific" data-index="${index}" type="button">Начать</button>
+          <button class="button ghost small set-current-day" data-index="${index}" type="button">${isCurrent ? 'Уже текущий' : 'Сделать текущим'}</button>
+        </div>
+      </article>`;
+  }
+
   function renderPlan() {
     const active = getActiveProgram();
     const programChoices = getProgramChoices();
+    const days = active.days || [];
+    const currentIndex = days.length ? Math.min(Number(state.settings.currentDayIndex || 0), Math.max(days.length - 1, 0)) : 0;
+    const currentDay = days[currentIndex] || null;
+    const totalExercises = days.reduce((sum, day) => sum + ((day.exercises || []).length), 0);
+    const totalMinutes = days.reduce((sum, day) => sum + Number(day.durationMin || 0), 0);
+    const recoveryDays = days.filter((day) => day.recovery).length;
+    const cycleProgress = days.length ? Math.round(((currentIndex + 1) / days.length) * 100) : 0;
     setTopbar('Недельный план', active.name);
     el.main.innerHTML = `
-      <section class="section">
-        <div class="tabs program-tabs">
+      <section class="section premium-program-strip">
+        <div class="tabs program-tabs premium-program-tabs">
           ${programChoices.map((program) => `<button class="tab ${program.id === active.id ? 'active' : ''} switch-program" data-id="${program.id}" title="${escapeAttr(program.name)}">${escapeHTML(program.name)}</button>`).join('')}
           <button class="tab tab-create" id="open-program-builder" type="button">＋ Создать</button>
         </div>
-        <div class="help program-tabs-help">Вверху показываются уникальные программы: стандартные копии больше не размножаются в ленте.</div>
       </section>
+
       <section class="section">
-        <div class="card hero-card">
-          <div class="eyebrow">Активная программа</div>
-          <h2>${escapeHTML(active.name)}</h2>
-          <p>${escapeHTML(active.description || 'Пустая программа-конструктор: добавь дни и упражнения под себя.')}</p>
-          <div class="hero-meta"><span class="chip">${active.days.length} дней в цикле</span><span class="chip">Текущий: ${Number(state.settings.currentDayIndex) + 1}</span></div>
-          <div class="button-row plan-actions">
-            <button class="button secondary" id="duplicate-program">Дублировать</button>
-            <button class="button secondary" id="add-program-day">Добавить день</button>
-            <button class="button primary" id="new-program">Создать программу</button>
+        <div class="card premium-plan-hero">
+          <div class="premium-plan-hero-top">
+            <div>
+              <div class="eyebrow">Активная программа</div>
+              <h2>${escapeHTML(active.name)}</h2>
+            </div>
+            <div class="premium-plan-ring" aria-label="Прогресс цикла"><strong>${cycleProgress}%</strong><span>цикл</span></div>
           </div>
+          <p>${escapeHTML(active.description || 'Пустая программа-конструктор: добавь дни и упражнения под себя.')}</p>
+
+          <div class="premium-plan-stat-grid">
+            <div><span>Дней</span><strong>${days.length}</strong><small>в цикле</small></div>
+            <div><span>Сейчас</span><strong>${currentDay ? currentIndex + 1 : '—'}</strong><small>${currentDay ? escapeHTML(currentDay.name) : 'добавь день'}</small></div>
+            <div><span>Объём</span><strong>${totalExercises}</strong><small>упр. · ${totalMinutes} мин</small></div>
+          </div>
+
+          ${days.length ? `
+            <div class="premium-plan-day-pills" aria-label="Дни цикла">
+              ${days.map((day, index) => `<button class="premium-plan-day-pill ${index === currentIndex ? 'current' : ''} ${day.recovery ? 'recovery' : ''} set-current-day" data-index="${index}" type="button"><span>${index + 1}</span><strong>${escapeHTML(day.name)}</strong></button>`).join('')}
+            </div>
+          ` : `<div class="notice">В программе пока нет дней. Добавь первый день и собери тренировку под себя.</div>`}
+
+          <div class="premium-plan-actions">
+            <button class="button secondary" id="duplicate-program" type="button">Дублировать</button>
+            <button class="button secondary" id="add-program-day" type="button">Добавить день</button>
+            <button class="button primary" id="new-program" type="button">Создать программу</button>
+          </div>
+          <div class="help premium-plan-help">Стандартные программы не размножаются в ленте. Все изменения сохраняются в твоей личной копии профиля.</div>
         </div>
       </section>
+
       <section class="section">
-        ${active.days.map((day, index) => `
-          <div class="card program-day">
-            <div class="program-day-head">
-              <div style="display:flex;align-items:center;gap:12px;min-width:0"><div class="day-badge">${index + 1}</div><div class="truncate"><h3 class="truncate">${escapeHTML(day.name)}</h3><div class="list-row-sub">≈ ${day.durationMin} мин · ${day.exercises.length} упражнений</div></div></div>
-              <button class="mini-button edit-day" data-index="${index}">✎</button>
-            </div>
-            <div class="exercise-list">
-              ${day.exercises.length ? day.exercises.map((entry, i) => { const exercise = getExercise(entry.exerciseId); return `<div class="exercise-line"><span class="exercise-index">${i + 1}</span><div><div class="exercise-name">${escapeHTML(exercise?.name || entry.exerciseId)}</div><div class="exercise-sub">${workPrescription(exercise, entry)}</div></div><span class="muted">${escapeHTML(exercise?.equipment || '')}</span></div>`; }).join('') : '<div class="empty compact-empty"><strong>День пустой</strong>Нажми карандаш и добавь упражнения.</div>'}
-            </div>
-            <div class="button-row">
-              <button class="button secondary small start-specific" data-index="${index}">Начать этот день</button>
-              <button class="button ghost small set-current-day" data-index="${index}">Сделать текущим</button>
-            </div>
-          </div>`).join('')}
+        <div class="section-head premium-section-head">
+          <div><h2>Дни цикла</h2><div class="help">Компактный вид: главное видно сразу, полный список раскрывается внутри дня.</div></div>
+          ${recoveryDays ? `<span class="chip">${recoveryDays} восстановл.</span>` : ''}
+        </div>
+        <div class="premium-plan-days">
+          ${days.length ? days.map((day, index) => renderPlanDayCard(day, index, currentIndex)).join('') : '<div class="card empty"><strong>План пока пустой</strong>Нажми «Добавить день» или создай новую программу.</div>'}
+        </div>
       </section>
     `;
     el.main.querySelectorAll('.switch-program').forEach((button) => button.addEventListener('click', () => switchProgram(button.dataset.id)));
