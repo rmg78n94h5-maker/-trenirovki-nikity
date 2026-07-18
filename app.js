@@ -29,6 +29,7 @@
     musclePeriodDays: null,
     guideCategory: 'all',
     guideQuery: '',
+    smartWorkoutProposal: null,
     timer: { seconds: 0, interval: null, nextLabel: '' },
     photoUrls: new Map(),
     swRegistration: null,
@@ -215,6 +216,45 @@
     'front-plank': ['abs'],
     'russian-twist': ['abs'],
     'ab-roller': ['abs'],
+  };
+
+  const smartWorkoutTargets = [
+    { id: 'auto', label: 'Подбери сам', icon: '✨', groups: [], note: 'По нагрузке, восстановлению и истории' },
+    { id: 'legs', label: 'Ноги', icon: '🦵', groups: ['legs', 'glutes'], note: 'Квадрицепс, ягодицы, икры' },
+    { id: 'chest', label: 'Грудь', icon: '◫', groups: ['chest', 'triceps'], note: 'Жимы и трицепс' },
+    { id: 'back', label: 'Спина', icon: '↔', groups: ['back', 'biceps'], note: 'Тяги, широчайшие, бицепс' },
+    { id: 'shoulders', label: 'Плечи', icon: '△', groups: ['shoulders', 'triceps'], note: 'Дельты и жимовой пояс' },
+    { id: 'arms', label: 'Руки', icon: '⚡', groups: ['biceps', 'triceps'], note: 'Бицепс и трицепс' },
+    { id: 'glutes', label: 'Ягодицы', icon: '◇', groups: ['glutes', 'legs'], note: 'Задняя цепь и устойчивость' },
+    { id: 'abs', label: 'Пресс', icon: '▰', groups: ['abs'], note: 'Кор, низ живота и бока' },
+    { id: 'full', label: 'Всё тело', icon: '◎', groups: ['legs', 'chest', 'back', 'abs'], note: 'Сбалансированная тренировка' },
+  ];
+
+  const smartWorkoutExercisePools = {
+    chest: ['db-floor-press', 'machine-chest-press', 'pushups', 'pec-deck', 'db-fly-floor', 'chair-incline-pushups'],
+    back: ['lat-pulldown', 'seated-row-machine', 'one-arm-row', 'barbell-row', 'rear-delt-fly', 'face-pull-machine', 'db-pullover'],
+    shoulders: ['db-shoulder-press', 'lateral-raise', 'rear-delt-fly', 'face-pull-machine', 'pike-pushups'],
+    biceps: ['barbell-curl', 'db-curl', 'hammer-curl', 'reverse-curl'],
+    triceps: ['overhead-triceps', 'triceps-pushdown', 'close-pushups', 'db-floor-press'],
+    legs: ['goblet-squat', 'chair-squat', 'reverse-lunge', 'bulgarian-split-squat', 'calf-raise', 'wall-sit'],
+    glutes: ['romanian-deadlift', 'hip-thrust', 'single-leg-bridge', 'reverse-lunge', 'bulgarian-split-squat', 'good-morning-bodyweight'],
+    abs: ['dead-bug', 'reverse-crunch', 'side-plank', 'front-plank', 'bird-dog', 'lying-leg-raise', 'suitcase-hold', 'russian-twist'],
+  };
+
+  const smartPainMuscleGroups = {
+    shoulder: ['shoulders', 'chest', 'triceps'],
+    elbow: ['biceps', 'triceps', 'chest'],
+    wrist: ['biceps', 'triceps', 'chest', 'shoulders'],
+    chest: ['chest'],
+    'upper-back': ['back', 'shoulders'],
+    'lower-back': ['back', 'glutes', 'legs', 'abs'],
+    abs: ['abs'],
+    groin: ['legs', 'glutes', 'abs'],
+    hip: ['glutes', 'legs'],
+    thigh: ['legs', 'glutes'],
+    knee: ['legs', 'glutes'],
+    'shin-foot': ['legs'],
+    neck: ['shoulders', 'back'],
   };
 
 
@@ -607,6 +647,7 @@
           ${draft ? `
             <div class="notice"><strong>Сначала разберись с черновиком выше.</strong><br>После этого можно продолжить цикл, повторить прошлую или выбрать другой день.</div>
           ` : `
+            <button class="button smart-builder-launch full" id="smart-workout-builder" type="button"><span>✨</span><span><strong>Подобрать тренировку</strong><small>По мышцам, истории и восстановлению</small></span><b>›</b></button>
             <div class="button-row smart-actions primary-line">
               <button class="button primary" id="start-cycle" type="button">Начать тренировку</button>
               <button class="button secondary" id="choose-workout" type="button">Выбрать другую</button>
@@ -617,6 +658,8 @@
           `}
         </div>
       </section>
+
+      ${renderSmartWorkoutSuggestionCard()}
 
       <section class="section">
         <div class="section-head"><h2>Эта неделя</h2><button class="link-button" data-go="history">История</button></div>
@@ -670,10 +713,14 @@
     document.getElementById('start-short')?.addEventListener('click', () => startWorkout({ shortMode: true, startMode: 'cycle', shouldAdvanceCycle: true }));
     document.getElementById('repeat-last')?.addEventListener('click', repeatLastWorkout);
     document.getElementById('choose-workout')?.addEventListener('click', showChooseWorkoutModal);
+    document.getElementById('smart-workout-builder')?.addEventListener('click', () => showSmartWorkoutBuilderModal());
+    document.getElementById('view-smart-home-suggestion')?.addEventListener('click', () => { state.smartWorkoutProposal = buildSmartWorkoutProposal({ target: 'auto', duration: 45, intensity: 'normal', energy: 'normal' }, 0); showSmartWorkoutPreview(); });
+    document.getElementById('dismiss-smart-home-suggestion')?.addEventListener('click', dismissSmartHomeSuggestion);
     document.getElementById('resume-draft')?.addEventListener('click', () => navigate('workout'));
     document.getElementById('delete-draft-home')?.addEventListener('click', discardDraftFromHome);
     document.getElementById('add-measurement-home').addEventListener('click', showMeasurementModal);
     document.getElementById('open-muscle-progress-home')?.addEventListener('click', () => { state.progressTab = 'muscles'; navigate('progress'); });
+    document.getElementById('smart-workout-from-muscles')?.addEventListener('click', () => showSmartWorkoutBuilderModal({ target: 'auto' }));
     document.getElementById('open-deload-progress-home')?.addEventListener('click', () => { state.progressTab = 'recovery'; navigate('progress'); });
     document.getElementById('open-rest-progress-home')?.addEventListener('click', () => { state.progressTab = 'recovery'; navigate('progress'); });
     document.getElementById('log-rest-home')?.addEventListener('click', () => recordRecoveryDay({ source: 'home' }));
@@ -707,6 +754,17 @@
   async function repeatLastWorkout() {
     const lastWorkout = completedWorkoutList(state.workouts)[0];
     if (!lastWorkout) return toast('Пока нечего повторять: история тренировок пустая');
+    if (lastWorkout.smartRecommendation || lastWorkout.startMode === 'smart') {
+      const customDay = {
+        id: uid('smart-repeat'),
+        name: String(lastWorkout.dayName || 'Умная тренировка').replace(/ · повтор$/, ''),
+        focus: 'Повтор умной тренировки из истории',
+        durationMin: Math.max(20, Math.round(Number(lastWorkout.durationSec || 2700) / 60)),
+        exercises: (lastWorkout.exercises || []).map((result) => ({ exerciseId: result.exerciseId, sets: Math.max(1, result.sets?.length || result.defaults?.sets || 1) })),
+      };
+      await startWorkout({ customDay, startMode: 'repeat', shouldAdvanceCycle: false, smartRecommendation: { ...(lastWorkout.smartRecommendation || {}), repeatedFromWorkoutId: lastWorkout.id } });
+      return;
+    }
     const dayIndex = findRepeatDayIndex(lastWorkout);
     if (dayIndex < 0) return toast('Не нашёл этот день в активной программе');
     await startWorkout({ dayIndex, startMode: 'repeat', shouldAdvanceCycle: false });
@@ -738,6 +796,438 @@
         await startWorkout({ dayIndex, startMode: 'selected', shouldAdvanceCycle: false });
       });
     });
+  }
+
+
+  function renderSmartWorkoutSuggestionCard() {
+    if (state.currentWorkout || state.settings.smartSuggestionDismissedDate === todayISO()) return '';
+    const readiness = smartWorkoutReadinessSummary();
+    const focusGroups = smartAutoFocusGroups(readiness);
+    const rows = focusGroups.map((id) => readiness.rows.find((row) => row.id === id)).filter(Boolean);
+    const title = readiness.completedWorkouts ? rows.slice(0, 2).map((row) => row.label).join(' + ') : 'Всё тело';
+    const detail = readiness.completedWorkouts
+      ? rows.slice(0, 2).map((row) => `${row.label}: ${row.statusLabel}, ${smartDaysSinceLabel(row.daysSince)}`).join(' · ')
+      : 'Истории пока мало — начнём со спокойного сбалансированного варианта';
+    const warning = rows.some((row) => ['high', 'overload'].includes(row.status) || (row.daysSince !== null && row.daysSince <= 1));
+    return `<section class="section smart-home-suggestion-section">
+      <div class="card smart-home-suggestion-card ${warning ? 'watch' : ''}">
+        <div class="smart-home-suggestion-top"><div><div class="eyebrow">Предложение приложения</div><h2>Сегодня: ${escapeHTML(title)}</h2></div><span class="chip ${warning ? 'warning' : 'success'}">≈ 45 мин</span></div>
+        <p>${escapeHTML(detail)}</p>
+        <div class="button-row smart-home-suggestion-actions">
+          <button class="button primary" id="view-smart-home-suggestion" type="button">Посмотреть</button>
+          <button class="button ghost" id="dismiss-smart-home-suggestion" type="button">Не сегодня</button>
+        </div>
+      </div>
+    </section>`;
+  }
+
+  async function dismissSmartHomeSuggestion() {
+    state.settings.smartSuggestionDismissedDate = todayISO();
+    await DB.setSettingsObject({ smartSuggestionDismissedDate: state.settings.smartSuggestionDismissedDate }, state.activeProfileId);
+    toast('Предложение скрыто до завтра');
+    renderHome();
+  }
+
+
+  function smartWorkoutTargetById(id) {
+    return smartWorkoutTargets.find((item) => item.id === id) || smartWorkoutTargets[0];
+  }
+
+  function showSmartWorkoutBuilderModal(initial = {}) {
+    if (state.currentWorkout) {
+      toast('Сначала продолжи или удали сохранённый черновик');
+      navigate('workout');
+      return;
+    }
+    const config = {
+      target: initial.target || 'auto',
+      duration: [20, 30, 45, 60].includes(Number(initial.duration)) ? Number(initial.duration) : 45,
+      intensity: ['light', 'normal', 'dense'].includes(initial.intensity) ? initial.intensity : 'normal',
+      energy: ['fresh', 'normal', 'tired'].includes(initial.energy) ? initial.energy : 'normal',
+    };
+    const summary = smartWorkoutReadinessSummary();
+    const autoRows = summary.rows.slice().sort((a, b) => b.score - a.score).slice(0, 3);
+    const autoHint = summary.completedWorkouts
+      ? autoRows.map((row) => `${row.label}: ${row.statusLabel}, ${smartDaysSinceLabel(row.daysSince)}`).join(' · ')
+      : 'Истории пока мало — соберём спокойную тренировку всего тела';
+    showModal(`
+      <div class="modal-head"><div><div class="eyebrow">Автоматический конструктор</div><h2>Что тренируем сегодня?</h2></div><button class="modal-close" data-close>×</button></div>
+      <p class="muted smart-builder-intro">Приложение сверит последние тренировки, нагрузку по мышцам, недавнюю боль и доступное оборудование. Это предложение — ты всегда можешь заменить упражнения или отказаться.</p>
+      <div class="smart-builder-target-grid" role="group" aria-label="Выбор направления">
+        ${smartWorkoutTargets.map((target) => `<button class="smart-target-option ${target.id === config.target ? 'active' : ''}" data-target="${target.id}" type="button"><span>${target.icon}</span><strong>${escapeHTML(target.label)}</strong><small>${escapeHTML(target.note)}</small></button>`).join('')}
+      </div>
+      <div class="smart-auto-hint"><strong>Что вижу сейчас</strong><span>${escapeHTML(autoHint)}</span></div>
+      <div class="smart-builder-section">
+        <div class="smart-builder-label"><strong>Сколько времени</strong><span>примерно</span></div>
+        <div class="smart-option-row" data-smart-options="duration">
+          ${[20, 30, 45, 60].map((value) => `<button class="smart-option ${value === config.duration ? 'active' : ''}" data-value="${value}" type="button">${value} мин</button>`).join('')}
+        </div>
+      </div>
+      <div class="smart-builder-section">
+        <div class="smart-builder-label"><strong>Нагрузка</strong><span>без максимальных весов</span></div>
+        <div class="smart-option-row" data-smart-options="intensity">
+          <button class="smart-option ${config.intensity === 'light' ? 'active' : ''}" data-value="light" type="button">Лёгкая</button>
+          <button class="smart-option ${config.intensity === 'normal' ? 'active' : ''}" data-value="normal" type="button">Обычная</button>
+          <button class="smart-option ${config.intensity === 'dense' ? 'active' : ''}" data-value="dense" type="button">Плотная</button>
+        </div>
+      </div>
+      <div class="smart-builder-section">
+        <div class="smart-builder-label"><strong>Самочувствие</strong><span>на сегодня</span></div>
+        <div class="smart-option-row" data-smart-options="energy">
+          <button class="smart-option ${config.energy === 'fresh' ? 'active' : ''}" data-value="fresh" type="button">Бодр</button>
+          <button class="smart-option ${config.energy === 'normal' ? 'active' : ''}" data-value="normal" type="button">Нормально</button>
+          <button class="smart-option ${config.energy === 'tired' ? 'active' : ''}" data-value="tired" type="button">Устал</button>
+        </div>
+      </div>
+      <div class="notice smart-builder-note"><strong>Боль проверим ещё раз перед стартом.</strong><br>Свежие записи из истории уже учитываются, но приложение не ставит диагноз и не заменяет врача.</div>
+      <button class="button primary full" id="build-smart-workout" type="button" style="margin-top:12px">Собрать тренировку</button>
+    `);
+
+    el.modalRoot.querySelectorAll('.smart-target-option').forEach((button) => button.addEventListener('click', () => {
+      config.target = button.dataset.target;
+      el.modalRoot.querySelectorAll('.smart-target-option').forEach((item) => item.classList.toggle('active', item === button));
+    }));
+    el.modalRoot.querySelectorAll('[data-smart-options]').forEach((row) => {
+      row.querySelectorAll('.smart-option').forEach((button) => button.addEventListener('click', () => {
+        const key = row.dataset.smartOptions;
+        config[key] = key === 'duration' ? Number(button.dataset.value) : button.dataset.value;
+        row.querySelectorAll('.smart-option').forEach((item) => item.classList.toggle('active', item === button));
+      }));
+    });
+    document.getElementById('build-smart-workout')?.addEventListener('click', () => {
+      state.smartWorkoutProposal = buildSmartWorkoutProposal(config, 0);
+      showSmartWorkoutPreview();
+    });
+  }
+
+  function smartWorkoutReadinessSummary() {
+    const summary = muscleLoadSummary(7);
+    const now = Date.now();
+    const recentPain = (state.painEntries || []).filter((entry) => {
+      const time = painEntryTime(entry);
+      return time && now - time <= 7 * 86400000 && Number(entry.score) >= 4;
+    });
+    const rows = summary.rows.map((row) => {
+      const lastAt = smartLastMuscleTrainingAt(row.id);
+      const daysSince = lastAt ? Math.max(0, Math.floor((now - lastAt) / 86400000)) : null;
+      let score = row.status === 'low' ? 38 : row.status === 'normal' ? 12 : row.status === 'high' ? -18 : -42;
+      if (daysSince === null) score += 18;
+      else if (daysSince >= 5) score += 24;
+      else if (daysSince >= 3) score += 12;
+      else if (daysSince <= 1) score -= 34;
+      else score -= 4;
+      const painRows = recentPain.filter((entry) => (smartPainMuscleGroups[entry.areaId] || []).includes(row.id));
+      if (painRows.length) score -= Math.min(42, Math.max(...painRows.map((entry) => Number(entry.score) || 0)) * 5);
+      return { ...row, daysSince, lastAt, score, painRows };
+    });
+    return { ...summary, rows, recentPain };
+  }
+
+  function smartLastMuscleTrainingAt(groupId) {
+    for (const workout of completedWorkoutList(state.workouts)) {
+      const hasGroup = (workout.exercises || []).some((result) => {
+        if (result.skipped || !completedSets(result).length) return false;
+        const exercise = getExercise(result.exerciseId) || { id: result.exerciseId, name: result.name, group: '' };
+        return getMuscleGroupsForExercise(exercise, result).includes(groupId);
+      });
+      if (hasGroup) return new Date(workout.startedAt || workout.date || 0).getTime() || null;
+    }
+    return null;
+  }
+
+  function smartDaysSinceLabel(days) {
+    if (days === null || days === undefined) return 'давно не было';
+    if (days === 0) return 'нагружалась сегодня';
+    if (days === 1) return 'нагружалась вчера';
+    return `${days} дн. назад`;
+  }
+
+  function smartAutoFocusGroups(readiness) {
+    if (!readiness.completedWorkouts) return ['legs', 'chest', 'back', 'abs'];
+    const ordered = readiness.rows.slice().sort((a, b) => b.score - a.score);
+    const primary = ordered.find((row) => row.status !== 'overload' && row.daysSince !== 0) || ordered[0];
+    const compatibility = {
+      chest: ['triceps', 'shoulders', 'abs'], back: ['biceps', 'shoulders', 'abs'], shoulders: ['triceps', 'back', 'abs'],
+      biceps: ['back', 'triceps', 'abs'], triceps: ['chest', 'biceps', 'abs'], legs: ['glutes', 'abs'], glutes: ['legs', 'abs'], abs: ['back', 'chest', 'legs', 'glutes'],
+    };
+    const secondary = ordered.find((row) => row.id !== primary.id && (compatibility[primary.id] || []).includes(row.id) && row.score > -30);
+    return [primary.id, secondary?.id].filter(Boolean);
+  }
+
+  function buildSmartWorkoutProposal(rawConfig, variant = 0) {
+    const config = { ...rawConfig };
+    if (config.energy === 'tired') config.intensity = 'light';
+    const readiness = smartWorkoutReadinessSummary();
+    const target = smartWorkoutTargetById(config.target);
+    let focusGroups = target.id === 'auto' ? smartAutoFocusGroups(readiness) : [...target.groups];
+    if (target.id === 'legs' || target.id === 'glutes') {
+      focusGroups = focusGroups.slice().sort((a, b) => (readiness.rows.find((row) => row.id === b)?.score || 0) - (readiness.rows.find((row) => row.id === a)?.score || 0));
+    }
+    const workCount = config.duration <= 20 ? 3 : config.duration <= 30 ? 4 : config.duration <= 45 ? 5 : 6;
+    const selectedIds = selectSmartExercises(focusGroups, workCount, config, readiness, variant);
+    const exercises = [{ exerciseId: 'warmup-joints', durationMin: config.duration <= 20 ? 4 : config.duration >= 60 ? 7 : 5 }];
+    for (const exerciseId of selectedIds) {
+      const exercise = getExercise(exerciseId);
+      if (!exercise) continue;
+      exercises.push(smartExerciseEntry(exercise, config, readiness, focusGroups));
+    }
+    if (config.duration >= 45 && target.id !== 'abs' && !exercises.some((entry) => getMuscleGroupsForExercise(getExercise(entry.exerciseId), entry).includes('abs'))) {
+      const coreId = smartSafeCandidates(['abs'], config, readiness, variant + 17, exercises.map((entry) => entry.exerciseId))[0]?.id;
+      if (coreId) exercises.push(smartExerciseEntry(getExercise(coreId), { ...config, intensity: config.intensity === 'dense' ? 'normal' : 'light' }, readiness, ['abs']));
+    }
+    if (config.duration >= 60 && smartExerciseAvailable(getExercise('stepper-short')) && !exercises.some((entry) => entry.exerciseId.startsWith('stepper-'))) {
+      exercises.push({ exerciseId: 'stepper-short', durationMin: config.intensity === 'light' ? 6 : 8 });
+    }
+
+    const focusRows = focusGroups.map((id) => readiness.rows.find((row) => row.id === id)).filter(Boolean);
+    const labels = focusRows.map((row) => row.label);
+    const title = target.id === 'auto'
+      ? (!readiness.completedWorkouts ? 'Умная: всё тело' : `Умная: ${labels.slice(0, 2).join(' + ')}`)
+      : `Умная: ${target.label}${labels.length > 1 && !['full', 'arms', 'abs'].includes(target.id) ? ` + ${labels[1].toLowerCase()}` : ''}`;
+    const reasons = [];
+    if (target.id === 'auto') {
+      reasons.push(!readiness.completedWorkouts ? 'Истории пока мало, поэтому выбран спокойный сбалансированный вариант.' : 'Направление выбрано по недобору нагрузки и времени после последней тренировки.');
+    } else {
+      reasons.push(`Учтён твой запрос: ${target.label.toLowerCase()}.`);
+    }
+    for (const row of focusRows.slice(0, 3)) reasons.push(`${row.label}: ${row.sets} раб. подходов за 7 дней · ${row.statusLabel} · ${smartDaysSinceLabel(row.daysSince)}.`);
+    const warnings = [];
+    for (const row of focusRows) {
+      if (row.status === 'overload') warnings.push(`${row.label}: за 7 дней уже перегруз — объём автоматически снижен.`);
+      else if (row.status === 'high') warnings.push(`${row.label}: нагрузки уже много — без добавления лишних подходов.`);
+      if (row.daysSince !== null && row.daysSince <= 1) warnings.push(`${row.label} тренировалась недавно — держим запас и не идём до отказа.`);
+      if (row.painRows.length) warnings.push(`${row.label}: есть свежая отметка боли, рискованные упражнения убраны из первого варианта.`);
+    }
+    if (config.energy === 'tired') warnings.push('Ты отметил усталость — тренировка автоматически переведена в лёгкий режим.');
+    const canStart = exercises.length >= 4;
+    if (!canStart) warnings.unshift('Безопасных и доступных упражнений для этого запроса недостаточно. Выбери другое направление или проверь список оборудования.');
+    const cleanWarnings = [...new Set(warnings)];
+    const smartRecommendation = {
+      version: 1,
+      targetId: target.id,
+      targetLabel: target.label,
+      focusGroups,
+      durationMin: config.duration,
+      intensity: config.intensity,
+      energy: config.energy,
+      reasons,
+      warnings: cleanWarnings,
+      variant,
+      generatedAt: new Date().toISOString(),
+    };
+    return {
+      config,
+      variant,
+      canStart,
+      readiness,
+      reasons,
+      warnings: cleanWarnings,
+      day: {
+        id: uid('smart-day'),
+        name: title,
+        focus: reasons[0],
+        durationMin: config.duration,
+        exercises,
+        smartRecommendation,
+      },
+    };
+  }
+
+  function selectSmartExercises(focusGroups, count, config, readiness, variant) {
+    const chosen = [];
+    if (config.target === 'full' || focusGroups.length >= 4) {
+      const order = ['legs', 'chest', 'back', 'abs', 'glutes', 'shoulders'];
+      for (const groupId of order) {
+        if (chosen.length >= count) break;
+        const next = smartSafeCandidates([groupId], config, readiness, variant + chosen.length * 3, chosen)[0];
+        if (next) chosen.push(next.id);
+      }
+    } else {
+      let turn = 0;
+      while (chosen.length < count && turn < count * 5) {
+        const groupId = focusGroups[turn % Math.max(focusGroups.length, 1)] || 'abs';
+        const next = smartSafeCandidates([groupId], config, readiness, variant + turn, chosen)[0];
+        if (next) chosen.push(next.id);
+        turn += 1;
+      }
+    }
+    const allFocus = smartSafeCandidates(focusGroups, config, readiness, variant + 29, chosen);
+    for (const candidate of allFocus) {
+      if (chosen.length >= count) break;
+      if (!chosen.includes(candidate.id)) chosen.push(candidate.id);
+    }
+    return chosen.slice(0, count);
+  }
+
+  function smartSafeCandidates(groupIds, config, readiness, variant = 0, excludedIds = []) {
+    const ids = [...new Set(groupIds.flatMap((id) => smartWorkoutExercisePools[id] || []))];
+    const excluded = new Set(excludedIds);
+    return ids.map((id) => getExercise(id)).filter(Boolean).filter((exercise) => !excluded.has(exercise.id) && smartExerciseAvailable(exercise)).map((exercise) => {
+      const muscleIds = getMuscleGroupsForExercise(exercise);
+      const focusScore = groupIds.reduce((score, id, index) => score + (muscleIds.includes(id) ? (index === 0 ? 34 : 20) : 0), 0);
+      const lastDays = smartLastExerciseUseDays(exercise.id);
+      const freshness = lastDays === null ? 14 : lastDays >= 7 ? 11 : lastDays >= 3 ? 6 : lastDays <= 1 ? -12 : 0;
+      const risk = smartExerciseRecentPainRisk(exercise);
+      const deterministic = smartStringScore(`${exercise.id}:${variant}`) % 11;
+      const loadBoost = muscleIds.reduce((sum, id) => sum + ((readiness.rows.find((row) => row.id === id)?.score || 0) / 8), 0);
+      return { ...exercise, score: focusScore + freshness + deterministic + loadBoost - risk.penalty, recentPainRisk: risk };
+    }).filter((exercise) => !exercise.recentPainRisk.blocked).sort((a, b) => b.score - a.score);
+  }
+
+  function smartExerciseAvailable(exercise) {
+    if (!exercise || exercise.id === 'ab-roller') return false;
+    const equipment = String(exercise.equipment || '').toLowerCase();
+    const available = String(state.profile?.equipment || '').toLowerCase();
+    if (equipment.includes('мультитренаж') && !/мультитренаж|тренаж/.test(available)) return false;
+    if (equipment.includes('степпер') && !available.includes('степпер')) return false;
+    const needsBarbell = equipment.includes('штанг');
+    const needsDumbbell = equipment.includes('гантел');
+    if (needsBarbell && needsDumbbell && equipment.includes('или')) return available.includes('штанг') || available.includes('гантел');
+    if (needsBarbell && !available.includes('штанг')) return false;
+    if (needsDumbbell && !available.includes('гантел')) return false;
+    return true;
+  }
+
+  function smartLastExerciseUseDays(exerciseId) {
+    const now = Date.now();
+    for (const workout of completedWorkoutList(state.workouts)) {
+      const used = (workout.exercises || []).some((result) => result.exerciseId === exerciseId && !result.skipped && completedSets(result).length);
+      if (used) {
+        const time = new Date(workout.startedAt || workout.date || 0).getTime();
+        return time ? Math.max(0, Math.floor((now - time) / 86400000)) : null;
+      }
+    }
+    return null;
+  }
+
+  function smartExerciseRecentPainRisk(exercise) {
+    const now = Date.now();
+    let penalty = 0;
+    let blocked = false;
+    const labels = [];
+    for (const entry of state.painEntries || []) {
+      const time = painEntryTime(entry);
+      if (!time || now - time > 7 * 86400000 || Number(entry.score) < 4) continue;
+      const risk = analyzeExercisePainRisk({ hasPain: true, areaId: entry.areaId, score: entry.score, comment: entry.comment }, exercise);
+      if (!risk) continue;
+      labels.push(`${entry.areaLabel || getPainArea(entry.areaId).label} ${entry.score}/10`);
+      penalty += risk.level === 'high' ? 55 : risk.level === 'moderate' ? 26 : 8;
+      if (risk.level === 'high' && Number(entry.score) >= 7) blocked = true;
+    }
+    return { penalty, blocked, labels };
+  }
+
+  function smartExerciseEntry(exercise, config, readiness, focusGroups) {
+    const groups = getMuscleGroupsForExercise(exercise);
+    const loaded = groups.map((id) => readiness.rows.find((row) => row.id === id)).filter(Boolean);
+    const hasHighLoad = loaded.some((row) => ['high', 'overload'].includes(row.status) || (row.daysSince !== null && row.daysSince <= 1));
+    let sets = Number(exercise.defaults?.sets || 1);
+    const cap = config.energy === 'tired' || config.intensity === 'light' ? 2 : config.intensity === 'dense' ? 4 : 3;
+    sets = Math.max(1, Math.min(sets, cap));
+    if (hasHighLoad) sets = Math.min(sets, 2);
+    const entry = { exerciseId: exercise.id, sets };
+    if (exercise.defaults?.unit === 'minutes') entry.durationMin = Math.min(Number(exercise.defaults.durationMin || 10), config.duration <= 30 ? 8 : 12);
+    if (exercise.defaults?.unit === 'seconds' && config.intensity === 'light') entry.durationSec = Math.max(20, Math.round(Number(exercise.defaults.durationSec || 30) * 0.8));
+    if (config.intensity === 'light' && exercise.defaults?.unit === 'reps') {
+      entry.repsMin = Math.max(5, Number(exercise.defaults.repsMin || 8) - 2);
+      entry.repsMax = Math.max(entry.repsMin, Number(exercise.defaults.repsMax || entry.repsMin + 2) - 2);
+    }
+    return entry;
+  }
+
+  function smartStringScore(value) {
+    let score = 0;
+    for (let i = 0; i < value.length; i += 1) score = ((score << 5) - score + value.charCodeAt(i)) | 0;
+    return Math.abs(score);
+  }
+
+  function smartIntensityLabel(value) {
+    return ({ light: 'лёгкая', normal: 'обычная', dense: 'плотная' })[value] || 'обычная';
+  }
+
+  function showSmartWorkoutPreview() {
+    const proposal = state.smartWorkoutProposal;
+    if (!proposal?.day) return showSmartWorkoutBuilderModal();
+    const recommendation = proposal.day.smartRecommendation;
+    showModal(`
+      <div class="modal-head"><div><div class="eyebrow">Предложение приложения</div><h2>${escapeHTML(proposal.day.name)}</h2></div><button class="modal-close" data-close>×</button></div>
+      <div class="smart-preview-hero">
+        <div class="hero-meta">
+          <span class="chip accent">≈ ${proposal.config.duration} мин</span>
+          <span class="chip">${proposal.day.exercises.length} упражнений</span>
+          <span class="chip">${escapeHTML(smartIntensityLabel(proposal.config.intensity))}</span>
+        </div>
+        <p>${escapeHTML(proposal.reasons[0])}</p>
+      </div>
+      <div class="smart-reason-list">
+        ${proposal.reasons.slice(1).map((reason) => `<div><span>✓</span><p>${escapeHTML(reason)}</p></div>`).join('')}
+      </div>
+      ${proposal.warnings.length ? `<div class="notice warning smart-preview-warning"><strong>Что учтено</strong><br>${proposal.warnings.map(escapeHTML).join('<br>')}</div>` : '<div class="notice success"><strong>Явных ограничений не найдено.</strong><br>Всё равно оцени самочувствие перед первым рабочим подходом.</div>'}
+      <div class="section-head smart-preview-head"><h2>План тренировки</h2><span class="muted">можно менять</span></div>
+      <div class="smart-preview-list">
+        ${proposal.day.exercises.map((entry, index) => renderSmartPreviewExercise(entry, index)).join('')}
+      </div>
+      <div class="smart-preview-actions">
+        <button class="button primary full" id="start-smart-workout" type="button" ${proposal.canStart ? '' : 'disabled'}>${proposal.canStart ? 'Начать эту тренировку' : 'Недостаточно безопасных упражнений'}</button>
+        <div class="button-row">
+          <button class="button secondary" id="another-smart-workout" type="button">Другой вариант</button>
+          <button class="button ghost" id="edit-smart-settings" type="button">Настроить заново</button>
+        </div>
+      </div>
+      <div class="help center" style="margin-top:10px">Умный подбор не двигает основной цикл и ничего не меняет без твоего согласия.</div>
+    `);
+    el.modalRoot.querySelectorAll('.smart-replace-exercise').forEach((button) => button.addEventListener('click', () => showSmartReplacementModal(Number(button.dataset.index))));
+    el.modalRoot.querySelectorAll('.smart-remove-exercise').forEach((button) => button.addEventListener('click', () => {
+      const index = Number(button.dataset.index);
+      if (proposal.day.exercises.length <= 4) return toast('Оставим хотя бы разминку и три упражнения');
+      proposal.day.exercises.splice(index, 1);
+      showSmartWorkoutPreview();
+    }));
+    document.getElementById('another-smart-workout')?.addEventListener('click', () => {
+      state.smartWorkoutProposal = buildSmartWorkoutProposal(proposal.config, proposal.variant + 1);
+      showSmartWorkoutPreview();
+    });
+    document.getElementById('edit-smart-settings')?.addEventListener('click', () => showSmartWorkoutBuilderModal(proposal.config));
+    document.getElementById('start-smart-workout')?.addEventListener('click', async () => {
+      const day = clone(proposal.day);
+      closeModal();
+      await startWorkout({ customDay: day, startMode: 'smart', shouldAdvanceCycle: false, smartRecommendation: recommendation });
+    });
+  }
+
+  function renderSmartPreviewExercise(entry, index) {
+    const exercise = getExercise(entry.exerciseId);
+    const isWarmup = entry.exerciseId === 'warmup-joints';
+    return `<div class="smart-preview-exercise">
+      <span class="exercise-index">${index + 1}</span>
+      <div class="smart-preview-copy"><strong>${escapeHTML(exercise?.name || entry.exerciseId)}</strong><small>${escapeHTML(workPrescription(exercise, entry))}${exercise?.equipment ? ` · ${escapeHTML(exercise.equipment)}` : ''}</small></div>
+      ${isWarmup ? '<span class="chip">разминка</span>' : `<div class="smart-preview-row-actions"><button class="mini-button smart-replace-exercise" data-index="${index}" type="button" aria-label="Заменить упражнение">↻</button><button class="mini-button smart-remove-exercise" data-index="${index}" type="button" aria-label="Убрать упражнение">×</button></div>`}
+    </div>`;
+  }
+
+  function showSmartReplacementModal(index) {
+    const proposal = state.smartWorkoutProposal;
+    const current = proposal?.day?.exercises?.[index];
+    const currentExercise = getExercise(current?.exerciseId);
+    if (!current || !currentExercise) return showSmartWorkoutPreview();
+    const groups = getMuscleGroupsForExercise(currentExercise, current);
+    const excluded = proposal.day.exercises.map((entry) => entry.exerciseId);
+    const options = smartSafeCandidates(groups.length ? groups : proposal.day.smartRecommendation.focusGroups, proposal.config, proposal.readiness, proposal.variant + index + 41, excluded).slice(0, 8);
+    showModal(`
+      <div class="modal-head"><div><div class="eyebrow">Замена упражнения</div><h2>${escapeHTML(currentExercise.name)}</h2></div><button class="modal-close" id="close-smart-replacement" type="button">×</button></div>
+      <p class="muted">Показываю доступные варианты на те же мышцы. Свежие отметки боли и оборудование уже учтены.</p>
+      <div class="card list-card smart-replacement-list" style="margin-top:12px">
+        ${options.length ? options.map((exercise) => `<button class="list-row choose-smart-replacement" data-id="${escapeAttr(exercise.id)}" type="button"><div class="list-row-main"><div class="list-row-title">${escapeHTML(exercise.name)}</div><div class="list-row-sub">${escapeHTML(exercise.group)} · ${escapeHTML(exercise.equipment)}</div></div><span class="muted">›</span></button>`).join('') : '<div class="empty compact-empty"><strong>Безопасной замены не нашлось</strong>Вернись назад и оставь упражнение или убери его из плана.</div>'}
+      </div>
+      <button class="button ghost full" id="back-smart-preview" type="button" style="margin-top:12px">Назад к плану</button>
+    `);
+    document.getElementById('close-smart-replacement')?.addEventListener('click', showSmartWorkoutPreview);
+    document.getElementById('back-smart-preview')?.addEventListener('click', showSmartWorkoutPreview);
+    el.modalRoot.querySelectorAll('.choose-smart-replacement').forEach((button) => button.addEventListener('click', () => {
+      const replacement = getExercise(button.dataset.id);
+      proposal.day.exercises[index] = smartExerciseEntry(replacement, proposal.config, proposal.readiness, groups);
+      showSmartWorkoutPreview();
+    }));
   }
 
 
@@ -1063,8 +1553,9 @@
     const fallbackIndex = Number(state.settings.currentDayIndex || 0);
     const requestedIndex = Number.isFinite(Number(config.dayIndex)) ? Number(config.dayIndex) : fallbackIndex;
     const index = Math.min(Math.max(requestedIndex, 0), Math.max(program.days.length - 1, 0));
-    const day = program.days[index];
-    const startMode = config.startMode || (index === fallbackIndex ? 'cycle' : 'selected');
+    const customDay = config.customDay ? clone(config.customDay) : null;
+    const day = customDay || program.days[index];
+    const startMode = config.startMode || (customDay ? 'smart' : index === fallbackIndex ? 'cycle' : 'selected');
     const shouldAdvanceCycle = config.shouldAdvanceCycle ?? (startMode === 'cycle');
     const selected = shortMode
       ? (day.short || day.exercises.slice(0, 5).map((x) => x.exerciseId)).map((id) => day.exercises.find((x) => x.exerciseId === id) || { exerciseId: id })
@@ -1143,8 +1634,8 @@
       profileId: state.activeProfileId,
       date: todayISO(),
       startedAt: new Date().toISOString(),
-      programId: program.id,
-      programName: program.name,
+      programId: customDay ? 'smart-builder' : program.id,
+      programName: customDay ? 'Умный конструктор' : program.name,
       dayId: day.id,
       dayIndex: index,
       cycleDayIndex: fallbackIndex,
@@ -1152,6 +1643,7 @@
       shortMode,
       startMode,
       shouldAdvanceCycle,
+      smartRecommendation: config.smartRecommendation || day.smartRecommendation || null,
       status: 'in_progress',
       preWorkoutPain,
       painCheckedAt: new Date().toISOString(),
@@ -2653,6 +3145,7 @@
         <div class="card muscle-home-card">
           <div class="muscle-home-top"><strong>${escapeHTML(headline)}</strong><span class="chip ${summary.warningCount ? 'warning' : 'success'}">${summary.warningCount ? 'есть перекосы' : 'ровно'}</span></div>
           ${summary.completedWorkouts ? `<div class="muscle-mini-grid">${summary.rows.slice(0, 8).map(renderMuscleMiniCell).join('')}</div>${problemRows.length ? `<div class="help" style="margin-top:10px">${escapeHTML(muscleShortAdvice(problemRows))}</div>` : '<div class="help" style="margin-top:10px">Сильных перекосов не видно. Держим курс, капитан.</div>'}` : '<div class="empty compact-empty"><strong>Пока нет данных</strong>Сохрани пару тренировок — приложение посчитает нагрузку по группам.</div>'}
+          <button class="button secondary full smart-muscle-builder" id="smart-workout-from-muscles" type="button">✨ Подобрать по этим данным</button>
         </div>
       </section>`;
   }
