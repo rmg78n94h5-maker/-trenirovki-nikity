@@ -27,6 +27,8 @@
     bodyProgressMetric: null,
     bodyProgressPeriodDays: null,
     musclePeriodDays: null,
+    guideCategory: 'all',
+    guideQuery: '',
     timer: { seconds: 0, interval: null, nextLabel: '' },
     photoUrls: new Map(),
     swRegistration: null,
@@ -343,12 +345,13 @@
   }
 
   function navigate(route, updateHash = true) {
-    const allowed = ['home', 'plan', 'history', 'progress', 'more', 'workout'];
+    const allowed = ['home', 'plan', 'history', 'progress', 'more', 'guide', 'workout'];
     state.route = allowed.includes(route) ? route : 'home';
     if (updateHash && location.hash !== `#/${state.route}`) history.pushState(null, '', `#/${state.route}`);
-    el.nav.forEach((button) => button.classList.toggle('active', button.dataset.route === state.route));
+    const activeNavRoute = state.route === 'guide' ? 'more' : state.route;
+    el.nav.forEach((button) => button.classList.toggle('active', button.dataset.route === activeNavRoute));
     document.querySelector('.bottom-nav').classList.toggle('hidden', state.route === 'workout');
-    el.quickAdd.classList.toggle('hidden', state.route === 'workout');
+    el.quickAdd.classList.toggle('hidden', state.route === 'workout' || state.route === 'guide');
     el.profileSwitch.classList.toggle('hidden', state.route === 'workout');
     render();
     window.scrollTo({ top: 0, behavior: 'auto' });
@@ -362,6 +365,7 @@
       case 'history': renderHistory(); break;
       case 'progress': renderProgress(); break;
       case 'more': renderMore(); break;
+      case 'guide': renderOfflineGuide(); break;
       case 'workout': renderWorkout(); break;
       default: renderHome();
     }
@@ -3095,6 +3099,8 @@
 
       <section class="section"><div class="section-head"><h2>Цель</h2></div><div class="card list-card">${goals.map((g)=>`<div class="list-row"><div class="list-row-main"><div class="list-row-title">✓ ${escapeHTML(g)}</div></div></div>`).join('')}</div></section>
 
+      <section class="section"><div class="section-head"><h2>Офлайн-справочник</h2><button class="link-button" id="open-offline-guide-link" type="button">Открыть</button></div><div class="card guide-promo-card"><div class="guide-promo-head"><div class="guide-promo-mark" aria-hidden="true">?</div><div><div class="eyebrow">Всегда под рукой</div><h3>Быстрые ответы без интернета</h3><p>Разминка, техника, боль, восстановление, питание и отдельные правила тренировок на судне.</p></div></div><div class="guide-promo-tags"><span>17 тем</span><span>Поиск</span><span>Работает офлайн</span></div><button class="button primary full" id="open-offline-guide" type="button">Открыть справочник</button></div></section>
+
       <section class="section"><div class="section-head"><h2>Поделиться приложением</h2></div><div class="card share-app-card"><div class="share-app-head"><div><div class="eyebrow">Ссылка на PWA</div><h3>Отправить приложение</h3><p>Передаётся только ссылка. Профили, история, фото, замеры и тренировки остаются на этом телефоне.</p></div><div class="share-app-mark" aria-hidden="true">↗</div></div><button class="button primary full" id="share-app-system" type="button">Поделиться через iPhone</button><div class="share-fast-grid" aria-label="Быстрый шаринг"><button class="share-fast-button telegram" id="share-app-telegram" type="button"><span>✈️</span><strong>Telegram</strong></button><button class="share-fast-button whatsapp" id="share-app-whatsapp" type="button"><span>🟢</span><strong>WhatsApp</strong></button><button class="share-fast-button vk" id="share-app-vk" type="button"><span>VK</span><strong>ВК</strong></button><button class="share-fast-button max" id="share-app-max" type="button"><span>MAX</span><strong>MAX</strong></button></div><div class="button-row share-link-row"><button class="button secondary" id="copy-app-link" type="button">Скопировать ссылку</button><button class="button ghost" id="open-app-link" type="button">Открыть в Safari</button></div><div class="help share-app-url" id="share-app-url">${escapeHTML(getAppShareUrl())}</div></div></section>
 
       <section class="section"><div class="section-head"><h2>Калькулятор железа</h2><button class="link-button" id="open-iron-calculator-settings" type="button">Настроить</button></div>${renderIronCalculatorCard()}</section>
@@ -3116,6 +3122,8 @@
     document.getElementById('switch-profile').addEventListener('click', showProfileSwitcher);
     document.getElementById('new-profile').addEventListener('click', showCreateProfileModal);
     document.getElementById('edit-profile').addEventListener('click', showProfileModal);
+    document.getElementById('open-offline-guide').addEventListener('click', () => navigate('guide'));
+    document.getElementById('open-offline-guide-link').addEventListener('click', () => navigate('guide'));
     document.getElementById('share-app-system').addEventListener('click', shareAppViaSystem);
     document.getElementById('share-app-telegram').addEventListener('click', () => openShareTarget('telegram'));
     document.getElementById('share-app-whatsapp').addEventListener('click', () => openShareTarget('whatsapp'));
@@ -3137,6 +3145,174 @@
     document.getElementById('check-app-update').addEventListener('click', () => checkForAppUpdate(true));
     document.getElementById('force-app-refresh').addEventListener('click', forceRefreshAppShell);
     document.getElementById('storage-info').addEventListener('click', showStorageInfo);
+  }
+
+
+  function getOfflineGuideData() {
+    const data = window.OFFLINE_GUIDE;
+    if (!data?.articles?.length) return { categories: [], articles: [], quick: [], sourceLabel: '' };
+    return data;
+  }
+
+  function getOfflineGuideCategory(categoryId) {
+    return getOfflineGuideData().categories.find((category) => category.id === categoryId) || null;
+  }
+
+  function getOfflineGuideArticle(articleId) {
+    return getOfflineGuideData().articles.find((article) => article.id === articleId) || null;
+  }
+
+  function normalizeGuideText(value = '') {
+    return String(value).toLocaleLowerCase('ru-RU').replace(/ё/g, 'е').replace(/\s+/g, ' ').trim();
+  }
+
+  function filteredOfflineGuideArticles() {
+    const { articles } = getOfflineGuideData();
+    const query = normalizeGuideText(state.guideQuery);
+    return articles.filter((article) => {
+      if (state.guideCategory !== 'all' && article.category !== state.guideCategory) return false;
+      if (!query) return true;
+      const searchable = normalizeGuideText([
+        article.title,
+        article.summary,
+        article.short,
+        ...(article.tags || []),
+        ...(article.steps || []),
+        ...(article.avoid || []),
+        ...(article.check || []),
+        ...(article.stop || []),
+      ].join(' '));
+      return query.split(' ').every((part) => searchable.includes(part));
+    });
+  }
+
+  function renderOfflineGuideArticleCard(article) {
+    const category = getOfflineGuideCategory(article.category);
+    return `
+      <button class="guide-article-card" type="button" data-guide-article="${escapeAttr(article.id)}">
+        <span class="guide-article-icon" aria-hidden="true">${escapeHTML(article.icon || '?')}</span>
+        <span class="guide-article-copy">
+          <span class="guide-article-category">${escapeHTML(category?.title || 'Справочник')}</span>
+          <strong>${escapeHTML(article.title)}</strong>
+          <span>${escapeHTML(article.summary)}</span>
+        </span>
+        <span class="guide-article-arrow" aria-hidden="true">›</span>
+      </button>`;
+  }
+
+  function renderOfflineGuide() {
+    const data = getOfflineGuideData();
+    setTopbar('Справочник', 'БЕЗ ИНТЕРНЕТА · ВСЕГДА ДОСТУПЕН');
+    if (!data.articles.length) {
+      el.main.innerHTML = '<section class="section"><div class="notice warning"><strong>Справочник не загрузился.</strong><br>Обнови оболочку приложения в разделе «Ещё».</div><button class="button secondary full" data-go="more" type="button" style="margin-top:12px">Назад в «Ещё»</button></section>';
+      bindGoButtons();
+      return;
+    }
+
+    el.main.innerHTML = `
+      <section class="section guide-top-actions"><button class="guide-back-button" data-go="more" type="button">← Назад в «Ещё»</button></section>
+      <section class="section">
+        <div class="card guide-hero-card">
+          <div class="guide-hero-badge">OFFLINE</div>
+          <h2>Ответ прямо во время тренировки</h2>
+          <p>Коротко, без воды и без подключения к сети. Найди тему или открой быстрый сценарий.</p>
+          <label class="guide-search-wrap" for="offline-guide-search">
+            <span aria-hidden="true">⌕</span>
+            <input id="offline-guide-search" type="search" inputmode="search" autocomplete="off" placeholder="Например: качка, боль, креатин" value="${escapeAttr(state.guideQuery)}">
+            <button id="clear-offline-guide-search" type="button" aria-label="Очистить поиск" ${state.guideQuery ? '' : 'hidden'}>×</button>
+          </label>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-head"><h2>Нужно быстро</h2></div>
+        <div class="guide-quick-grid">
+          ${data.quick.map((item) => `<button class="guide-quick-card" type="button" data-guide-article="${escapeAttr(item.articleId)}"><span>${escapeHTML(item.icon)}</span><strong>${escapeHTML(item.label)}</strong></button>`).join('')}
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="guide-category-strip" id="offline-guide-categories" aria-label="Категории справочника">
+          <button class="guide-category-pill ${state.guideCategory === 'all' ? 'active' : ''}" type="button" data-guide-category="all">Все</button>
+          ${data.categories.map((category) => `<button class="guide-category-pill ${state.guideCategory === category.id ? 'active' : ''}" type="button" data-guide-category="${escapeAttr(category.id)}">${escapeHTML(category.title)}</button>`).join('')}
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-head"><h2 id="offline-guide-results-title">Все темы</h2><span class="guide-result-count" id="offline-guide-result-count"></span></div>
+        <div class="guide-article-list" id="offline-guide-results"></div>
+      </section>
+
+      <section class="section"><div class="notice guide-disclaimer"><strong>Важно.</strong> Справочник помогает принять безопасное бытовое решение, но не ставит диагноз и не заменяет врача. При опасных симптомах останови тренировку и обратись за медицинской помощью.<div class="guide-source-note">${escapeHTML(data.sourceLabel)}</div></div></section>`;
+
+    bindGoButtons();
+    const search = document.getElementById('offline-guide-search');
+    const clear = document.getElementById('clear-offline-guide-search');
+    search.addEventListener('input', (event) => {
+      state.guideQuery = event.target.value;
+      clear.hidden = !state.guideQuery;
+      refreshOfflineGuideResults();
+    });
+    clear.addEventListener('click', () => {
+      state.guideQuery = '';
+      search.value = '';
+      clear.hidden = true;
+      refreshOfflineGuideResults();
+      search.focus();
+    });
+    document.getElementById('offline-guide-categories').addEventListener('click', (event) => {
+      const button = event.target.closest('[data-guide-category]');
+      if (!button) return;
+      state.guideCategory = button.dataset.guideCategory;
+      document.querySelectorAll('.guide-category-pill').forEach((pill) => pill.classList.toggle('active', pill.dataset.guideCategory === state.guideCategory));
+      refreshOfflineGuideResults();
+    });
+    el.main.querySelectorAll('.guide-quick-card').forEach((button) => button.addEventListener('click', () => showOfflineGuideArticle(button.dataset.guideArticle)));
+    refreshOfflineGuideResults();
+  }
+
+  function refreshOfflineGuideResults() {
+    const container = document.getElementById('offline-guide-results');
+    const count = document.getElementById('offline-guide-result-count');
+    const title = document.getElementById('offline-guide-results-title');
+    if (!container || !count || !title) return;
+    const articles = filteredOfflineGuideArticles();
+    const category = state.guideCategory === 'all' ? null : getOfflineGuideCategory(state.guideCategory);
+    title.textContent = state.guideQuery ? 'Результаты поиска' : (category?.title || 'Все темы');
+    count.textContent = `${articles.length} ${pluralizeGuideTopic(articles.length)}`;
+    container.innerHTML = articles.length
+      ? articles.map(renderOfflineGuideArticleCard).join('')
+      : '<div class="empty guide-empty"><strong>Ничего не найдено</strong>Попробуй другое слово или выбери категорию «Все».</div>';
+    container.querySelectorAll('[data-guide-article]').forEach((button) => button.addEventListener('click', () => showOfflineGuideArticle(button.dataset.guideArticle)));
+  }
+
+  function pluralizeGuideTopic(value) {
+    const mod10 = value % 10;
+    const mod100 = value % 100;
+    if (mod10 === 1 && mod100 !== 11) return 'тема';
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'темы';
+    return 'тем';
+  }
+
+  function renderOfflineGuideList(title, items, className = '') {
+    if (!items?.length) return '';
+    return `<section class="guide-detail-section ${className}"><h3>${escapeHTML(title)}</h3><ul>${items.map((item) => `<li>${escapeHTML(item)}</li>`).join('')}</ul></section>`;
+  }
+
+  function showOfflineGuideArticle(articleId) {
+    const article = getOfflineGuideArticle(articleId);
+    if (!article) return toast('Тема справочника не найдена');
+    const category = getOfflineGuideCategory(article.category);
+    showModal(`
+      <article class="guide-detail">
+        <div class="modal-head guide-detail-head"><div><div class="eyebrow">${escapeHTML(category?.title || 'Офлайн-справочник')}</div><h2>${escapeHTML(article.title)}</h2></div><button class="modal-close" data-close>×</button></div>
+        <div class="guide-detail-lead"><span class="guide-detail-icon" aria-hidden="true">${escapeHTML(article.icon || '?')}</span><p>${escapeHTML(article.short)}</p></div>
+        ${renderOfflineGuideList('Что делать', article.steps, 'guide-detail-do')}
+        ${renderOfflineGuideList('Чего не делать', article.avoid, 'guide-detail-avoid')}
+        ${renderOfflineGuideList('Быстрая проверка', article.check, 'guide-detail-check')}
+        ${renderOfflineGuideList('Остановись, если…', article.stop, 'guide-detail-stop')}
+        <div class="notice guide-detail-note"><strong>Без самодиагностики.</strong><br>Если симптом сильный, новый, нарастает или мешает обычному движению — прекрати нагрузку и обратись за медицинской помощью.</div>
+      </article>`);
   }
 
   function getAppShareUrl() {
