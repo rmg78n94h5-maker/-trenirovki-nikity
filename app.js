@@ -541,6 +541,15 @@
       fat: state.nutrition.trainingFatG,
       carbs: state.nutrition.trainingCarbsG,
     };
+    const weeklyLoad = weekWorkouts.reduce((s, w) => s + (w.totalLoadKg || 0), 0);
+    const weightSeries = bodyMeasurementSeries('weightKg');
+    const weightLast = weightSeries[weightSeries.length - 1] || null;
+    const weightPrev = weightSeries[weightSeries.length - 2] || null;
+    const weightDiff = weightLast && weightPrev ? weightLast.value - weightPrev.value : null;
+    const weightDiffClass = weightDiff === null || Math.abs(weightDiff) < 0.05 ? 'neutral' : weightDiff > 0 ? 'up' : 'down';
+    const weightDiffText = weightDiff === null ? 'нет динамики' : `${formatSignedBodyValue(weightDiff)} кг`;
+    const restNow = smartRestAnalysis({ includeTodayTraining: true });
+    const restShort = restNow.status === 'critical' ? 'стоп' : restNow.status === 'recommended' ? 'отдых' : restNow.status === 'watch' ? 'следи' : 'норма';
 
     setTopbar(formatDate(today, { weekday: 'long', day: 'numeric', month: 'long' }), `День ${index + 1} из ${program.days.length}`);
 
@@ -563,10 +572,10 @@
         </section>
       ` : ''}
       <section class="section">
-        <div class="card hero-card smart-start-card">
+        <div class="card hero-card smart-start-card sport-premium-hero">
           <div class="smart-start-topline">
             <span class="chip accent">${day.recovery ? 'ВОССТАНОВЛЕНИЕ' : 'УМНЫЙ СТАРТ'}</span>
-            <span class="chip">Цикл не привязан к дням недели</span>
+            <span class="chip">День ${index + 1} из ${program.days.length}</span>
           </div>
           <h2>${escapeHTML(day.name)}</h2>
           <p>${escapeHTML(day.focus || program.description)}</p>
@@ -575,7 +584,12 @@
             <span class="chip">${day.exercises.length} упражнений</span>
             <span class="chip">Серия: ${streak} дн.</span>
           </div>
-          <div class="exercise-list">
+          <div class="premium-hero-stats" aria-label="Короткая сводка">
+            <div><span>Вес</span><strong>${weightLast ? `${formatBodyValue(weightLast.value)} кг` : `${latestMeasurement?.weightKg ?? state.profile.currentWeightKg} кг`}</strong><small class="${weightDiffClass}">${escapeHTML(weightDiffText)}</small></div>
+            <div><span>Неделя</span><strong>${completedThisWeek} трен.</strong><small>${totalMinutes} мин · ${formatCompactLoad(weeklyLoad)} кг</small></div>
+            <div><span>Отдых</span><strong>${escapeHTML(restShort)}</strong><small>${escapeHTML(restNow.title || restNow.statusLabel || 'восстановление')}</small></div>
+          </div>
+          <div class="exercise-list premium-exercise-preview">
             ${day.exercises.slice(0, 6).map((entry, i) => renderHomeExercise(entry, i)).join('')}
             ${day.exercises.length > 6 ? `
               <div id="home-extra-exercises" hidden>${day.exercises.slice(6).map((entry, i) => renderHomeExercise(entry, i + 6)).join('')}</div>
@@ -586,7 +600,7 @@
             <div class="notice"><strong>Сначала разберись с черновиком выше.</strong><br>После этого можно продолжить цикл, повторить прошлую или выбрать другой день.</div>
           ` : `
             <div class="button-row smart-actions primary-line">
-              <button class="button primary" id="start-cycle" type="button">Продолжить цикл</button>
+              <button class="button primary" id="start-cycle" type="button">Начать тренировку</button>
               <button class="button secondary" id="choose-workout" type="button">Выбрать другую</button>
               <button class="button secondary" id="repeat-last" type="button" ${lastWorkout ? '' : 'disabled'}>Повторить прошлую</button>
               <button class="button ghost" id="start-short" type="button">Нет сил · 15–20 мин</button>
@@ -2261,12 +2275,16 @@
     const rangeLabel = first && last ? `${formatTinyDate(first.date)} — ${formatTinyDate(last.date)}` : periodLabel;
     const latestText = last ? `${formatBodyValue(last.value)} ${metric.unit}` : `— ${metric.unit}`;
     const diffText = diff === null ? '—' : `${formatSignedBodyValue(diff)} ${metric.unit}`;
+    const diffPct = diff !== null && first?.value ? (diff / first.value) * 100 : null;
+    const diffPctText = diffPct === null || Math.abs(diffPct) < 0.05 ? '' : `${diffPct > 0 ? '+' : '−'}${Math.abs(diffPct).toFixed(1).replace('.', ',')}%`;
+    const deltaText = diff === null ? '—' : `${diffText}${diffPctText ? ` · ${diffPctText}` : ''}`;
+    const trendText = diff === null ? 'Добавь минимум два замера, чтобы увидеть динамику.' : `${metric.label}: ${diffText} за ${periodLabel}. ${Math.abs(diff) < 0.05 ? 'Почти без изменений.' : diff > 0 ? 'Тренд вверх.' : 'Тренд вниз.'}`;
     const recent = state.measurements.slice(0, 5);
 
     return `
-      <section class="section"><div class="button-row"><button class="button primary" id="add-measurement">Добавить замер</button><button class="button secondary" id="measurement-history">Все замеры</button></div></section>
+      <section class="section"><div class="button-row body-top-actions"><button class="button primary" id="add-measurement">Добавить замер</button><button class="button secondary" id="measurement-history">Все замеры</button></div></section>
 
-      <section class="section body-progress-controls">
+      <section class="section body-progress-controls premium-filter-panel">
         <div class="body-control-scroll" aria-label="Показатель прогресса">
           ${bodyMetrics().map((item) => `<button class="tab body-metric ${metric.key === item.key ? 'active' : ''}" data-metric="${item.key}" type="button">${item.label}</button>`).join('')}
         </div>
@@ -2276,21 +2294,22 @@
       </section>
 
       <section class="section">
-        <div class="card body-progress-card">
+        <div class="card body-progress-card sport-progress-card">
           <div class="body-progress-head">
             <div>
               <div class="eyebrow">${escapeHTML(metric.label)} · ${escapeHTML(periodLabel)}</div>
               <h2>${escapeHTML(latestText)}</h2>
+              <p class="body-trend-note">${escapeHTML(trendText)}</p>
             </div>
-            <div class="body-progress-delta ${diffClass}">${escapeHTML(diffText)}</div>
+            <div class="body-progress-delta ${diffClass}">${escapeHTML(deltaText)}</div>
           </div>
+          ${bodyProgressChart(series, metric)}
           <div class="body-summary-grid">
             <div><span>Было</span><strong>${first ? `${formatBodyValue(first.value)} ${metric.unit}` : '—'}</strong></div>
             <div><span>Стало</span><strong>${last ? `${formatBodyValue(last.value)} ${metric.unit}` : '—'}</strong></div>
             <div><span>Разница</span><strong class="${diffClass}">${escapeHTML(diffText)}</strong></div>
             <div><span>Период</span><strong>${escapeHTML(rangeLabel)}</strong></div>
           </div>
-          ${bodyProgressChart(series, metric)}
           ${fullSeries.length > series.length && series.length < 2 ? `<div class="notice" style="margin-top:12px"><strong>В этом периоде мало данных.</strong><br>Попробуй 90 дней или «Всё», чтобы увидеть старые замеры.</div>` : ''}
         </div>
       </section>
@@ -2375,18 +2394,24 @@
     const x = (i) => data.length === 1 ? padLeft + innerW / 2 : padLeft + (i / (data.length - 1)) * innerW;
     const y = (value) => padTop + (1 - ((value - min) / span)) * innerH;
     const path = data.map((row, index) => `${index ? 'L' : 'M'} ${x(index).toFixed(1)} ${y(row.value).toFixed(1)}`).join(' ');
+    const areaPath = data.length > 1 ? `${path} L ${x(data.length - 1).toFixed(1)} ${(height - padBottom).toFixed(1)} L ${x(0).toFixed(1)} ${(height - padBottom).toFixed(1)} Z` : '';
     const ticks = [max, min + span / 2, min];
     const pointLabels = data.map((row, index) => {
       const showValue = data.length <= 4 || index === 0 || index === data.length - 1;
       const showDate = data.length <= 6 || index === 0 || index === data.length - 1 || index === Math.floor(data.length / 2);
+      const isLast = index === data.length - 1;
       return `
-        <circle class="body-chart-dot" cx="${x(index).toFixed(1)}" cy="${y(row.value).toFixed(1)}" r="7"/>
-        ${showValue ? `<text class="body-chart-value" x="${x(index).toFixed(1)}" y="${Math.max(18, y(row.value) - 13).toFixed(1)}" text-anchor="middle">${formatBodyValue(row.value)}</text>` : ''}
+        ${isLast ? `<circle class="body-chart-halo" cx="${x(index).toFixed(1)}" cy="${y(row.value).toFixed(1)}" r="14"/>` : ''}
+        <circle class="body-chart-dot ${isLast ? 'last' : ''}" cx="${x(index).toFixed(1)}" cy="${y(row.value).toFixed(1)}" r="${isLast ? 8 : 6}"/>
+        ${showValue ? `<text class="body-chart-value ${isLast ? 'last' : ''}" x="${x(index).toFixed(1)}" y="${Math.max(18, y(row.value) - 15).toFixed(1)}" text-anchor="middle">${formatBodyValue(row.value)}</text>` : ''}
         ${showDate ? `<text class="body-chart-date" x="${x(index).toFixed(1)}" y="${height - 16}" text-anchor="middle">${formatTinyDate(row.date)}</text>` : ''}`;
     }).join('');
-    return `<div class="body-chart-wrap"><svg class="body-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="График ${escapeAttr(metric.label)}">
+    return `<div class="body-chart-wrap premium-chart-wrap"><svg class="body-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="График ${escapeAttr(metric.label)}">
+      <defs>
+        <linearGradient id="bodyChartFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#c7ff2f" stop-opacity="0.26"/><stop offset="100%" stop-color="#c7ff2f" stop-opacity="0.02"/></linearGradient>
+      </defs>
       ${ticks.map((tick) => `<line class="body-chart-grid" x1="${padLeft}" x2="${width - padRight}" y1="${y(tick).toFixed(1)}" y2="${y(tick).toFixed(1)}"/><text class="body-chart-axis" x="8" y="${(y(tick) + 4).toFixed(1)}">${formatBodyValue(tick)} ${metric.unit}</text>`).join('')}
-      ${data.length > 1 ? `<path class="body-chart-line" d="${path}"/>` : ''}
+      ${data.length > 1 ? `<path class="body-chart-area" d="${areaPath}"/><path class="body-chart-line" d="${path}"/>` : ''}
       ${pointLabels}
     </svg>${data.length < 2 ? '<div class="help center">Нужен ещё один замер, чтобы построить динамику.</div>' : ''}</div>`;
   }

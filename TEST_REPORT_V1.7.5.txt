@@ -1,0 +1,19 @@
+# TEST REPORT v1.7.5
+
+Проверки выполнены:
+- node --check app.js — OK
+- node --check db.js — OK
+- node --check seed.js — OK
+- node --check exercise-guides.js — OK
+- manifest.webmanifest валиден как JSON — OK
+- version.js: 1.7.5 — OK
+- service-worker.js: SERVICE_WORKER_RELEASE 1.7.5 — OK
+- index.html: query-параметры CSS/JS обновлены до v=1.7.5 — OK
+- APP_SHELL Service Worker ссылается на существующие файлы — OK
+- upload-only ZIP содержит только изменённые/новые файлы для GitHub — OK
+
+Ручная логика:
+- Главная не меняет данные и не двигает цикл сама по себе.
+- Кнопка старта сохранила прежний обработчик start-cycle.
+- Прогресс тела использует существующие measurements и настройки выбранного периода/показателя.
+- IndexedDB не повышалась и не мигрировалась.
