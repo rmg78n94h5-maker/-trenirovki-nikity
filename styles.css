@@ -1077,3 +1077,279 @@ button { color: inherit; }
   color: var(--accent);
   -webkit-text-fill-color: var(--accent);
 }
+
+/* v1.7.8 — Sport Premium Workout */
+.sport-workout-screen {
+  padding-bottom: calc(70px + var(--safe-bottom));
+}
+.sport-workout-header {
+  top: 72px;
+  padding: 6px 2px 8px;
+  margin-bottom: 8px;
+}
+.sport-workout-timer-card {
+  position: relative;
+  overflow: hidden;
+  padding: 11px 13px 10px;
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(199,255,47,.12), transparent 42%),
+    linear-gradient(145deg, rgba(20,25,29,.98), rgba(9,11,14,.96));
+  border-color: rgba(199,255,47,.16);
+}
+.sport-workout-timer-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 0 62%, rgba(199,255,47,.06) 63%, transparent 77%);
+  pointer-events: none;
+}
+.sport-workout-timer-card > * { position: relative; z-index: 1; }
+.sport-workout-timer-main {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+.sport-workout-timer-card .workout-clock {
+  font-size: clamp(30px, 8vw, 42px);
+  letter-spacing: -1.1px;
+}
+.sport-workout-progress-box {
+  min-width: 88px;
+  text-align: right;
+  display: grid;
+  gap: 1px;
+}
+.sport-workout-progress-box strong {
+  font-size: 26px;
+  line-height: 1;
+}
+.sport-workout-progress-box span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .045em;
+}
+.sport-workout-progress {
+  height: 7px;
+  margin-top: 10px;
+  background: rgba(255,255,255,.075);
+}
+.sport-workout-progress > span {
+  box-shadow: 0 0 18px rgba(199,255,47,.34);
+}
+.sport-workout-exercise {
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(199,255,47,.08), transparent 38%),
+    var(--surface);
+}
+.sport-workout-exercise-head {
+  padding: 14px;
+  background: linear-gradient(135deg, rgba(199,255,47,.09), rgba(255,255,255,.018));
+}
+.sport-exercise-kicker {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.sport-exercise-kicker span { min-width: 0; }
+.sport-exercise-kicker strong {
+  flex-shrink: 0;
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(199,255,47,.13);
+  border: 1px solid rgba(199,255,47,.32);
+  color: var(--accent);
+  font-size: 11px;
+  letter-spacing: .03em;
+}
+.sport-workout-exercise-head h3 {
+  margin-top: 8px;
+  font-size: clamp(22px, 6.3vw, 34px);
+  line-height: 1.02;
+}
+.sport-set-trail {
+  display: flex;
+  gap: 7px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin-top: 12px;
+  padding-bottom: 2px;
+}
+.sport-set-trail::-webkit-scrollbar { display: none; }
+.sport-set-chip {
+  flex: 0 0 auto;
+  min-width: 58px;
+  display: grid;
+  gap: 2px;
+  justify-items: center;
+  padding: 8px 9px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255,255,255,.045);
+  color: var(--muted);
+}
+.sport-set-chip b {
+  display: block;
+  color: inherit;
+  font-size: 13px;
+  line-height: 1;
+  font-weight: 950;
+}
+.sport-set-chip small {
+  max-width: 82px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.1;
+}
+.sport-set-chip.current {
+  color: #080a0c;
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 20px rgba(199,255,47,.18);
+}
+.sport-set-chip.current small { color: rgba(8,10,12,.78); }
+.sport-set-chip.done {
+  color: var(--success);
+  border-color: rgba(87,227,137,.34);
+  background: rgba(87,227,137,.08);
+}
+.sport-set-chip.next { opacity: .82; }
+.sport-set-chip.muted { opacity: .7; }
+.sport-exercise-progress {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 10px 11px;
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 15px;
+  background: rgba(7,9,11,.34);
+}
+.sport-exercise-progress span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.sport-exercise-progress strong {
+  color: var(--accent);
+  font-size: 18px;
+  line-height: 1;
+}
+.sport-exercise-guide {
+  background: rgba(8,10,12,.38);
+}
+.sport-exercise-tools .button.small {
+  min-height: 36px;
+  padding: 7px 10px;
+}
+.sport-set-list {
+  display: grid;
+  gap: 8px;
+  border-top: 0;
+  margin: 0;
+  padding: 10px;
+}
+.sport-set-row {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.075);
+  border-radius: 18px;
+  padding: 11px;
+  background: rgba(255,255,255,.028);
+}
+.sport-set-row:last-child { border-bottom: 1px solid rgba(255,255,255,.075); }
+.sport-set-row.current {
+  border-color: rgba(199,255,47,.54);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(199,255,47,.13), transparent 42%),
+    rgba(199,255,47,.035);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 0 0 1px rgba(199,255,47,.06);
+}
+.sport-set-row.done {
+  border-color: rgba(87,227,137,.22);
+  background: rgba(87,227,137,.045);
+}
+.sport-set-row.queued {
+  opacity: .92;
+}
+.sport-set-row .set-row-head {
+  margin-bottom: 9px;
+}
+.sport-set-row.current .set-row-head {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: stretch;
+  gap: 10px;
+}
+.sport-set-row.current .set-row-actions {
+  width: 100%;
+  justify-content: space-between;
+  align-items: end;
+}
+.sport-set-row .set-badge strong {
+  font-size: 24px;
+}
+.sport-set-row.current .set-badge span {
+  color: var(--accent);
+}
+.sport-set-row.current .set-badge strong {
+  font-size: 34px;
+}
+.sport-set-row.current .set-stepper {
+  min-height: 56px;
+  border-color: rgba(199,255,47,.18);
+}
+.sport-set-row.current .set-stepper .set-input {
+  min-height: 54px;
+  font-size: 24px;
+}
+.check-button.active-finish {
+  width: auto;
+  min-width: 0;
+  flex: 1 1 auto;
+  max-width: 230px;
+  padding: 0 14px;
+  border-radius: 14px;
+  background: var(--accent);
+  color: #080a0c;
+  border-color: var(--accent);
+  font-size: 14px;
+  font-weight: 950;
+  letter-spacing: -.1px;
+  white-space: nowrap;
+}
+.sport-set-row.queued .set-control-grid,
+.sport-set-row.done .set-control-grid {
+  opacity: .82;
+}
+.sport-set-row.done .set-badge strong { color: var(--success); }
+.sport-set-row.done .check-button.done { box-shadow: 0 0 16px rgba(87,227,137,.12); }
+@media (max-width: 390px) {
+  .sport-workout-timer-card { padding: 10px 11px 9px; }
+  .sport-workout-exercise-head { padding: 13px 12px; }
+  .sport-set-list { padding: 8px; gap: 7px; }
+  .sport-set-row { padding: 10px; }
+  .sport-set-row.current .set-row-actions { gap: 7px; }
+  .check-button.active-finish { max-width: 190px; padding: 0 11px; font-size: 13px; }
+  .sport-set-chip small { display: none; }
+  .sport-set-chip { min-width: 48px; }
+}

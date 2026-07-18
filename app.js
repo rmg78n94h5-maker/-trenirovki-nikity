@@ -1169,13 +1169,20 @@
     }
     setTopbar(workout.dayName, workout.shortMode ? 'Короткая тренировка' : 'Тренировка идёт');
     el.main.innerHTML = `
-      <div class="workout-screen">
-      <div class="workout-header">
-        <div class="card" style="padding:12px 14px">
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
-            <div><div class="workout-clock" id="workout-clock">00:00</div><div class="muted">время тренировки</div></div>
-            <div style="min-width:120px"><div class="right"><strong id="workout-progress-text">0%</strong></div><div class="progress-bar"><span id="workout-progress-bar" style="width:0%"></span></div></div>
+      <div class="workout-screen sport-workout-screen">
+      <div class="workout-header sport-workout-header">
+        <div class="card sport-workout-timer-card">
+          <div class="sport-workout-timer-main">
+            <div>
+              <div class="workout-clock" id="workout-clock">00:00</div>
+              <div class="muted">время тренировки</div>
+            </div>
+            <div class="sport-workout-progress-box">
+              <strong id="workout-progress-text">0%</strong>
+              <span>выполнено</span>
+            </div>
           </div>
+          <div class="progress-bar sport-workout-progress"><span id="workout-progress-bar" style="width:0%"></span></div>
         </div>
       </div>
 
@@ -1202,23 +1209,31 @@
 
   function renderWorkoutExercise(result, exerciseIndex) {
     const exercise = getExercise(result.exerciseId);
+    const activeSetIndex = workoutActiveSetIndex(result);
+    const completedCount = result.sets.filter((set) => set.completed).length;
+    const totalSets = result.sets.length;
+    const activeLabel = activeSetIndex >= 0 ? `Подход ${activeSetIndex + 1} из ${totalSets}` : totalSets ? 'Все подходы выполнены' : 'Подходов нет';
     const previous = result.previous ? `<span class="chip">Прошлый: ${escapeHTML(result.previous)}</span>` : `<span class="chip">Первое выполнение</span>`;
     const prefilled = result.prefilledFromLast ? `<span class="chip success">Значения подставлены из прошлого раза</span>` : '';
     const suggestion = result.suggestion?.text ? `<span class="chip ${result.suggestion.kind === 'increase' ? 'success' : result.suggestion.kind === 'reduce' ? 'warning' : ''}">${escapeHTML(result.suggestion.text)}</span>` : '';
     return `
-      <article class="workout-exercise ${result.skipped ? 'muted' : ''} ${painRiskClass(result.painRisk)}" data-exercise-index="${exerciseIndex}">
-        <div class="workout-exercise-head">
-          <div class="eyebrow">${exerciseIndex + 1} · ${escapeHTML(exercise?.group || '')}</div>
+      <article class="workout-exercise sport-workout-exercise ${result.skipped ? 'muted' : ''} ${painRiskClass(result.painRisk)}" data-exercise-index="${exerciseIndex}">
+        <div class="workout-exercise-head sport-workout-exercise-head">
+          <div class="sport-exercise-kicker"><span>${exerciseIndex + 1} · ${escapeHTML(exercise?.group || '')}</span><strong>${escapeHTML(activeLabel)}</strong></div>
           <h3>${escapeHTML(result.name)}</h3>
           <div class="exercise-meta">${escapeHTML(exercise?.equipment || '')} · отдых ${result.defaults.restSec || 0} сек</div>
+          <div class="sport-set-trail" aria-label="Прогресс подходов">
+            ${renderWorkoutSetTrail(result, activeSetIndex)}
+          </div>
+          <div class="sport-exercise-progress"><span>Подходы</span><strong>${completedCount}/${totalSets}</strong></div>
           <div class="hero-meta">${previous}${prefilled}${suggestion}</div>
           ${renderPainRiskNotice(result.painRisk, exerciseIndex)}
           ${exercise?.safety ? `<div class="notice warning" style="margin-top:10px">${escapeHTML(exercise.safety)}</div>` : ''}
-          <details class="exercise-guide">
+          <details class="exercise-guide sport-exercise-guide">
             <summary><span>ⓘ Техника и подсказки</span><span class="exercise-chevron" aria-hidden="true">⌄</span></summary>
             ${renderGuideBody(result.exerciseId)}
           </details>
-          <div class="exercise-tools">
+          <div class="exercise-tools sport-exercise-tools">
             <button class="button secondary small replace-exercise" data-index="${exerciseIndex}" type="button">Заменить</button>
             <button class="button ghost small skip-exercise" data-index="${exerciseIndex}" type="button">${result.skipped ? 'Вернуть' : 'Пропустить'}</button>
             <button class="button ghost small comment-exercise" data-index="${exerciseIndex}" type="button">Комментарий</button>
@@ -1227,8 +1242,8 @@
           ${result.painEvents?.length ? `<div class="help" style="margin-top:9px">⚠️ Боль отмечена: ${result.painEvents.map((event) => `${escapeHTML(event.areaLabel)} ${event.score}/10`).join(' · ')}</div>` : ''}
           ${result.comment ? `<div class="help" style="margin-top:9px">“${escapeHTML(result.comment)}”</div>` : ''}
         </div>
-        <div class="set-list" aria-label="Подходы упражнения ${escapeHTML(result.name)}">
-          ${result.sets.map((set, setIndex) => renderWorkoutSet(result, set, setIndex)).join('')}
+        <div class="set-list sport-set-list" aria-label="Подходы упражнения ${escapeHTML(result.name)}">
+          ${result.sets.map((set, setIndex) => renderWorkoutSet(result, set, setIndex, activeSetIndex)).join('')}
         </div>
         <div class="button-row" style="padding:0 14px 14px">
           <button class="button secondary small add-set" data-index="${exerciseIndex}" type="button" ${result.skipped ? 'disabled' : ''}>＋ Добавить подход</button>
@@ -1238,10 +1253,46 @@
     `;
   }
 
-  function renderWorkoutSet(result, set, setIndex) {
+  function workoutActiveSetIndex(result) {
+    if (!result || result.skipped) return -1;
+    return result.sets.findIndex((set) => !set.completed);
+  }
+
+  function renderWorkoutSetTrail(result, activeSetIndex) {
+    if (!result.sets.length) return '<span class="sport-set-chip muted">нет подходов</span>';
+    return result.sets.map((set, index) => {
+      const state = set.completed ? 'done' : index === activeSetIndex ? 'current' : 'next';
+      const label = set.completed ? '✓' : index === activeSetIndex ? 'сейчас' : String(set.number);
+      const summary = workoutSetSummary(result, set);
+      return `<span class="sport-set-chip ${state}" title="${escapeAttr(summary)}"><b>${escapeHTML(label)}</b><small>${escapeHTML(summary)}</small></span>`;
+    }).join('');
+  }
+
+  function workoutSetSummary(result, set) {
+    const unit = result.defaults.unit;
+    if (unit === 'reps') {
+      const weight = set.weightKg === '' || set.weightKg === null || set.weightKg === undefined ? '—' : `${formatWorkoutSetNumber(set.weightKg)} кг`;
+      const reps = set.reps === '' || set.reps === null || set.reps === undefined ? '—' : `${formatWorkoutSetNumber(set.reps)} повт.`;
+      return `${weight} · ${reps}`;
+    }
+    if (unit === 'minutes') return `${formatWorkoutSetNumber(set.durationMin || 0)} мин`;
+    return `${formatWorkoutSetNumber(set.durationSec || 0)} сек`;
+  }
+
+  function formatWorkoutSetNumber(value) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return '—';
+    return Number.isInteger(number) ? String(number) : String(roundHalf(number)).replace('.', ',');
+  }
+
+  function renderWorkoutSet(result, set, setIndex, activeSetIndex = -1) {
     const unit = result.defaults.unit;
     const disabled = result.skipped ? 'disabled' : '';
     const setLabel = `Подход ${set.number}`;
+    const isActive = !result.skipped && setIndex === activeSetIndex;
+    const setState = set.completed ? 'done' : isActive ? 'current' : 'queued';
+    const completeButtonText = set.completed ? '✓' : isActive ? 'Завершить подход ✓' : '○';
+    const completeButtonClass = isActive && !set.completed ? ' active-finish' : '';
     const controls = unit === 'reps'
       ? `
         <div class="set-control-grid">
@@ -1286,15 +1337,15 @@
       `;
 
     return `
-      <div class="set-row ${set.completed ? 'done' : ''}" data-set-index="${setIndex}">
+      <div class="set-row sport-set-row ${setState}" data-set-index="${setIndex}">
         <div class="set-row-head">
-          <div class="set-badge"><span>Подход</span><strong>${set.number}</strong></div>
+          <div class="set-badge"><span>${isActive ? 'Сейчас' : 'Подход'}</span><strong>${set.number}</strong></div>
           <div class="set-row-actions">
             <label class="set-difficulty-wrap">
               <span>Тяжесть</span>
               <select class="set-select set-difficulty" aria-label="Тяжесть, ${setLabel}" ${disabled}>${difficultyOptions.map(([value, label]) => `<option value="${value}" ${set.difficulty === value ? 'selected' : ''}>${label}</option>`).join('')}</select>
             </label>
-            <button class="check-button ${set.completed ? 'done' : ''} complete-set" type="button" aria-label="${set.completed ? 'Снять отметку' : 'Завершить'}, ${setLabel}" ${disabled}>${set.completed ? '✓' : '○'}</button>
+            <button class="check-button ${set.completed ? 'done' : ''}${completeButtonClass} complete-set" type="button" aria-label="${set.completed ? 'Снять отметку' : 'Завершить'}, ${setLabel}" ${disabled}>${completeButtonText}</button>
           </div>
         </div>
         ${controls}
