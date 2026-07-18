@@ -2489,3 +2489,49 @@ button:disabled {
 @media (max-width: 370px) {
   .smart-home-suggestion-top { flex-direction: column; }
 }
+
+
+/* v1.11.1 — надёжный звук таймера на iPhone */
+.timer-signal-card input[type="checkbox"] {
+  width: 26px;
+  height: 26px;
+  flex: 0 0 26px;
+  accent-color: var(--accent);
+}
+.timer-signal-card input:disabled,
+.timer-signal-card button:disabled {
+  opacity: .45;
+}
+.timer-volume-control {
+  padding: 14px 16px 16px;
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 12px;
+}
+.timer-volume-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+.timer-volume-head strong {
+  min-width: 52px;
+  text-align: right;
+  color: var(--accent);
+  font-size: 18px;
+}
+.timer-volume-control input[type="range"] {
+  width: 100%;
+  height: 30px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+.timer-sound-test {
+  padding: 14px 16px 16px;
+  display: grid;
+  gap: 9px;
+}
+.timer-sound-test .help {
+  margin: 0;
+  line-height: 1.4;
+}

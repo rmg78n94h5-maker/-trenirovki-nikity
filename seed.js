@@ -294,6 +294,8 @@
       activeProgramId: shipCycle.id,
       currentDayIndex: 0,
       soundEnabled: true,
+      countdownSoundEnabled: true,
+      timerVolume: 70,
       vibrationEnabled: true,
       theme: 'dark',
       lastBackupAt: null,

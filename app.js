@@ -30,7 +30,7 @@
     guideCategory: 'all',
     guideQuery: '',
     smartWorkoutProposal: null,
-    timer: { seconds: 0, interval: null, nextLabel: '' },
+    timer: { seconds: 0, interval: null, nextLabel: '', lastAnnouncedSecond: null },
     photoUrls: new Map(),
     swRegistration: null,
     update: {
@@ -65,6 +65,9 @@
     profileSwitch: document.getElementById('profile-switch-button'),
     profileInitial: document.getElementById('profile-initial'),
   };
+
+  let timerAudioContext = null;
+  let timerAudioPrimed = false;
 
   const difficultyOptions = [
     ['easy', 'Легко'],
@@ -411,6 +414,9 @@
     el.timerMinus.addEventListener('click', () => adjustTimer(-15));
     el.timerPlus.addEventListener('click', () => adjustTimer(15));
     el.timerSkip.addEventListener('click', stopRestTimer);
+    document.addEventListener('pointerdown', () => {
+      if (state.settings.soundEnabled) prepareTimerAudio().catch(() => {});
+    }, { passive: true, capture: true });
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) flushDraftSave().catch((error) => console.warn('Draft save on hide failed', error));
       if (!document.hidden && state.timer.endsAt) syncTimerFromEnd();
@@ -2411,12 +2417,15 @@
 
   function startRestTimer(seconds, nextLabel) {
     stopRestTimer(false);
+    if (state.settings.soundEnabled) prepareTimerAudio().catch(() => {});
     state.timer.seconds = Number(seconds) || 60;
     state.timer.endsAt = Date.now() + state.timer.seconds * 1000;
     state.timer.nextLabel = nextLabel || '';
+    state.timer.lastAnnouncedSecond = null;
     el.timerOverlay.hidden = false;
     el.timerNext.textContent = state.timer.nextLabel;
     renderTimer();
+    announceTimerCountdown(state.timer.seconds);
     state.timer.interval = setInterval(() => {
       syncTimerFromEnd();
       if (state.timer.seconds <= 0) timerDone();
@@ -2427,16 +2436,28 @@
     if (!state.timer.endsAt) return;
     state.timer.seconds = Math.max(0, Math.ceil((state.timer.endsAt - Date.now()) / 1000));
     renderTimer();
+    announceTimerCountdown(state.timer.seconds);
   }
 
   function adjustTimer(delta) {
     state.timer.seconds = Math.max(0, state.timer.seconds + delta);
     state.timer.endsAt = Date.now() + state.timer.seconds * 1000;
+    if (state.timer.seconds > 3) state.timer.lastAnnouncedSecond = null;
     renderTimer();
+    announceTimerCountdown(state.timer.seconds);
+    if (state.timer.seconds <= 0) timerDone();
   }
 
   function renderTimer() {
     el.timerValue.textContent = formatDuration(state.timer.seconds);
+  }
+
+  function announceTimerCountdown(seconds) {
+    const currentSecond = Number(seconds);
+    if (!state.settings.soundEnabled || !state.settings.countdownSoundEnabled) return;
+    if (currentSecond < 1 || currentSecond > 3 || state.timer.lastAnnouncedSecond === currentSecond) return;
+    state.timer.lastAnnouncedSecond = currentSecond;
+    playTimerSound('countdown');
   }
 
   function timerDone() {
@@ -2444,35 +2465,128 @@
     state.timer.interval = null;
     state.timer.seconds = 0;
     state.timer.endsAt = null;
+    state.timer.lastAnnouncedSecond = null;
     renderTimer();
     if (state.settings.vibrationEnabled && navigator.vibrate) navigator.vibrate([180, 80, 180]);
-    if (state.settings.soundEnabled) beep();
-    setTimeout(() => stopRestTimer(), 800);
+    if (state.settings.soundEnabled) playTimerSound('complete');
+    setTimeout(() => stopRestTimer(), 900);
   }
 
   function stopRestTimer(hide = true) {
     clearInterval(state.timer.interval);
     state.timer.interval = null;
     state.timer.endsAt = null;
+    state.timer.lastAnnouncedSecond = null;
     if (hide) el.timerOverlay.hidden = true;
   }
 
-  function beep() {
-    try {
-      const AudioContext = window.AudioContext || window.webkitAudioContext;
-      const ctx = new AudioContext();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.frequency.value = 740;
-      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.35);
-      osc.connect(gain).connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.4);
-    } catch (error) {
-      console.warn('Audio unavailable', error);
+  function timerVolumePercent() {
+    const value = Number(state.settings.timerVolume);
+    return Number.isFinite(value) ? Math.min(100, Math.max(0, Math.round(value))) : 70;
+  }
+
+  function getTimerAudioContext() {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return null;
+    if (!timerAudioContext || timerAudioContext.state === 'closed') {
+      timerAudioContext = new AudioContextClass();
+      timerAudioPrimed = false;
     }
+    return timerAudioContext;
+  }
+
+  async function prepareTimerAudio({ force = false } = {}) {
+    if (!force && !state.settings.soundEnabled) return null;
+    const ctx = getTimerAudioContext();
+    if (!ctx) return null;
+    if (ctx.state === 'suspended') await ctx.resume();
+    if (!timerAudioPrimed && ctx.state === 'running') {
+      const source = ctx.createBufferSource();
+      source.buffer = ctx.createBuffer(1, 1, Math.max(8000, Math.round(ctx.sampleRate || 44100)));
+      const gain = ctx.createGain();
+      gain.gain.value = 0.00001;
+      source.connect(gain).connect(ctx.destination);
+      source.start();
+      timerAudioPrimed = true;
+    }
+    return ctx.state === 'running' ? ctx : null;
+  }
+
+  function scheduleTimerTone(ctx, { frequency, delay = 0, duration = 0.1, level = 1, type = 'sine' }) {
+    const volume = timerVolumePercent() / 100;
+    if (!ctx || volume <= 0) return;
+    const startAt = ctx.currentTime + Math.max(0.01, Number(delay) || 0);
+    const finishAt = startAt + Math.max(0.04, Number(duration) || 0.1);
+    const oscillator = ctx.createOscillator();
+    const gain = ctx.createGain();
+    oscillator.type = type;
+    oscillator.frequency.setValueAtTime(frequency, startAt);
+    gain.gain.setValueAtTime(0.0001, startAt);
+    gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, 0.28 * volume * level), startAt + 0.015);
+    gain.gain.exponentialRampToValueAtTime(0.0001, finishAt);
+    oscillator.connect(gain).connect(ctx.destination);
+    oscillator.start(startAt);
+    oscillator.stop(finishAt + 0.02);
+  }
+
+  async function playTimerSound(kind, { force = false } = {}) {
+    if (!force && !state.settings.soundEnabled) return false;
+    try {
+      const ctx = await prepareTimerAudio({ force });
+      if (!ctx) return false;
+      if (kind === 'countdown') {
+        scheduleTimerTone(ctx, { frequency: 660, duration: 0.095, level: 0.68, type: 'sine' });
+      } else if (kind === 'complete') {
+        scheduleTimerTone(ctx, { frequency: 820, duration: 0.16, level: 1, type: 'triangle' });
+        scheduleTimerTone(ctx, { frequency: 1040, delay: 0.2, duration: 0.24, level: 1, type: 'triangle' });
+      } else if (kind === 'test') {
+        scheduleTimerTone(ctx, { frequency: 660, duration: 0.095, level: 0.68, type: 'sine' });
+        scheduleTimerTone(ctx, { frequency: 660, delay: 0.42, duration: 0.095, level: 0.68, type: 'sine' });
+        scheduleTimerTone(ctx, { frequency: 660, delay: 0.84, duration: 0.095, level: 0.68, type: 'sine' });
+        scheduleTimerTone(ctx, { frequency: 820, delay: 1.3, duration: 0.16, level: 1, type: 'triangle' });
+        scheduleTimerTone(ctx, { frequency: 1040, delay: 1.5, duration: 0.24, level: 1, type: 'triangle' });
+      }
+      return true;
+    } catch (error) {
+      console.warn('Timer audio unavailable', error);
+      return false;
+    }
+  }
+
+  function syncTimerSoundControls() {
+    const enabled = Boolean(state.settings.soundEnabled);
+    const countdown = document.getElementById('countdown-sound-toggle');
+    const volume = document.getElementById('timer-volume');
+    const test = document.getElementById('test-timer-sound');
+    if (countdown) countdown.disabled = !enabled;
+    if (volume) volume.disabled = !enabled;
+    if (test) test.disabled = !enabled;
+  }
+
+  async function testTimerSound() {
+    const button = document.getElementById('test-timer-sound');
+    const status = document.getElementById('timer-sound-status');
+    if (!state.settings.soundEnabled) {
+      toast('Сначала включи звук таймера');
+      return;
+    }
+    if (button) {
+      button.disabled = true;
+      button.textContent = 'Проверяем…';
+    }
+    if (status) status.textContent = 'Сейчас прозвучат три коротких сигнала и двойной финальный.';
+    const played = await playTimerSound('test', { force: true });
+    if (!played) {
+      if (status) status.textContent = 'iPhone не дал запустить звук. Нажми кнопку ещё раз и проверь громкость устройства.';
+      toast('Не удалось запустить звук');
+    }
+    window.setTimeout(() => {
+      if (button) {
+        button.textContent = 'Проверить звук';
+        button.disabled = !state.settings.soundEnabled;
+      }
+      if (status && played) status.textContent = 'Если услышал последовательность — таймер готов.';
+    }, 2100);
   }
 
   function renderPlanDayCard(day, index, currentIndex) {
@@ -3670,7 +3784,7 @@
 
       <section class="section"><div class="section-head"><h2>Калории и БЖУ</h2><button class="link-button" id="edit-nutrition">Изменить</button></div><div class="card"><div class="stats-grid"><div><div class="stat-value">${state.nutrition.trainingCalories}</div><div class="stat-label">тренировка, ккал</div></div><div><div class="stat-value">${state.nutrition.recoveryCalories}</div><div class="stat-label">восстановление</div></div><div><div class="stat-value">${state.nutrition.proteinG}</div><div class="stat-label">белок, г</div></div><div><div class="stat-value">${state.nutrition.trainingFatG}</div><div class="stat-label">жиры, г</div></div></div><div class="divider"></div><div class="help">${escapeHTML(state.nutrition.note)}</div></div></section>
 
-      <section class="section"><div class="section-head"><h2>Сигналы таймера</h2></div><div class="card list-card"><label class="list-row"><div><div class="list-row-title">Звук</div><div class="list-row-sub">Сигнал после отдыха</div></div><input id="sound-toggle" type="checkbox" ${state.settings.soundEnabled ? 'checked' : ''}></label><label class="list-row"><div><div class="list-row-title">Вибрация</div><div class="list-row-sub">На iPhone Safari может не поддерживаться</div></div><input id="vibration-toggle" type="checkbox" ${state.settings.vibrationEnabled ? 'checked' : ''}></label></div></section>
+      <section class="section"><div class="section-head"><h2>Сигналы таймера</h2></div><div class="card list-card timer-signal-card"><label class="list-row"><div><div class="list-row-title">Звук</div><div class="list-row-sub">Двойной сигнал после окончания отдыха</div></div><input id="sound-toggle" type="checkbox" ${state.settings.soundEnabled ? 'checked' : ''}></label><label class="list-row"><div><div class="list-row-title">Отсчёт 3–2–1</div><div class="list-row-sub">Короткий сигнал на последних трёх секундах</div></div><input id="countdown-sound-toggle" type="checkbox" ${state.settings.countdownSoundEnabled ? 'checked' : ''} ${state.settings.soundEnabled ? '' : 'disabled'}></label><div class="timer-volume-control"><div class="timer-volume-head"><div><div class="list-row-title">Громкость таймера</div><div class="list-row-sub">Уровень сигнала внутри приложения</div></div><strong id="timer-volume-value">${timerVolumePercent()}%</strong></div><input id="timer-volume" type="range" min="0" max="100" step="5" value="${timerVolumePercent()}" ${state.settings.soundEnabled ? '' : 'disabled'} aria-label="Громкость таймера"></div><label class="list-row"><div><div class="list-row-title">Вибрация</div><div class="list-row-sub">На iPhone Safari может не поддерживаться</div></div><input id="vibration-toggle" type="checkbox" ${state.settings.vibrationEnabled ? 'checked' : ''}></label><div class="timer-sound-test"><button class="button secondary full" id="test-timer-sound" type="button" ${state.settings.soundEnabled ? '' : 'disabled'}>Проверить звук</button><div class="help" id="timer-sound-status">Проверка также активирует звук для iPhone перед тренировкой.</div></div></div></section>
 
       <section class="section"><div class="section-head"><h2>История боли</h2><div class="section-actions"><button class="link-button" id="open-pain-cleanup" type="button">Очистить</button><button class="link-button" id="open-pain-history" type="button">Показать всё</button></div></div><div class="card list-card">${state.painEntries.length ? state.painEntries.slice(0, 4).map(renderPainEntry).join('') : '<div class="empty compact-empty"><strong>Пока пусто</strong>Отметки появятся после тренировок с контролем боли.</div>'}</div></section>
 
@@ -3697,8 +3811,20 @@
     document.getElementById('open-iron-calculator').addEventListener('click', () => showIronCalculatorModal());
     document.getElementById('open-iron-calculator-settings').addEventListener('click', () => showIronCalculatorModal());
     document.getElementById('edit-nutrition').addEventListener('click', showNutritionModal);
-    document.getElementById('sound-toggle').addEventListener('change', (e)=>saveToggle('soundEnabled',e.target.checked));
+    document.getElementById('sound-toggle').addEventListener('change', async (event) => {
+      const unlockPromise = event.target.checked ? prepareTimerAudio({ force: true }).catch(() => null) : Promise.resolve(null);
+      await saveToggle('soundEnabled', event.target.checked);
+      await unlockPromise;
+      syncTimerSoundControls();
+    });
+    document.getElementById('countdown-sound-toggle').addEventListener('change', (event) => saveToggle('countdownSoundEnabled', event.target.checked));
+    document.getElementById('timer-volume').addEventListener('input', (event) => {
+      document.getElementById('timer-volume-value').textContent = `${event.target.value}%`;
+    });
+    document.getElementById('timer-volume').addEventListener('change', (event) => saveToggle('timerVolume', Number(event.target.value)));
+    document.getElementById('test-timer-sound').addEventListener('click', testTimerSound);
     document.getElementById('vibration-toggle').addEventListener('change', (e)=>saveToggle('vibrationEnabled',e.target.checked));
+    syncTimerSoundControls();
     document.getElementById('open-pain-history').addEventListener('click', showPainHistoryModal);
     document.getElementById('open-pain-cleanup').addEventListener('click', showPainCleanupModal);
     document.getElementById('export-data').addEventListener('click', ()=>exportBackup(false));
