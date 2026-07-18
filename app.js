@@ -3798,39 +3798,154 @@
     showProfileSwitcher();
   }
 
+  function openMoreGroup(groupId, targetSelector = '') {
+    const group = document.getElementById(groupId);
+    if (!group) return;
+    group.open = true;
+    requestAnimationFrame(() => {
+      const target = targetSelector ? group.querySelector(targetSelector) : group;
+      (target || group).scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
   function renderMore() {
-    setTopbar('Настройки', `Профиль: ${state.profile.name}`);
+    setTopbar('Ещё', `Профиль: ${state.profile.name}`);
     const goals = state.profile.goals?.length ? state.profile.goals : ['Цель пока не указана'];
+    const profileInitial = escapeHTML((state.profile.name || '?').trim().charAt(0).toUpperCase() || '?');
     el.main.innerHTML = `
-      <section class="section"><div class="card hero-card"><div class="eyebrow">Текущий профиль · ${state.profiles.length} всего</div><h2>${escapeHTML(state.profile.name)}</h2><p>${state.profile.age || '—'} лет · ${state.profile.heightCm || '—'} см · ${state.profile.currentWeightKg || '—'} кг</p><div class="hero-meta"><span class="chip">Отдельная история</span><span class="chip">Офлайн</span><span class="chip">Личные данные</span></div><div class="button-row"><button class="button secondary" id="switch-profile">Сменить</button><button class="button primary" id="new-profile">＋ Профиль</button></div><button class="button ghost full" id="edit-profile" style="margin-top:10px">Изменить текущий профиль</button></div></section>
+      <section class="section more-profile-section">
+        <div class="card more-profile-card">
+          <div class="more-profile-head">
+            <div class="more-profile-avatar" aria-hidden="true">${profileInitial}</div>
+            <div class="more-profile-copy">
+              <div class="eyebrow">Текущий профиль · ${state.profiles.length} всего</div>
+              <h2>${escapeHTML(state.profile.name)}</h2>
+              <p>${state.profile.age || '—'} лет · ${state.profile.heightCm || '—'} см · ${state.profile.currentWeightKg || '—'} кг</p>
+            </div>
+          </div>
+          <div class="more-goal-scroll" aria-label="Цели профиля">
+            ${goals.map((goal) => `<span class="more-goal-chip">✓ ${escapeHTML(goal)}</span>`).join('')}
+          </div>
+          <div class="more-profile-actions">
+            <button class="button secondary" id="switch-profile" type="button">Сменить</button>
+            <button class="button secondary" id="edit-profile" type="button">Изменить</button>
+            <button class="button primary" id="new-profile" type="button">＋ Профиль</button>
+          </div>
+        </div>
+      </section>
 
-      <section class="section"><div class="section-head"><h2>Цель</h2></div><div class="card list-card">${goals.map((g)=>`<div class="list-row"><div class="list-row-main"><div class="list-row-title">✓ ${escapeHTML(g)}</div></div></div>`).join('')}</div></section>
+      <section class="section">
+        <div class="section-head"><h2>Быстрый доступ</h2></div>
+        <div class="more-shortcuts">
+          <button class="more-shortcut" id="open-offline-guide" type="button">
+            <span class="more-shortcut-icon guide" aria-hidden="true">?</span>
+            <span><strong>Справочник</strong><small>17 тем офлайн</small></span>
+            <span class="more-shortcut-arrow" aria-hidden="true">›</span>
+          </button>
+          <button class="more-shortcut" id="open-iron-calculator" type="button">
+            <span class="more-shortcut-icon iron" aria-hidden="true">⚖</span>
+            <span><strong>Калькулятор</strong><small>Штанга и гантели</small></span>
+            <span class="more-shortcut-arrow" aria-hidden="true">›</span>
+          </button>
+          <button class="more-shortcut" id="open-sound-settings" type="button">
+            <span class="more-shortcut-icon sound" aria-hidden="true">♪</span>
+            <span><strong>Звук таймера</strong><small>${state.settings.soundEnabled ? `${timerVolumePercent()}% громкости` : 'Выключен'}</small></span>
+            <span class="more-shortcut-arrow" aria-hidden="true">›</span>
+          </button>
+          <button class="more-shortcut" id="open-backup-settings" type="button">
+            <span class="more-shortcut-icon backup" aria-hidden="true">⇅</span>
+            <span><strong>Резервная копия</strong><small>Все профили</small></span>
+            <span class="more-shortcut-arrow" aria-hidden="true">›</span>
+          </button>
+        </div>
+      </section>
 
-      <section class="section"><div class="section-head"><h2>Офлайн-справочник</h2><button class="link-button" id="open-offline-guide-link" type="button">Открыть</button></div><div class="card guide-promo-card"><div class="guide-promo-head"><div class="guide-promo-mark" aria-hidden="true">?</div><div><div class="eyebrow">Всегда под рукой</div><h3>Быстрые ответы без интернета</h3><p>Разминка, техника, боль, восстановление, питание и отдельные правила тренировок на судне.</p></div></div><div class="guide-promo-tags"><span>17 тем</span><span>Поиск</span><span>Работает офлайн</span></div><button class="button primary full" id="open-offline-guide" type="button">Открыть справочник</button></div></section>
+      <section class="section more-groups" aria-label="Разделы настроек">
+        <details class="more-group" id="more-group-training">
+          <summary>
+            <span class="more-group-icon training" aria-hidden="true">●</span>
+            <span class="more-group-copy"><strong>Тренировки и самочувствие</strong><small>Калории, сигналы таймера и история боли</small></span>
+            <span class="more-group-chevron" aria-hidden="true">⌄</span>
+          </summary>
+          <div class="more-group-content">
+            <div class="more-subsection nutrition-subsection">
+              <div class="more-subsection-head"><div><span class="eyebrow">Питание</span><h3>Калории и БЖУ</h3></div><button class="link-button" id="edit-nutrition" type="button">Изменить</button></div>
+              <div class="card">
+                <div class="stats-grid"><div><div class="stat-value">${state.nutrition.trainingCalories}</div><div class="stat-label">тренировка, ккал</div></div><div><div class="stat-value">${state.nutrition.recoveryCalories}</div><div class="stat-label">восстановление</div></div><div><div class="stat-value">${state.nutrition.proteinG}</div><div class="stat-label">белок, г</div></div><div><div class="stat-value">${state.nutrition.trainingFatG}</div><div class="stat-label">жиры, г</div></div></div>
+                <div class="divider"></div><div class="help">${escapeHTML(state.nutrition.note)}</div>
+              </div>
+            </div>
 
-      <section class="section"><div class="section-head"><h2>Поделиться приложением</h2></div><div class="card share-app-card"><div class="share-app-head"><div><div class="eyebrow">Ссылка на PWA</div><h3>Отправить приложение</h3><p>Передаётся только ссылка. Профили, история, фото, замеры и тренировки остаются на этом телефоне.</p></div><div class="share-app-mark" aria-hidden="true">↗</div></div><button class="button primary full" id="share-app-system" type="button">Поделиться через iPhone</button><div class="share-fast-grid" aria-label="Быстрый шаринг"><button class="share-fast-button telegram" id="share-app-telegram" type="button"><span>✈️</span><strong>Telegram</strong></button><button class="share-fast-button whatsapp" id="share-app-whatsapp" type="button"><span>🟢</span><strong>WhatsApp</strong></button><button class="share-fast-button vk" id="share-app-vk" type="button"><span>VK</span><strong>ВК</strong></button><button class="share-fast-button max" id="share-app-max" type="button"><span>MAX</span><strong>MAX</strong></button></div><div class="button-row share-link-row"><button class="button secondary" id="copy-app-link" type="button">Скопировать ссылку</button><button class="button ghost" id="open-app-link" type="button">Открыть в Safari</button></div><div class="help share-app-url" id="share-app-url">${escapeHTML(getAppShareUrl())}</div></div></section>
+            <div class="more-subsection timer-subsection">
+              <div class="more-subsection-head"><div><span class="eyebrow">Таймер отдыха</span><h3>Сигналы и вибрация</h3></div></div>
+              <div class="card list-card timer-signal-card">
+                <label class="list-row"><div><div class="list-row-title">Звук</div><div class="list-row-sub">Двойной сигнал после окончания отдыха</div></div><input id="sound-toggle" type="checkbox" ${state.settings.soundEnabled ? 'checked' : ''}></label>
+                <label class="list-row"><div><div class="list-row-title">Отсчёт 3–2–1</div><div class="list-row-sub">Короткий сигнал на последних трёх секундах</div></div><input id="countdown-sound-toggle" type="checkbox" ${state.settings.countdownSoundEnabled ? 'checked' : ''} ${state.settings.soundEnabled ? '' : 'disabled'}></label>
+                <div class="timer-volume-control"><div class="timer-volume-head"><div><div class="list-row-title">Громкость таймера</div><div class="list-row-sub">Уровень сигнала внутри приложения</div></div><strong id="timer-volume-value">${timerVolumePercent()}%</strong></div><input id="timer-volume" type="range" min="0" max="100" step="5" value="${timerVolumePercent()}" ${state.settings.soundEnabled ? '' : 'disabled'} aria-label="Громкость таймера"></div>
+                <label class="list-row"><div><div class="list-row-title">Вибрация</div><div class="list-row-sub">На iPhone Safari может не поддерживаться</div></div><input id="vibration-toggle" type="checkbox" ${state.settings.vibrationEnabled ? 'checked' : ''}></label>
+                <div class="timer-sound-test"><button class="button secondary full" id="test-timer-sound" type="button" ${state.settings.soundEnabled ? '' : 'disabled'}>Проверить звук</button><div class="help" id="timer-sound-status">Проверка также активирует звук для iPhone перед тренировкой.</div></div>
+              </div>
+            </div>
 
-      <section class="section"><div class="section-head"><h2>Калькулятор железа</h2><button class="link-button" id="open-iron-calculator-settings" type="button">Настроить</button></div>${renderIronCalculatorCard()}</section>
+            <div class="more-subsection pain-subsection">
+              <div class="more-subsection-head"><div><span class="eyebrow">Самочувствие</span><h3>История боли</h3></div><div class="section-actions"><button class="link-button" id="open-pain-cleanup" type="button">Очистить</button><button class="link-button" id="open-pain-history" type="button">Показать всё</button></div></div>
+              <div class="card list-card">${state.painEntries.length ? state.painEntries.slice(0, 4).map(renderPainEntry).join('') : '<div class="empty compact-empty"><strong>Пока пусто</strong>Отметки появятся после тренировок с контролем боли.</div>'}</div>
+            </div>
+          </div>
+        </details>
 
-      <section class="section"><div class="section-head"><h2>Калории и БЖУ</h2><button class="link-button" id="edit-nutrition">Изменить</button></div><div class="card"><div class="stats-grid"><div><div class="stat-value">${state.nutrition.trainingCalories}</div><div class="stat-label">тренировка, ккал</div></div><div><div class="stat-value">${state.nutrition.recoveryCalories}</div><div class="stat-label">восстановление</div></div><div><div class="stat-value">${state.nutrition.proteinG}</div><div class="stat-label">белок, г</div></div><div><div class="stat-value">${state.nutrition.trainingFatG}</div><div class="stat-label">жиры, г</div></div></div><div class="divider"></div><div class="help">${escapeHTML(state.nutrition.note)}</div></div></section>
+        <details class="more-group" id="more-group-data">
+          <summary>
+            <span class="more-group-icon data" aria-hidden="true">⇅</span>
+            <span class="more-group-copy"><strong>Данные и безопасность</strong><small>Резервная копия и локальное хранилище</small></span>
+            <span class="more-group-chevron" aria-hidden="true">⌄</span>
+          </summary>
+          <div class="more-group-content">
+            <div class="more-subsection backup-subsection">
+              <div class="more-subsection-head"><div><span class="eyebrow">Страховка данных</span><h3>Резервная копия всех профилей</h3></div></div>
+              <div class="card"><div class="button-row"><button class="button primary" id="export-data" type="button">Данные JSON</button><button class="button secondary" id="export-full" type="button">С фото</button></div><button class="button ghost full" id="import-data" type="button" style="margin-top:10px">Импортировать копию</button><input id="import-file" type="file" accept="application/json" hidden><div class="help" style="margin-top:10px">Копия включает все профили. «Данные JSON» не содержит фото; перед импортом приложение отдельно предупредит о возможном удалении локальных фотографий.</div></div>
+            </div>
 
-      <section class="section"><div class="section-head"><h2>Сигналы таймера</h2></div><div class="card list-card timer-signal-card"><label class="list-row"><div><div class="list-row-title">Звук</div><div class="list-row-sub">Двойной сигнал после окончания отдыха</div></div><input id="sound-toggle" type="checkbox" ${state.settings.soundEnabled ? 'checked' : ''}></label><label class="list-row"><div><div class="list-row-title">Отсчёт 3–2–1</div><div class="list-row-sub">Короткий сигнал на последних трёх секундах</div></div><input id="countdown-sound-toggle" type="checkbox" ${state.settings.countdownSoundEnabled ? 'checked' : ''} ${state.settings.soundEnabled ? '' : 'disabled'}></label><div class="timer-volume-control"><div class="timer-volume-head"><div><div class="list-row-title">Громкость таймера</div><div class="list-row-sub">Уровень сигнала внутри приложения</div></div><strong id="timer-volume-value">${timerVolumePercent()}%</strong></div><input id="timer-volume" type="range" min="0" max="100" step="5" value="${timerVolumePercent()}" ${state.settings.soundEnabled ? '' : 'disabled'} aria-label="Громкость таймера"></div><label class="list-row"><div><div class="list-row-title">Вибрация</div><div class="list-row-sub">На iPhone Safari может не поддерживаться</div></div><input id="vibration-toggle" type="checkbox" ${state.settings.vibrationEnabled ? 'checked' : ''}></label><div class="timer-sound-test"><button class="button secondary full" id="test-timer-sound" type="button" ${state.settings.soundEnabled ? '' : 'disabled'}>Проверить звук</button><div class="help" id="timer-sound-status">Проверка также активирует звук для iPhone перед тренировкой.</div></div></div></section>
+            <div class="more-subsection storage-subsection">
+              <div class="more-subsection-head"><div><span class="eyebrow">На этом iPhone</span><h3>Хранилище приложения</h3></div></div>
+              <div class="card"><p class="muted more-storage-copy">Профили, тренировки, замеры и фотографии хранятся локально в IndexedDB.</p><button class="button secondary full" id="storage-info" type="button">Проверить хранилище</button><div class="help" style="margin-top:10px">Версия приложения ${escapeHTML(APP_VERSION)} · база IndexedDB v3</div></div>
+              <div class="notice warning more-storage-warning"><strong>Важно.</strong> Данные PWA могут исчезнуть после удаления иконки, очистки данных Safari или при критической нехватке памяти. Экспорт — обязательная страховка.</div>
+            </div>
+          </div>
+        </details>
 
-      <section class="section"><div class="section-head"><h2>История боли</h2><div class="section-actions"><button class="link-button" id="open-pain-cleanup" type="button">Очистить</button><button class="link-button" id="open-pain-history" type="button">Показать всё</button></div></div><div class="card list-card">${state.painEntries.length ? state.painEntries.slice(0, 4).map(renderPainEntry).join('') : '<div class="empty compact-empty"><strong>Пока пусто</strong>Отметки появятся после тренировок с контролем боли.</div>'}</div></section>
+        <details class="more-group" id="more-group-app">
+          <summary>
+            <span class="more-group-icon app" aria-hidden="true">↗</span>
+            <span class="more-group-copy"><strong>Приложение</strong><small>Поделиться, обновить и установить PWA</small></span>
+            <span class="more-group-chevron" aria-hidden="true">⌄</span>
+          </summary>
+          <div class="more-group-content">
+            <div class="more-subsection share-subsection">
+              <div class="more-subsection-head"><div><span class="eyebrow">Ссылка на PWA</span><h3>Поделиться приложением</h3></div></div>
+              <div class="card share-app-card"><div class="share-app-head"><div><h3>Отправить приложение</h3><p>Передаётся только ссылка. Профили, история, фото, замеры и тренировки остаются на этом телефоне.</p></div><div class="share-app-mark" aria-hidden="true">↗</div></div><button class="button primary full" id="share-app-system" type="button">Поделиться через iPhone</button><div class="share-fast-grid" aria-label="Быстрый шаринг"><button class="share-fast-button telegram" id="share-app-telegram" type="button"><span>✈️</span><strong>Telegram</strong></button><button class="share-fast-button whatsapp" id="share-app-whatsapp" type="button"><span>🟢</span><strong>WhatsApp</strong></button><button class="share-fast-button vk" id="share-app-vk" type="button"><span>VK</span><strong>ВК</strong></button><button class="share-fast-button max" id="share-app-max" type="button"><span>MAX</span><strong>MAX</strong></button></div><div class="button-row share-link-row"><button class="button secondary" id="copy-app-link" type="button">Скопировать ссылку</button><button class="button ghost" id="open-app-link" type="button">Открыть в Safari</button></div><div class="help share-app-url" id="share-app-url">${escapeHTML(getAppShareUrl())}</div></div>
+            </div>
 
-      <section class="section"><div class="section-head"><h2>Резервная копия всех профилей</h2></div><div class="card"><div class="button-row"><button class="button primary" id="export-data">Данные JSON</button><button class="button secondary" id="export-full">С фото</button></div><button class="button ghost full" id="import-data" style="margin-top:10px">Импортировать копию</button><input id="import-file" type="file" accept="application/json" hidden><div class="help" style="margin-top:10px">Копия включает все профили. «Данные JSON» не содержит фото; перед импортом такой копии приложение отдельно предупредит о возможном удалении локальных фотографий.</div></div></section>
+            <div class="more-subsection update-subsection">
+              <div class="more-subsection-head"><div><span class="eyebrow">Версия ${escapeHTML(APP_VERSION)}</span><h3>Обновление приложения</h3></div></div>
+              <div class="card update-card"><div class="list-row no-border"><div class="list-row-main"><div class="list-row-title">Текущая версия: ${escapeHTML(APP_VERSION)}</div><div class="list-row-sub">Проверка не трогает профили, историю, фото и IndexedDB.</div></div><span class="update-status-dot" aria-hidden="true">↻</span></div><div class="update-status-grid"><div><span>Статус</span><strong id="app-update-status-text">${escapeHTML(state.update.statusText || 'Пока не проверяли')}</strong></div><div><span>Кэш</span><strong id="app-cache-status-text">${escapeHTML(state.update.cacheStatus || 'неизвестно')}</strong></div><div><span>Последняя проверка</span><strong id="app-update-last-check">${escapeHTML(formatUpdateTimestamp(state.update.lastCheckAt))}</strong></div></div><div class="button-row"><button class="button primary" id="check-app-update" type="button">Проверить обновление</button><button class="button secondary" id="force-app-refresh" type="button">Обновить кэш</button></div><div class="help" style="margin-top:10px">«Обновить кэш» очищает только файлы приложения. Профили, история, фото, боль, рекорды и черновики остаются в IndexedDB.</div></div>
+            </div>
 
-      <section class="section"><div class="section-head"><h2>Обновление приложения</h2></div><div class="card update-card"><div class="list-row no-border"><div class="list-row-main"><div class="list-row-title">Текущая версия: ${escapeHTML(APP_VERSION)}</div><div class="list-row-sub">Проверка не трогает профили, историю, фото и IndexedDB.</div></div><span class="update-status-dot" aria-hidden="true">↻</span></div><div class="update-status-grid"><div><span>Статус</span><strong id="app-update-status-text">${escapeHTML(state.update.statusText || 'Пока не проверяли')}</strong></div><div><span>Кэш</span><strong id="app-cache-status-text">${escapeHTML(state.update.cacheStatus || 'неизвестно')}</strong></div><div><span>Последняя проверка</span><strong id="app-update-last-check">${escapeHTML(formatUpdateTimestamp(state.update.lastCheckAt))}</strong></div></div><div class="button-row"><button class="button primary" id="check-app-update">Проверить обновление</button><button class="button secondary" id="force-app-refresh">Обновить кэш</button></div><div class="help" style="margin-top:10px">«Обновить кэш» очищает только файлы приложения. Профили, история, фото, боль, рекорды и черновики остаются в IndexedDB.</div></div></section>
-
-      <section class="section"><div class="section-head"><h2>Установка PWA</h2></div><div class="card"><ol class="muted" style="padding-left:20px;line-height:1.6"><li>Открой опубликованный адрес в Safari.</li><li>Нажми «Поделиться».</li><li>Выбери «На экран Домой».</li><li>Открой иконку один раз при интернете — после этого оболочка работает офлайн.</li></ol><button class="button secondary full" id="storage-info">Проверить хранилище</button><div class="help" style="margin-top:10px">Версия приложения ${escapeHTML(APP_VERSION)} · база IndexedDB v3</div></div></section>
-
-      <section class="section"><div class="notice warning"><strong>Ограничение iPhone.</strong> Данные PWA могут исчезнуть после удаления иконки, очистки данных Safari или при критической нехватке памяти. Экспорт — обязательная страховка.</div></section>
+            <div class="more-subsection install-subsection">
+              <div class="more-subsection-head"><div><span class="eyebrow">iPhone</span><h3>Установка PWA</h3></div></div>
+              <div class="card"><ol class="muted more-install-list"><li>Открой опубликованный адрес в Safari.</li><li>Нажми «Поделиться».</li><li>Выбери «На экран Домой».</li><li>Открой иконку один раз при интернете — после этого оболочка работает офлайн.</li></ol></div>
+            </div>
+          </div>
+        </details>
+      </section>
     `;
     document.getElementById('switch-profile').addEventListener('click', showProfileSwitcher);
     document.getElementById('new-profile').addEventListener('click', showCreateProfileModal);
     document.getElementById('edit-profile').addEventListener('click', showProfileModal);
     document.getElementById('open-offline-guide').addEventListener('click', () => navigate('guide'));
-    document.getElementById('open-offline-guide-link').addEventListener('click', () => navigate('guide'));
+    document.getElementById('open-iron-calculator').addEventListener('click', () => showIronCalculatorModal());
+    document.getElementById('open-sound-settings').addEventListener('click', () => openMoreGroup('more-group-training', '.timer-subsection'));
+    document.getElementById('open-backup-settings').addEventListener('click', () => openMoreGroup('more-group-data', '.backup-subsection'));
     document.getElementById('share-app-system').addEventListener('click', shareAppViaSystem);
     document.getElementById('share-app-telegram').addEventListener('click', () => openShareTarget('telegram'));
     document.getElementById('share-app-whatsapp').addEventListener('click', () => openShareTarget('whatsapp'));
@@ -3838,28 +3953,32 @@
     document.getElementById('share-app-max').addEventListener('click', () => openShareTarget('max'));
     document.getElementById('copy-app-link').addEventListener('click', copyAppLink);
     document.getElementById('open-app-link').addEventListener('click', openAppSharePage);
-    document.getElementById('open-iron-calculator').addEventListener('click', () => showIronCalculatorModal());
-    document.getElementById('open-iron-calculator-settings').addEventListener('click', () => showIronCalculatorModal());
     document.getElementById('edit-nutrition').addEventListener('click', showNutritionModal);
     document.getElementById('sound-toggle').addEventListener('change', async (event) => {
       const unlockPromise = event.target.checked ? prepareTimerAudio({ force: true }).catch(() => null) : Promise.resolve(null);
       await saveToggle('soundEnabled', event.target.checked);
       await unlockPromise;
       syncTimerSoundControls();
+      const shortcutStatus = document.querySelector('#open-sound-settings small');
+      if (shortcutStatus) shortcutStatus.textContent = event.target.checked ? `${timerVolumePercent()}% громкости` : 'Выключен';
     });
     document.getElementById('countdown-sound-toggle').addEventListener('change', (event) => saveToggle('countdownSoundEnabled', event.target.checked));
     document.getElementById('timer-volume').addEventListener('input', (event) => {
       document.getElementById('timer-volume-value').textContent = `${event.target.value}%`;
     });
-    document.getElementById('timer-volume').addEventListener('change', (event) => saveToggle('timerVolume', Number(event.target.value)));
+    document.getElementById('timer-volume').addEventListener('change', async (event) => {
+      await saveToggle('timerVolume', Number(event.target.value));
+      const shortcutStatus = document.querySelector('#open-sound-settings small');
+      if (shortcutStatus && state.settings.soundEnabled) shortcutStatus.textContent = `${timerVolumePercent()}% громкости`;
+    });
     document.getElementById('test-timer-sound').addEventListener('click', testTimerSound);
-    document.getElementById('vibration-toggle').addEventListener('change', (e)=>saveToggle('vibrationEnabled',e.target.checked));
+    document.getElementById('vibration-toggle').addEventListener('change', (event) => saveToggle('vibrationEnabled', event.target.checked));
     syncTimerSoundControls();
     document.getElementById('open-pain-history').addEventListener('click', showPainHistoryModal);
     document.getElementById('open-pain-cleanup').addEventListener('click', showPainCleanupModal);
-    document.getElementById('export-data').addEventListener('click', ()=>exportBackup(false));
-    document.getElementById('export-full').addEventListener('click', ()=>exportBackup(true));
-    document.getElementById('import-data').addEventListener('click', ()=>document.getElementById('import-file').click());
+    document.getElementById('export-data').addEventListener('click', () => exportBackup(false));
+    document.getElementById('export-full').addEventListener('click', () => exportBackup(true));
+    document.getElementById('import-data').addEventListener('click', () => document.getElementById('import-file').click());
     document.getElementById('import-file').addEventListener('change', importBackupFile);
     document.getElementById('check-app-update').addEventListener('click', () => checkForAppUpdate(true));
     document.getElementById('force-app-refresh').addEventListener('click', forceRefreshAppShell);
