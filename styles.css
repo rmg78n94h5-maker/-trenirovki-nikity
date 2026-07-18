@@ -1085,61 +1085,94 @@ button { color: inherit; }
 }
 .sport-workout-header {
   top: 72px;
-  padding: 6px 2px 8px;
-  margin-bottom: 8px;
+  padding: 4px 2px 7px;
+  margin: -4px -2px 7px;
 }
-.sport-workout-timer-card {
+.workout-live-banner {
   position: relative;
   overflow: hidden;
-  padding: 11px 13px 10px;
-  border-radius: 20px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 1px minmax(0, 1fr);
+  align-items: center;
+  column-gap: 11px;
+  min-height: 52px;
+  padding: 8px 12px 9px;
+  border: 1px solid rgba(199,255,47,.22);
+  border-radius: 16px;
   background:
-    radial-gradient(circle at 12% 0%, rgba(199,255,47,.12), transparent 42%),
-    linear-gradient(145deg, rgba(20,25,29,.98), rgba(9,11,14,.96));
-  border-color: rgba(199,255,47,.16);
+    radial-gradient(circle at 8% 0%, rgba(199,255,47,.13), transparent 48%),
+    rgba(14,17,20,.94);
+  box-shadow: 0 10px 26px rgba(0,0,0,.30), inset 0 1px 0 rgba(255,255,255,.035);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
 }
-.sport-workout-timer-card::before {
+.workout-live-banner::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(115deg, transparent 0 62%, rgba(199,255,47,.06) 63%, transparent 77%);
+  background: linear-gradient(112deg, transparent 0 66%, rgba(199,255,47,.055) 67%, transparent 82%);
   pointer-events: none;
 }
-.sport-workout-timer-card > * { position: relative; z-index: 1; }
-.sport-workout-timer-main {
+.workout-live-banner > * {
+  position: relative;
+  z-index: 1;
+}
+.workout-live-metric {
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 12px;
+  align-items: baseline;
+  gap: 7px;
+  min-width: 0;
 }
-.sport-workout-timer-card .workout-clock {
-  font-size: clamp(30px, 8vw, 42px);
-  letter-spacing: -1.1px;
-}
-.sport-workout-progress-box {
-  min-width: 88px;
-  text-align: right;
-  display: grid;
-  gap: 1px;
-}
-.sport-workout-progress-box strong {
-  font-size: 26px;
-  line-height: 1;
-}
-.sport-workout-progress-box span {
+.workout-live-metric span {
   color: var(--muted);
-  font-size: 11px;
-  font-weight: 800;
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: .055em;
   text-transform: uppercase;
-  letter-spacing: .045em;
+  white-space: nowrap;
+}
+.workout-live-metric strong {
+  color: var(--text);
+  font-size: 21px;
+  line-height: 1;
+  font-weight: 950;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.5px;
+  white-space: nowrap;
+}
+.workout-live-completion {
+  justify-content: flex-end;
+}
+.workout-live-completion strong {
+  color: var(--accent);
+}
+.workout-live-separator {
+  width: 1px;
+  height: 24px;
+  background: rgba(255,255,255,.10);
 }
 .sport-workout-progress {
-  height: 7px;
-  margin-top: 10px;
+  grid-column: 1 / -1;
+  height: 4px;
+  margin: 7px -2px -2px;
   background: rgba(255,255,255,.075);
 }
 .sport-workout-progress > span {
-  box-shadow: 0 0 18px rgba(199,255,47,.34);
+  box-shadow: 0 0 16px rgba(199,255,47,.38);
+  transition: width .22s ease;
+}
+.workout-live-banner.complete {
+  border-color: rgba(87,227,137,.46);
+  background:
+    radial-gradient(circle at 8% 0%, rgba(87,227,137,.16), transparent 48%),
+    rgba(14,18,19,.95);
+}
+.workout-live-banner.complete .workout-live-completion strong {
+  color: var(--success);
+}
+.workout-live-banner.complete .sport-workout-progress > span {
+  background: var(--success);
+  box-shadow: 0 0 16px rgba(87,227,137,.38);
 }
 .sport-workout-exercise {
   border-radius: 24px;
@@ -1345,7 +1378,9 @@ button { color: inherit; }
 .sport-set-row.done .set-badge strong { color: var(--success); }
 .sport-set-row.done .check-button.done { box-shadow: 0 0 16px rgba(87,227,137,.12); }
 @media (max-width: 390px) {
-  .sport-workout-timer-card { padding: 10px 11px 9px; }
+  .workout-live-banner { padding-left: 10px; padding-right: 10px; column-gap: 8px; }
+  .workout-live-metric { gap: 5px; }
+  .workout-live-metric strong { font-size: 19px; }
   .sport-workout-exercise-head { padding: 13px 12px; }
   .sport-set-list { padding: 8px; gap: 7px; }
   .sport-set-row { padding: 10px; }
@@ -1936,7 +1971,7 @@ button:disabled {
 .iron-form textarea { min-height: 88px; }
 .iron-modal-result { margin-top: 12px; }
 .sport-iron-workout-button {
-  margin-top: 10px;
+  margin: 0 0 10px;
   min-height: 40px;
   border-color: rgba(199,255,47,.18);
   background: rgba(199,255,47,.075);

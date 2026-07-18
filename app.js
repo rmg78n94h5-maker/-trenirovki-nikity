@@ -1175,21 +1175,21 @@
     el.main.innerHTML = `
       <div class="workout-screen sport-workout-screen">
       <div class="workout-header sport-workout-header">
-        <div class="card sport-workout-timer-card">
-          <div class="sport-workout-timer-main">
-            <div>
-              <div class="workout-clock" id="workout-clock">00:00</div>
-              <div class="muted">время тренировки</div>
-            </div>
-            <div class="sport-workout-progress-box">
-              <strong id="workout-progress-text">0%</strong>
-              <span>выполнено</span>
-            </div>
+        <div class="workout-live-banner" id="workout-live-banner" role="group" aria-label="Время тренировки 00:00, выполнено 0 процентов">
+          <div class="workout-live-metric workout-live-time">
+            <span>Тренировка</span>
+            <strong class="workout-clock" id="workout-clock">00:00</strong>
           </div>
-          <div class="progress-bar sport-workout-progress"><span id="workout-progress-bar" style="width:0%"></span></div>
-          <button class="button secondary full sport-iron-workout-button" id="open-iron-calculator-workout" type="button">⚖️ Калькулятор железа</button>
+          <span class="workout-live-separator" aria-hidden="true"></span>
+          <div class="workout-live-metric workout-live-completion">
+            <span>Выполнено</span>
+            <strong id="workout-progress-text">0%</strong>
+          </div>
+          <div class="progress-bar sport-workout-progress" aria-hidden="true"><span id="workout-progress-bar" style="width:0%"></span></div>
         </div>
       </div>
+
+      <button class="button secondary full sport-iron-workout-button" id="open-iron-calculator-workout" type="button">⚖️ Калькулятор железа</button>
 
       ${renderWorkoutPainBanner(workout)}
       ${renderWorkoutDeloadBanner(workout)}
@@ -1835,7 +1835,10 @@
 
   function updateWorkoutClock() {
     const clock = document.getElementById('workout-clock');
-    if (clock && state.currentWorkout) clock.textContent = formatDuration(elapsedSeconds(state.currentWorkout.startedAt));
+    if (!clock || !state.currentWorkout) return;
+    const elapsed = formatDuration(elapsedSeconds(state.currentWorkout.startedAt));
+    clock.textContent = elapsed;
+    updateWorkoutLiveBannerLabel(elapsed);
   }
 
   function updateWorkoutProgress() {
@@ -1843,8 +1846,19 @@
     const pct = workoutCompletion(state.currentWorkout);
     const text = document.getElementById('workout-progress-text');
     const bar = document.getElementById('workout-progress-bar');
+    const banner = document.getElementById('workout-live-banner');
     if (text) text.textContent = `${pct}%`;
     if (bar) bar.style.width = `${pct}%`;
+    if (banner) banner.classList.toggle('complete', pct >= 100);
+    updateWorkoutLiveBannerLabel();
+  }
+
+  function updateWorkoutLiveBannerLabel(elapsedText = null) {
+    const banner = document.getElementById('workout-live-banner');
+    if (!banner || !state.currentWorkout) return;
+    const clockText = elapsedText || document.getElementById('workout-clock')?.textContent || '00:00';
+    const pct = workoutCompletion(state.currentWorkout);
+    banner.setAttribute('aria-label', `Время тренировки ${clockText}, выполнено ${pct} процентов`);
   }
 
   function startRestTimer(seconds, nextLabel) {
