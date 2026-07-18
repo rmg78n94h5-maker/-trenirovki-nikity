@@ -1,0 +1,28 @@
+# TEST REPORT v1.7.9
+
+Проверки выполнены для патча Sport Premium Polish.
+
+Проверено:
+- version.js обновлён до 1.7.9;
+- service-worker.js использует SERVICE_WORKER_RELEASE = 1.7.9;
+- index.html подключает CSS/JS с query v=1.7.9;
+- новый cacheName: nikita-workouts-v1.7.9-sport-premium-polish;
+- IndexedDB не менялась, DB_VERSION остаётся v3;
+- новые стили добавлены только в styles.css;
+- app.js не менялся в этом патче;
+- структура данных пользователя не затронута.
+
+Синтаксис:
+- app.js: node --check OK;
+- db.js: node --check OK;
+- seed.js: node --check OK;
+- exercise-guides.js: node --check OK;
+- manifest.webmanifest: JSON OK.
+
+Проверка Service Worker:
+- все файлы APP_SHELL существуют в проекте;
+- имя кэша повышено, чтобы iPhone получил новую оболочку.
+
+ZIP:
+- upload-only архив содержит только файлы, которые надо загрузить на GitHub;
+- архив проверен через unzip -tq.

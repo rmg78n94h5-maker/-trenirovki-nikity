@@ -7,6 +7,7 @@
   --text: #f5f7f8;
   --muted: #9aa3ad;
   --line: #293039;
+  --border: var(--line);
   --accent: #c7ff2f;
   --accent-2: #9edb00;
   --danger: #ff5e6c;
@@ -1353,3 +1354,312 @@ button { color: inherit; }
   .sport-set-chip small { display: none; }
   .sport-set-chip { min-width: 48px; }
 }
+
+/* v1.7.9 — Sport Premium Polish: единая визуальная полировка */
+.card,
+.stat,
+.list-card,
+.notice,
+.update-card,
+.deload-card,
+.muscle-load-card,
+.body-progress-card,
+.premium-plan-hero,
+.premium-plan-day,
+.sport-workout-timer-card,
+.sport-workout-exercise {
+  box-shadow: 0 12px 34px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.035);
+}
+
+.button,
+.tab,
+.chip,
+.mini-button,
+.icon-button,
+.profile-button,
+.nav-item,
+.modal-close,
+.day-count-option,
+.pain-area-option,
+.pain-level-option,
+.period-pill,
+.check-button,
+.stepper-button {
+  touch-action: manipulation;
+  transition: transform .12s ease, background .16s ease, border-color .16s ease, color .16s ease, box-shadow .16s ease, opacity .16s ease;
+}
+
+.button:active,
+.tab:active,
+.chip:active,
+.mini-button:active,
+.icon-button:active,
+.profile-button:active,
+.nav-item:active,
+.modal-close:active,
+.day-count-option:active,
+.pain-area-option:active,
+.pain-level-option:active,
+.period-pill:active,
+.check-button:active,
+.stepper-button:active {
+  transform: translateY(1px) scale(.99);
+}
+
+.button.primary,
+.tab.active,
+.period-pill.active,
+.day-count-option.active,
+.pain-area-option.active,
+.pain-level-option.active {
+  box-shadow: 0 10px 26px rgba(199,255,47,.13), inset 0 1px 0 rgba(255,255,255,.15);
+}
+
+.button.secondary,
+.button.ghost,
+.tab,
+.chip,
+.mini-button,
+.modal-close,
+.icon-button,
+.profile-button {
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.035);
+}
+
+.button.small {
+  min-height: 36px;
+  padding: 7px 11px;
+  border-radius: 12px;
+}
+
+.button.full {
+  min-height: 46px;
+}
+
+.button:disabled,
+button:disabled {
+  transform: none !important;
+  box-shadow: none;
+}
+
+.chip {
+  min-height: 28px;
+  padding: 5px 10px;
+  border-color: rgba(255,255,255,.075);
+  background: rgba(255,255,255,.045);
+}
+
+.chip.accent {
+  box-shadow: 0 8px 20px rgba(199,255,47,.12);
+}
+
+.tab {
+  min-height: 38px;
+  padding: 8px 13px;
+  border-color: rgba(255,255,255,.08);
+}
+
+.tabs,
+.program-tabs,
+.body-control-scroll {
+  scroll-snap-type: x proximity;
+}
+
+.tabs .tab,
+.program-tabs .tab,
+.body-control-scroll .tab {
+  scroll-snap-align: start;
+}
+
+.field input,
+.field select,
+.field textarea,
+.set-input,
+.set-select {
+  border-color: rgba(255,255,255,.085);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.035);
+}
+
+.field select,
+.set-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position:
+    calc(100% - 16px) 50%,
+    calc(100% - 11px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 30px;
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus,
+.set-input:focus,
+.set-select:focus {
+  border-color: rgba(199,255,47,.62);
+  box-shadow: 0 0 0 3px rgba(199,255,47,.08), inset 0 1px 0 rgba(255,255,255,.04);
+}
+
+.modal-backdrop {
+  background: rgba(0,0,0,.70);
+  backdrop-filter: blur(8px);
+}
+
+.modal {
+  background:
+    radial-gradient(circle at 85% 0%, rgba(199,255,47,.08), transparent 30%),
+    linear-gradient(180deg, #14191d 0%, var(--surface) 100%);
+  border-color: rgba(255,255,255,.09);
+  box-shadow: 0 -24px 60px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.045);
+}
+
+.modal-handle {
+  width: 48px;
+  background: linear-gradient(90deg, rgba(255,255,255,.14), rgba(199,255,47,.42), rgba(255,255,255,.14));
+}
+
+.modal-head h2 {
+  letter-spacing: -.45px;
+}
+
+.modal-close {
+  flex: 0 0 38px;
+  color: var(--muted);
+}
+
+.modal-close:active {
+  color: var(--accent);
+  border-color: rgba(199,255,47,.44);
+}
+
+.empty {
+  margin: 0;
+  border: 1px solid rgba(255,255,255,.075);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(199,255,47,.07), transparent 34%),
+    rgba(255,255,255,.025);
+}
+
+.empty strong {
+  letter-spacing: -.25px;
+}
+
+.list-row {
+  transition: background .16s ease, border-color .16s ease;
+}
+
+.list-row:active {
+  background: rgba(199,255,47,.045);
+}
+
+.bottom-nav {
+  box-shadow: 0 -14px 36px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.035);
+}
+
+.nav-item.active {
+  box-shadow: inset 0 0 0 1px rgba(199,255,47,.08);
+}
+
+.topbar {
+  min-height: calc(66px + var(--safe-top));
+}
+
+.topbar h1 {
+  line-height: 1.02;
+}
+
+.hero-meta {
+  gap: 7px;
+}
+
+.stats-grid,
+.body-summary-grid,
+.premium-plan-stat-grid,
+.muscle-mini-grid,
+.update-status-grid {
+  gap: 8px;
+}
+
+.notice {
+  border-color: rgba(255,255,255,.08);
+  background: rgba(255,255,255,.025);
+}
+
+.notice.warning {
+  background: rgba(255,190,61,.065);
+}
+
+.notice.danger {
+  background: rgba(255,94,108,.065);
+}
+
+.premium-program-tabs .tab:not(.active),
+.premium-filter-panel .tab:not(.active),
+.body-period-row .period-pill:not(.active) {
+  color: var(--muted);
+  background: rgba(255,255,255,.032);
+}
+
+.premium-program-tabs .tab.active,
+.premium-filter-panel .tab.active,
+.body-period-row .period-pill.active {
+  color: var(--accent);
+  -webkit-text-fill-color: var(--accent);
+  border-color: rgba(199,255,47,.68);
+}
+
+.sport-workout-screen .card + .card,
+.sport-workout-screen .workout-exercise + .workout-exercise {
+  margin-top: 11px;
+}
+
+.workout-footer {
+  border-top: 1px solid rgba(255,255,255,.045);
+  backdrop-filter: blur(14px);
+}
+
+.workout-footer .button {
+  min-height: 40px;
+  padding: 9px 12px;
+  border-radius: 13px;
+}
+
+.app-update-banner {
+  border-color: rgba(199,255,47,.30);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(199,255,47,.10), transparent 35%),
+    rgba(18,22,24,.96);
+}
+
+@media (max-width: 430px) {
+  .card:not(.list-card) { padding: 14px; }
+  .button { min-height: 44px; padding: 10px 13px; }
+  .button.small { min-height: 35px; padding: 7px 10px; font-size: 13px; }
+  .chip { font-size: 12px; }
+  .modal { padding-left: 14px; padding-right: 14px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button,
+  .tab,
+  .chip,
+  .mini-button,
+  .icon-button,
+  .profile-button,
+  .nav-item,
+  .modal-close,
+  .day-count-option,
+  .pain-area-option,
+  .pain-level-option,
+  .period-pill,
+  .check-button,
+  .stepper-button {
+    transition: none;
+  }
+}
+
