@@ -24,6 +24,8 @@
     currentWorkout: null,
     historyFilter: 'month',
     progressTab: 'body',
+    bodyProgressMetric: null,
+    bodyProgressPeriodDays: null,
     musclePeriodDays: null,
     timer: { seconds: 0, interval: null, nextLabel: '' },
     photoUrls: new Map(),
@@ -2114,12 +2116,146 @@
   }
 
   function renderBodyProgress() {
-    const latest = state.measurements[0];
+    const metric = selectedBodyMetric();
+    const periodDays = selectedBodyPeriodDays();
+    const fullSeries = bodyMeasurementSeries(metric.key);
+    const series = filterBodySeriesByPeriod(fullSeries, periodDays);
+    const first = series[0] || null;
+    const last = series[series.length - 1] || null;
+    const diff = first && last && series.length > 1 ? last.value - first.value : null;
+    const diffClass = diff === null || Math.abs(diff) < 0.05 ? 'neutral' : diff > 0 ? 'up' : 'down';
+    const periodLabel = periodDays ? `${periodDays} дней` : 'всё время';
+    const rangeLabel = first && last ? `${formatTinyDate(first.date)} — ${formatTinyDate(last.date)}` : periodLabel;
+    const latestText = last ? `${formatBodyValue(last.value)} ${metric.unit}` : `— ${metric.unit}`;
+    const diffText = diff === null ? '—' : `${formatSignedBodyValue(diff)} ${metric.unit}`;
+    const recent = state.measurements.slice(0, 5);
+
     return `
       <section class="section"><div class="button-row"><button class="button primary" id="add-measurement">Добавить замер</button><button class="button secondary" id="measurement-history">Все замеры</button></div></section>
-      <section class="section"><div class="card"><div class="section-head"><h2>Вес</h2><span class="muted">${latest?.weightKg ?? '—'} кг</span></div>${lineChart(state.measurements.filter(x=>x.weightKg).slice().reverse(), 'weightKg', 'кг')}</div></section>
-      <section class="section"><div class="card"><div class="section-head"><h2>Талия</h2><span class="muted">${latest?.waistCm ?? '—'} см</span></div>${lineChart(state.measurements.filter(x=>x.waistCm).slice().reverse(), 'waistCm', 'см')}</div></section>
-      <section class="section"><div class="card list-card">${state.measurements.slice(0,8).map((m) => `<div class="list-row"><div class="list-row-main"><div class="list-row-title">${formatShortDate(m.date)}</div><div class="list-row-sub">Вес ${m.weightKg ?? '—'} · талия ${m.waistCm ?? '—'} · живот ${m.abdomenCm ?? '—'} см</div></div><button class="mini-button delete-measurement" data-id="${m.id}">×</button></div>`).join('')}</div></section>`;
+
+      <section class="section body-progress-controls">
+        <div class="body-control-scroll" aria-label="Показатель прогресса">
+          ${bodyMetrics().map((item) => `<button class="tab body-metric ${metric.key === item.key ? 'active' : ''}" data-metric="${item.key}" type="button">${item.label}</button>`).join('')}
+        </div>
+        <div class="body-period-row" aria-label="Период прогресса">
+          ${bodyPeriods().map((item) => `<button class="period-pill body-period ${periodDays === item.days ? 'active' : ''}" data-days="${item.days}" type="button">${item.label}</button>`).join('')}
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="card body-progress-card">
+          <div class="body-progress-head">
+            <div>
+              <div class="eyebrow">${escapeHTML(metric.label)} · ${escapeHTML(periodLabel)}</div>
+              <h2>${escapeHTML(latestText)}</h2>
+            </div>
+            <div class="body-progress-delta ${diffClass}">${escapeHTML(diffText)}</div>
+          </div>
+          <div class="body-summary-grid">
+            <div><span>Было</span><strong>${first ? `${formatBodyValue(first.value)} ${metric.unit}` : '—'}</strong></div>
+            <div><span>Стало</span><strong>${last ? `${formatBodyValue(last.value)} ${metric.unit}` : '—'}</strong></div>
+            <div><span>Разница</span><strong class="${diffClass}">${escapeHTML(diffText)}</strong></div>
+            <div><span>Период</span><strong>${escapeHTML(rangeLabel)}</strong></div>
+          </div>
+          ${bodyProgressChart(series, metric)}
+          ${fullSeries.length > series.length && series.length < 2 ? `<div class="notice" style="margin-top:12px"><strong>В этом периоде мало данных.</strong><br>Попробуй 90 дней или «Всё», чтобы увидеть старые замеры.</div>` : ''}
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-head"><h2>Последние замеры</h2><button class="link-button" id="measurement-history-inline" type="button">Все</button></div>
+        <div class="card list-card body-recent-list">${recent.length ? recent.map((m) => `<div class="list-row"><div class="list-row-main"><div class="list-row-title">${formatShortDate(m.date)}</div><div class="list-row-sub">Вес ${m.weightKg ?? '—'} кг · талия ${m.waistCm ?? '—'} см · живот ${m.abdomenCm ?? '—'} см</div></div><button class="mini-button delete-measurement" data-id="${m.id}" type="button">×</button></div>`).join('') : '<div class="empty compact-empty"><strong>Замеров пока нет</strong>Добавь первый замер тела — график появится здесь.</div>'}</div>
+      </section>`;
+  }
+
+  function bodyMetrics() {
+    return [
+      { key: 'weightKg', label: 'Вес', unit: 'кг' },
+      { key: 'waistCm', label: 'Талия', unit: 'см' },
+      { key: 'abdomenCm', label: 'Живот', unit: 'см' },
+      { key: 'chestCm', label: 'Грудь', unit: 'см' },
+      { key: 'hipsCm', label: 'Бёдра', unit: 'см' },
+      { key: 'armCm', label: 'Рука', unit: 'см' },
+    ];
+  }
+
+  function bodyPeriods() {
+    return [
+      { days: 7, label: '7 дней' },
+      { days: 30, label: '30 дней' },
+      { days: 90, label: '90 дней' },
+      { days: 0, label: 'Всё' },
+    ];
+  }
+
+  function selectedBodyMetric() {
+    const metrics = bodyMetrics();
+    const stored = state.bodyProgressMetric || state.settings.bodyProgressMetric;
+    return metrics.find((item) => item.key === stored) || metrics[0];
+  }
+
+  function selectedBodyPeriodDays() {
+    const allowed = bodyPeriods().map((item) => item.days);
+    const stored = Number(state.bodyProgressPeriodDays ?? state.settings.bodyProgressPeriodDays ?? 30);
+    return allowed.includes(stored) ? stored : 30;
+  }
+
+  function bodyMeasurementSeries(key) {
+    return state.measurements
+      .map((m) => ({ id: m.id, date: m.date, dateObj: new Date(`${m.date}T00:00:00`), value: Number(m[key]) }))
+      .filter((row) => row.date && Number.isFinite(row.value) && row.value > 0)
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  function filterBodySeriesByPeriod(series, days) {
+    if (!days) return series;
+    const end = startOfDay(new Date());
+    const start = new Date(end.getTime() - (days - 1) * 86400000);
+    return series.filter((row) => row.dateObj >= start && row.dateObj <= new Date(end.getTime() + 86400000));
+  }
+
+  function formatBodyValue(value) {
+    if (!Number.isFinite(Number(value))) return '—';
+    return Number(value).toFixed(1).replace('.', ',');
+  }
+
+  function formatSignedBodyValue(value) {
+    if (!Number.isFinite(Number(value))) return '—';
+    const abs = Math.abs(Number(value));
+    if (abs < 0.05) return '0,0';
+    return `${value > 0 ? '+' : '−'}${formatBodyValue(abs)}`;
+  }
+
+  function bodyProgressChart(data, metric) {
+    if (!data.length) return `<div class="empty body-chart-empty"><strong>Нет данных по показателю «${escapeHTML(metric.label)}»</strong>Добавь хотя бы один замер с этим значением.</div>`;
+    const width = 680, height = 310, padLeft = 58, padRight = 22, padTop = 42, padBottom = 58;
+    const values = data.map((row) => row.value);
+    const rawMin = Math.min(...values), rawMax = Math.max(...values);
+    const rawSpan = rawMax - rawMin;
+    const minPad = metric.unit === 'кг' ? 0.4 : 1;
+    const pad = rawSpan > 0 ? Math.max(rawSpan * 0.18, minPad) : (metric.unit === 'кг' ? 1 : 2);
+    const min = Math.max(0, rawMin - pad);
+    const max = rawMax + pad;
+    const span = max - min || 1;
+    const innerW = width - padLeft - padRight;
+    const innerH = height - padTop - padBottom;
+    const x = (i) => data.length === 1 ? padLeft + innerW / 2 : padLeft + (i / (data.length - 1)) * innerW;
+    const y = (value) => padTop + (1 - ((value - min) / span)) * innerH;
+    const path = data.map((row, index) => `${index ? 'L' : 'M'} ${x(index).toFixed(1)} ${y(row.value).toFixed(1)}`).join(' ');
+    const ticks = [max, min + span / 2, min];
+    const pointLabels = data.map((row, index) => {
+      const showValue = data.length <= 4 || index === 0 || index === data.length - 1;
+      const showDate = data.length <= 6 || index === 0 || index === data.length - 1 || index === Math.floor(data.length / 2);
+      return `
+        <circle class="body-chart-dot" cx="${x(index).toFixed(1)}" cy="${y(row.value).toFixed(1)}" r="7"/>
+        ${showValue ? `<text class="body-chart-value" x="${x(index).toFixed(1)}" y="${Math.max(18, y(row.value) - 13).toFixed(1)}" text-anchor="middle">${formatBodyValue(row.value)}</text>` : ''}
+        ${showDate ? `<text class="body-chart-date" x="${x(index).toFixed(1)}" y="${height - 16}" text-anchor="middle">${formatTinyDate(row.date)}</text>` : ''}`;
+    }).join('');
+    return `<div class="body-chart-wrap"><svg class="body-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="График ${escapeAttr(metric.label)}">
+      ${ticks.map((tick) => `<line class="body-chart-grid" x1="${padLeft}" x2="${width - padRight}" y1="${y(tick).toFixed(1)}" y2="${y(tick).toFixed(1)}"/><text class="body-chart-axis" x="8" y="${(y(tick) + 4).toFixed(1)}">${formatBodyValue(tick)} ${metric.unit}</text>`).join('')}
+      ${data.length > 1 ? `<path class="body-chart-line" d="${path}"/>` : ''}
+      ${pointLabels}
+    </svg>${data.length < 2 ? '<div class="help center">Нужен ещё один замер, чтобы построить динамику.</div>' : ''}</div>`;
   }
 
   function renderTrainingProgress() {
@@ -2303,6 +2439,19 @@
   function bindProgressEvents() {
     document.getElementById('add-measurement')?.addEventListener('click', showMeasurementModal);
     document.getElementById('measurement-history')?.addEventListener('click', showMeasurementsModal);
+    document.getElementById('measurement-history-inline')?.addEventListener('click', showMeasurementsModal);
+    el.main.querySelectorAll('.body-metric').forEach((button) => button.addEventListener('click', async () => {
+      state.bodyProgressMetric = button.dataset.metric;
+      state.settings.bodyProgressMetric = state.bodyProgressMetric;
+      await DB.setSettingsObject({ bodyProgressMetric: state.bodyProgressMetric }, state.activeProfileId);
+      renderProgress();
+    }));
+    el.main.querySelectorAll('.body-period').forEach((button) => button.addEventListener('click', async () => {
+      state.bodyProgressPeriodDays = Number(button.dataset.days);
+      state.settings.bodyProgressPeriodDays = state.bodyProgressPeriodDays;
+      await DB.setSettingsObject({ bodyProgressPeriodDays: state.bodyProgressPeriodDays }, state.activeProfileId);
+      renderProgress();
+    }));
     el.main.querySelectorAll('.delete-measurement').forEach((button) => button.addEventListener('click', () => deleteMeasurement(button.dataset.id)));
     el.main.querySelectorAll('.muscle-period').forEach((button) => button.addEventListener('click', async () => {
       state.musclePeriodDays = Number(button.dataset.days) === 14 ? 14 : 7;

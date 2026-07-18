@@ -562,3 +562,41 @@ button { color: inherit; }
   .pain-cleanup-grid { grid-template-columns: 1fr; }
   .pain-history-tools { grid-template-columns: 1fr; }
 }
+
+/* v1.7.3 — крупный график прогресса тела */
+.body-progress-controls { display: grid; gap: 10px; }
+.body-control-scroll { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 3px; scrollbar-width: none; }
+.body-control-scroll::-webkit-scrollbar { display: none; }
+.body-period-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; }
+.period-pill { min-height: 40px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface-2); color: var(--muted); font-weight: 850; font-size: 13px; }
+.period-pill.active { background: var(--accent); color: #080a0c; border-color: var(--accent); }
+.body-progress-card { display: grid; gap: 14px; padding: 17px; }
+.body-progress-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.body-progress-head h2 { margin: 6px 0 0; font-size: 36px; line-height: 1; letter-spacing: -1.2px; }
+.body-progress-delta { min-height: 40px; padding: 9px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface-2); color: var(--muted); display: inline-flex; align-items: center; font-weight: 950; white-space: nowrap; }
+.body-progress-delta.up, .body-summary-grid strong.up { color: var(--warning); border-color: rgba(255,190,61,.45); background: rgba(255,190,61,.08); }
+.body-progress-delta.down, .body-summary-grid strong.down { color: var(--success); border-color: rgba(87,227,137,.42); background: rgba(87,227,137,.07); }
+.body-summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.body-summary-grid > div { min-height: 62px; border: 1px solid var(--line); border-radius: 15px; background: rgba(255,255,255,.035); padding: 10px; display: grid; align-content: center; gap: 4px; }
+.body-summary-grid span { color: var(--muted); font-size: 11px; font-weight: 850; letter-spacing: .05em; text-transform: uppercase; }
+.body-summary-grid strong { font-size: 16px; line-height: 1.12; }
+.body-chart-wrap { border: 1px solid rgba(255,255,255,.045); border-radius: 20px; background: linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,.012)); padding: 6px 4px 10px; overflow: hidden; }
+.body-chart { display: block; width: 100%; min-height: 300px; }
+.body-chart-grid { stroke: #313943; stroke-width: 1; opacity: .95; }
+.body-chart-line { fill: none; stroke: var(--accent); stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 8px rgba(199,255,47,.25)); }
+.body-chart-dot { fill: var(--accent); stroke: #080a0c; stroke-width: 5; }
+.body-chart-value { fill: var(--text); font-size: 19px; font-weight: 900; paint-order: stroke; stroke: rgba(8,10,12,.85); stroke-width: 5; stroke-linejoin: round; }
+.body-chart-date, .body-chart-axis { fill: var(--muted); font-size: 15px; font-weight: 750; }
+.body-chart-empty { min-height: 240px; display: grid; place-content: center; }
+.body-recent-list .list-row-title { font-size: 16px; }
+@media (max-width: 430px) {
+  .body-period-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .body-progress-card { padding: 14px; }
+  .body-progress-head { align-items: stretch; flex-direction: column; }
+  .body-progress-head h2 { font-size: 34px; }
+  .body-progress-delta { width: max-content; }
+  .body-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .body-chart { min-height: 260px; }
+  .body-chart-value { font-size: 17px; }
+  .body-chart-date, .body-chart-axis { font-size: 13px; }
+}
