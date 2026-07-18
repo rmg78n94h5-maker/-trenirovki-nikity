@@ -605,6 +605,7 @@
       </section>
 
       ${renderHomeMuscleLoadCard()}
+      ${renderHomeDeloadCard()}
 
       <section class="section">
         <div class="section-head"><h2>Текущие данные</h2><button class="link-button" id="add-measurement-home">Добавить</button></div>
@@ -648,6 +649,7 @@
     document.getElementById('delete-draft-home')?.addEventListener('click', discardDraftFromHome);
     document.getElementById('add-measurement-home').addEventListener('click', showMeasurementModal);
     document.getElementById('open-muscle-progress-home')?.addEventListener('click', () => { state.progressTab = 'muscles'; navigate('progress'); });
+    document.getElementById('open-deload-progress-home')?.addEventListener('click', () => { state.progressTab = 'recovery'; navigate('progress'); });
     document.getElementById('toggle-extra-exercises')?.addEventListener('click', (event) => {
       const extra = document.getElementById('home-extra-exercises');
       const opening = extra.hidden;
@@ -1033,6 +1035,8 @@
       exercises: exerciseResults,
       comment: '',
     };
+    const deload = deloadAnalysis({ days: 14 });
+    if (deload.shouldSuggest) state.currentWorkout.deload = deloadSnapshot(deload);
     if (preWorkoutPain.hasPain) {
       await savePainEntry({ ...preWorkoutPain, source: 'pre_workout', workoutId: state.currentWorkout.id });
     }
@@ -1058,6 +1062,7 @@
       </div>
 
       ${renderWorkoutPainBanner(workout)}
+      ${renderWorkoutDeloadBanner(workout)}
       ${workout.exercises.map((result, exerciseIndex) => renderWorkoutExercise(result, exerciseIndex)).join('')}
 
       <section class="card">
@@ -1216,6 +1221,7 @@
     el.main.querySelectorAll('.comment-exercise').forEach((button) => button.addEventListener('click', () => showExerciseCommentModal(Number(button.dataset.index))));
     el.main.querySelectorAll('.pain-exercise').forEach((button) => button.addEventListener('click', () => showExercisePainModal(Number(button.dataset.index))));
     el.main.querySelectorAll('.pain-action').forEach((button) => button.addEventListener('click', () => applyPainAction(Number(button.dataset.index), button.dataset.action)));
+    document.getElementById('apply-deload-workout')?.addEventListener('click', applyDeloadToCurrentWorkout);
     el.main.querySelectorAll('.add-set').forEach((button) => button.addEventListener('click', () => addWorkoutSet(Number(button.dataset.index))));
     el.main.querySelectorAll('.remove-set').forEach((button) => button.addEventListener('click', () => removeLastWorkoutSet(Number(button.dataset.index))));
     document.getElementById('workout-comment').addEventListener('input', (event) => {
@@ -2043,7 +2049,7 @@
 
   function workoutSummaryCard(workout) {
     return `<div class="card">
-      <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div><div class="eyebrow">${formatDate(new Date(workout.startedAt), { day:'numeric', month:'long', year:'numeric' })}</div><h3 style="margin:5px 0 4px">${escapeHTML(workout.dayName)}</h3><div class="muted">${formatDuration(workout.durationSec || 0)} · ${workout.completionPct ?? workoutCompletion(workout)}% · ${formatCompactLoad(workout.totalLoadKg || 0)} кг${workout.records?.length ? ` · 🔥 ${workout.records.length} рек.` : ''}</div></div><button class="mini-button view-workout" data-id="${workout.id}">›</button></div>
+      <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div><div class="eyebrow">${formatDate(new Date(workout.startedAt), { day:'numeric', month:'long', year:'numeric' })}</div><h3 style="margin:5px 0 4px">${escapeHTML(workout.dayName)}</h3><div class="muted">${formatDuration(workout.durationSec || 0)} · ${workout.completionPct ?? workoutCompletion(workout)}% · ${formatCompactLoad(workout.totalLoadKg || 0)} кг${workout.records?.length ? ` · 🔥 ${workout.records.length} рек.` : ''}${workout.deload?.applied ? ' · разгрузка' : ''}</div></div><button class="mini-button view-workout" data-id="${workout.id}">›</button></div>
       <div class="progress-bar" style="margin-top:12px"><span style="width:${workout.completionPct ?? workoutCompletion(workout)}%"></span></div>
     </div>`;
   }
@@ -2061,6 +2067,7 @@
       </div>
       ${workout.preWorkoutPain?.hasPain ? `<div class="notice warning" style="margin-top:12px"><strong>Перед стартом:</strong> ${escapeHTML(workout.preWorkoutPain.areaLabel)} · ${workout.preWorkoutPain.score}/10${workout.preWorkoutPain.comment ? `<br>${escapeHTML(workout.preWorkoutPain.comment)}` : ''}</div>` : ''}
       ${renderWorkoutRecordsBlock(workout)}
+      ${renderWorkoutDeloadDetailsBlock(workout)}
       <div class="card list-card" style="margin-top:12px">
         ${workout.exercises.map((result) => `<div class="list-row"><div class="list-row-main"><div class="list-row-title">${result.painRisk ? '⚠️ ' : ''}${result.skipped ? '○ ' : '✓ '}${escapeHTML(result.name)}</div><div class="list-row-sub">${result.skipped ? 'Пропущено' : result.sets.filter((s)=>s.completed).map((s)=> result.defaults.unit === 'reps' ? `${s.weightKg || 0}×${s.reps}` : `${s.durationMin || s.durationSec}`).join(' · ') || 'Нет выполненных подходов'}${result.painRisk ? `<br>Боль/риск: ${escapeHTML(result.painRisk.areaLabel)} ${result.painRisk.score}/10 · ${escapeHTML(result.painRisk.title)}${result.painRisk.action ? ` · ${escapeHTML(painActionLabel(result.painRisk.action))}` : ''}` : ''}${result.painEvents?.length ? `<br>Отмечено в упражнении: ${result.painEvents.map((event) => `${escapeHTML(event.areaLabel)} ${event.score}/10`).join(' · ')}` : ''}${result.comment ? `<br>Комментарий: ${escapeHTML(result.comment)}` : ''}</div></div></div>`).join('')}
       </div>
@@ -2083,7 +2090,7 @@
     setTopbar('Прогресс', 'Без самообмана — только данные');
     el.main.innerHTML = `
       <section class="section"><div class="tabs">
-        ${[['body','Тело'],['training','Тренировки'],['muscles','Мышцы'],['records','Рекорды'],['strength','Рабочие веса'],['stepper','Степпер'],['photos','Фото']].map(([value,label]) => `<button class="tab ${state.progressTab === value ? 'active' : ''} progress-tab" data-tab="${value}">${label}</button>`).join('')}
+        ${[['body','Тело'],['training','Тренировки'],['muscles','Мышцы'],['recovery','Разгрузка'],['records','Рекорды'],['strength','Рабочие веса'],['stepper','Степпер'],['photos','Фото']].map(([value,label]) => `<button class="tab ${state.progressTab === value ? 'active' : ''} progress-tab" data-tab="${value}">${label}</button>`).join('')}
       </div></section>
       <div id="progress-content">${renderProgressContent()}</div>
     `;
@@ -2095,6 +2102,7 @@
     if (state.progressTab === 'body') return renderBodyProgress();
     if (state.progressTab === 'training') return renderTrainingProgress();
     if (state.progressTab === 'muscles') return renderMuscleProgress();
+    if (state.progressTab === 'recovery') return renderRecoveryProgress();
     if (state.progressTab === 'records') return renderRecordsProgress();
     if (state.progressTab === 'strength') return renderStrengthProgress();
     if (state.progressTab === 'stepper') return renderStepperProgress();
@@ -2122,6 +2130,24 @@
       <section class="section"><div class="card"><div class="section-head"><h2>Тренировки по неделям</h2></div>${barChart(weeks.map(x=>({label:x.label,value:x.count})), 'трен.')}</div></section>`;
   }
 
+
+
+  function renderHomeDeloadCard() {
+    const analysis = deloadAnalysis({ days: 14 });
+    const tone = analysis.status === 'recommended' ? 'warning' : analysis.status === 'critical' ? 'danger' : analysis.status === 'watch' ? 'notice' : 'success';
+    if (!analysis.hasData) {
+      return `<section class="section"><div class="card deload-card"><div class="section-head"><h2>Восстановление</h2><span class="chip">нет данных</span></div><div class="empty compact-empty"><strong>Разгрузка пока не нужна</strong>Сохрани несколько тренировок — приложение начнёт отслеживать усталость, боль и падение результатов.</div></div></section>`;
+    }
+    const signalText = analysis.signals.length ? analysis.signals.slice(0, 3).map((signal) => signal.label).join(' · ') : 'критичных признаков нет';
+    return `<section class="section">
+      <div class="card deload-card ${analysis.status}">
+        <div class="section-head"><h2>Восстановление</h2><span class="chip ${analysis.shouldSuggest ? 'warning' : 'success'}">${escapeHTML(analysis.statusLabel)}</span></div>
+        <p>${escapeHTML(analysis.homeText)}</p>
+        <div class="help">${escapeHTML(signalText)}</div>
+        <div class="button-row" style="margin-top:12px"><button class="button secondary small" id="open-deload-progress-home" type="button">Подробнее</button></div>
+      </div>
+    </section>`;
+  }
 
   function renderHomeMuscleLoadCard() {
     const summary = muscleLoadSummary(7);
@@ -2185,6 +2211,39 @@
     if (buckets.low.length) notes.push(`<div class="notice"><strong>Недобор:</strong><br>${escapeHTML(buckets.low.map((row) => row.label).join(', '))}. Можно добавить лёгкие подходы или не пропускать эти группы в следующем цикле.</div>`);
     if (!notes.length) notes.push('<div class="notice success"><strong>Баланс нормальный.</strong><br>По мышечным группам нет явного перекоса. Продолжай цикл без героизма и без резких скачков веса.</div>');
     return notes.join('');
+  }
+
+
+  function renderRecoveryProgress() {
+    const analysis = deloadAnalysis({ days: 14 });
+    const rows = analysis.signals.length ? analysis.signals.map((signal) => `
+      <div class="list-row">
+        <div class="list-row-main"><div class="list-row-title">${escapeHTML(signal.title)}</div><div class="list-row-sub">${escapeHTML(signal.label)}</div></div>
+        <span class="chip ${signal.weight >= 2 ? 'warning' : ''}">+${signal.weight}</span>
+      </div>`).join('') : '<div class="empty compact-empty"><strong>Сильных признаков усталости нет</strong>Пока можно продолжать цикл без разгрузочной недели.</div>';
+    return `
+      <section class="section">
+        <div class="card deload-card ${analysis.status}">
+          <div class="section-head"><h2>${escapeHTML(analysis.title)}</h2><span class="chip ${analysis.shouldSuggest ? 'warning' : 'success'}">${escapeHTML(analysis.statusLabel)}</span></div>
+          <p>${escapeHTML(analysis.detailText)}</p>
+          <div class="stats-grid" style="margin-top:12px">
+            <div class="stat"><div class="stat-value">${analysis.completedCount}</div><div class="stat-label">тренировки</div></div>
+            <div class="stat"><div class="stat-value">${analysis.score}</div><div class="stat-label">индекс усталости</div></div>
+            <div class="stat"><div class="stat-value">${analysis.highPainCount}</div><div class="stat-label">сильная боль</div></div>
+            <div class="stat"><div class="stat-value">${analysis.overloadGroups}</div><div class="stat-label">перегруз групп</div></div>
+          </div>
+        </div>
+      </section>
+      <section class="section"><div class="section-head"><h2>Признаки</h2><span class="muted">14 дней</span></div><div class="card list-card">${rows}</div></section>
+      <section class="section"><div class="card deload-plan-card"><div class="section-head"><h2>Если включаешь разгрузку</h2></div>
+        <div class="deload-plan-grid">
+          <div><strong>Вес</strong><span>−15–20%</span></div>
+          <div><strong>Подходы</strong><span>−30–40%</span></div>
+          <div><strong>Отказ</strong><span>убрать полностью</span></div>
+          <div><strong>Степпер</strong><span>лёгкий темп</span></div>
+        </div>
+        <div class="notice" style="margin-top:12px"><strong>Это предложение, не приказ.</strong><br>Приложение подсвечивает признаки усталости, а решение остаётся за тобой.</div>
+      </div></section>`;
   }
 
   function renderRecordsProgress() {
@@ -2848,6 +2907,156 @@
     return haystack.includes('степпер');
   }
 
+
+
+  function deloadSnapshot(analysis) {
+    return {
+      suggestedAt: new Date().toISOString(),
+      status: analysis.status,
+      statusLabel: analysis.statusLabel,
+      score: analysis.score,
+      title: analysis.title,
+      detailText: analysis.detailText,
+      signals: analysis.signals.map((signal) => ({ id: signal.id, title: signal.title, label: signal.label, weight: signal.weight })),
+      plan: { weightPercent: 80, setPercent: 65, noFailure: true, lightStepper: true },
+      applied: false,
+    };
+  }
+
+  function renderWorkoutDeloadBanner(workout) {
+    if (!workout?.deload || workout.deload.dismissed) return '';
+    const applied = workout.deload.applied;
+    const tone = workout.deload.status === 'critical' ? 'danger' : 'warning';
+    return `<div class="notice ${tone} deload-workout-banner">
+      <strong>${applied ? 'Разгрузка применена' : 'Предложена разгрузка'}:</strong> ${escapeHTML(workout.deload.detailText || workout.deload.title || 'Организм просит полегче')}
+      <div class="help" style="margin-top:6px">План: вес −15–20%, подходы −30–40%, без отказа, степпер легко.</div>
+      ${applied ? '<div class="help" style="margin-top:6px">Рабочие веса/время уже снижены в незавершённых подходах.</div>' : '<button class="button secondary small" id="apply-deload-workout" type="button" style="margin-top:10px">Применить −20% к этой тренировке</button>'}
+    </div>`;
+  }
+
+  function renderWorkoutDeloadDetailsBlock(workout) {
+    if (!workout?.deload) return '';
+    const signals = workout.deload.signals?.length ? workout.deload.signals.map((signal) => escapeHTML(signal.label)).join('<br>') : 'Сигналы не сохранены';
+    return `<div class="notice ${workout.deload.applied ? 'success' : 'warning'}" style="margin-top:12px"><strong>Разгрузка:</strong> ${escapeHTML(workout.deload.applied ? 'применена' : 'предлагалась')}<br>${signals}</div>`;
+  }
+
+  async function applyDeloadToCurrentWorkout() {
+    const workout = state.currentWorkout;
+    if (!workout?.deload || workout.deload.applied) return;
+    workout.exercises.forEach((result) => {
+      if (result.skipped) return;
+      result.deloadAdjusted = true;
+      result.sets.forEach((set) => {
+        if (set.completed) return;
+        if (result.defaults?.unit === 'reps') {
+          const weight = Number(set.weightKg) || 0;
+          if (weight > 0) set.weightKg = roundHalf(weight * 0.8);
+          if (set.difficulty === 'failure') set.difficulty = 'hard';
+        } else if (result.defaults?.unit === 'minutes') {
+          const minutes = Number(set.durationMin) || 0;
+          if (minutes > 1) set.durationMin = Math.max(1, Math.round(minutes * 0.7));
+        } else if (result.defaults?.unit === 'seconds') {
+          const seconds = Number(set.durationSec) || 0;
+          if (seconds > 10) set.durationSec = Math.max(10, Math.round(seconds * 0.7));
+        }
+      });
+      result.suggestion = { ...(result.suggestion || {}), kind: 'reduce', text: 'Разгрузка: легче, без отказа' };
+    });
+    workout.deload.applied = true;
+    workout.deload.appliedAt = new Date().toISOString();
+    await saveDraftWorkout();
+    renderWorkout();
+    toast('Разгрузка применена: незавершённые подходы стали легче');
+  }
+
+  function deloadAnalysis({ days = 14 } = {}) {
+    const periodDays = Number(days) || 14;
+    const now = new Date();
+    const from = startOfDay(new Date(now.getTime() - (periodDays - 1) * 86400000));
+    const completed = completedWorkoutList(state.workouts).filter((workout) => new Date(workout.startedAt || workout.date) >= from).sort((a, b) => new Date(b.startedAt || b.date) - new Date(a.startedAt || a.date));
+    const signals = [];
+    const pushSignal = (id, title, label, weight) => signals.push({ id, title, label, weight });
+
+    if (!completed.length) {
+      return { hasData: false, shouldSuggest: false, status: 'ok', statusLabel: 'нет данных', title: 'Разгрузка пока не оценивается', homeText: 'Нужна история тренировок.', detailText: 'Сохрани несколько тренировок, и приложение начнёт отслеживать признаки усталости.', score: 0, signals: [], completedCount: 0, highPainCount: 0, overloadGroups: 0 };
+    }
+
+    const recentThree = completed.slice(0, 3);
+    const hardWorkouts = recentThree.filter(isHardWorkout).length;
+    if (recentThree.length >= 3 && hardWorkouts >= 2) pushSignal('hard-streak', 'Тяжёлая серия', `${hardWorkouts} из последних ${recentThree.length} тренировок были тяжёлыми или с отказом`, 2);
+
+    const lowCompletion = recentThree.filter((workout) => (Number(workout.completionPct ?? workoutCompletion(workout)) < 75) || (workout.exercises || []).filter((result) => result.skipped).length >= 2).length;
+    if (recentThree.length >= 2 && lowCompletion >= 2) pushSignal('low-completion', 'Много недовыполнения', `${lowCompletion} последние тренировки с низким выполнением или пропусками`, 2);
+
+    const painFrom = from.getTime();
+    const painEntries = (state.painEntries || []).filter((entry) => new Date(entry.date || entry.createdAt || entry.timestamp || 0).getTime() >= painFrom && Number(entry.score) >= 4);
+    const highPainCount = painEntries.filter((entry) => Number(entry.score) >= 7).length;
+    if (highPainCount) pushSignal('high-pain', 'Сильная боль', `${highPainCount} отметк. 7/10 и выше за ${periodDays} дней`, 3);
+    const painAreasCount = painEntries.reduce((map, entry) => map.set(entry.areaLabel || entry.areaId || 'боль', (map.get(entry.areaLabel || entry.areaId || 'боль') || 0) + 1), new Map());
+    const repeatedPain = [...painAreasCount.entries()].filter(([, count]) => count >= 2).sort((a, b) => b[1] - a[1])[0];
+    if (repeatedPain && !highPainCount) pushSignal('repeated-pain', 'Повторяется боль', `${repeatedPain[0]} — ${repeatedPain[1]} раза за ${periodDays} дней`, 2);
+
+    const muscles = muscleLoadSummary(7);
+    const overloaded = muscles.rows.filter((row) => row.status === 'overload');
+    const high = muscles.rows.filter((row) => row.status === 'high');
+    if (overloaded.length) pushSignal('muscle-overload', 'Перегруз мышц', `${overloaded.map((row) => row.label).join(', ')} — перегруз за 7 дней`, 2);
+    else if (high.length >= 2) pushSignal('muscle-high', 'Много нагрузки', `${high.map((row) => row.label).join(', ')} — много подходов за 7 дней`, 1);
+
+    const sevenFrom = startOfDay(new Date(now.getTime() - 6 * 86400000));
+    const lastSeven = completed.filter((workout) => new Date(workout.startedAt || workout.date) >= sevenFrom);
+    const totalSets7 = lastSeven.reduce((sum, workout) => sum + (workout.exercises || []).reduce((s, result) => s + completedSets(result).length, 0), 0);
+    if (totalSets7 >= 60) pushSignal('high-volume', 'Высокий объём', `${totalSets7} рабочих подходов за 7 дней`, 1);
+
+    const dropCount = performanceDropCount(completed.slice(0, 8));
+    if (dropCount >= 2) pushSignal('performance-drop', 'Падение результатов', `${dropCount} упражнения просели примерно на 10%+`, 2);
+
+    const recordsLast14 = completed.reduce((sum, workout) => sum + (Array.isArray(workout.records) ? workout.records.length : 0), 0);
+    if (completed.length >= 4 && recordsLast14 === 0) pushSignal('no-progress', 'Давно без рекордов', 'За последние тренировки нет новых рекордов — возможно, накопилась усталость', 1);
+
+    const score = signals.reduce((sum, signal) => sum + signal.weight, 0);
+    const status = score >= 6 ? 'critical' : score >= 3 ? 'recommended' : score >= 1 ? 'watch' : 'ok';
+    const shouldSuggest = score >= 3;
+    const statusLabel = status === 'critical' ? 'лучше разгрузка' : status === 'recommended' ? 'разгрузка просится' : status === 'watch' ? 'наблюдаем' : 'нормально';
+    const title = shouldSuggest ? 'Разгрузочная неделя просится' : status === 'watch' ? 'Есть лёгкие признаки усталости' : 'Разгрузка не нужна';
+    const homeText = shouldSuggest ? 'Есть несколько признаков накопленной усталости. Следующую тренировку лучше сделать легче.' : status === 'watch' ? 'Есть мелкие сигналы, но пока без паники. Следи за самочувствием.' : 'Критичных признаков усталости нет. Можно продолжать цикл спокойно.';
+    const detailText = shouldSuggest ? 'На ближайшие 5–7 дней приложение советует снизить вес на 15–20%, убрать часть подходов и не идти до отказа.' : homeText;
+    return { hasData: true, shouldSuggest, status, statusLabel, title, homeText, detailText, score, signals, completedCount: completed.length, highPainCount, overloadGroups: overloaded.length };
+  }
+
+  function isHardWorkout(workout) {
+    const sets = (workout.exercises || []).flatMap((result) => completedSets(result));
+    if (!sets.length) return false;
+    const hard = sets.filter((set) => ['hard', 'failure'].includes(set.difficulty)).length;
+    const failure = sets.filter((set) => set.difficulty === 'failure').length;
+    return failure >= 2 || hard / sets.length >= 0.45 || Number(workout.completionPct ?? workoutCompletion(workout)) < 70;
+  }
+
+  function performanceDropCount(workouts) {
+    const byExercise = new Map();
+    workouts.forEach((workout) => {
+      (workout.exercises || []).forEach((result) => {
+        if (result.skipped || isTimeResult(result)) return;
+        const best = bestSetScore(result);
+        if (best <= 0) return;
+        const list = byExercise.get(result.exerciseId) || [];
+        list.push({ date: new Date(workout.startedAt || workout.date), score: best, name: result.name });
+        byExercise.set(result.exerciseId, list);
+      });
+    });
+    let drops = 0;
+    byExercise.forEach((list) => {
+      const sorted = list.sort((a, b) => b.date - a.date);
+      if (sorted.length < 2) return;
+      const latest = sorted[0].score;
+      const previousBest = Math.max(...sorted.slice(1).map((item) => item.score));
+      if (previousBest > 0 && latest < previousBest * 0.9) drops += 1;
+    });
+    return drops;
+  }
+
+  function bestSetScore(result) {
+    return Math.max(0, ...completedSets(result).map((set) => (Number(set.weightKg) || 0) * (Number(set.reps) || 0)));
+  }
 
   function muscleShortAdvice(rows) {
     const overloaded = rows.filter((row) => row.status === 'overload').map((row) => row.label);

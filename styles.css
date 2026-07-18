@@ -521,3 +521,19 @@ button { color: inherit; }
   .muscle-mini-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .muscle-home-top { align-items:flex-start; flex-direction:column; }
 }
+
+/* v1.7.0 — разгрузочная неделя */
+.deload-card { display: grid; gap: 10px; border-left: 4px solid var(--line); }
+.deload-card.ok { border-left-color: var(--success); }
+.deload-card.watch { border-left-color: var(--warning); }
+.deload-card.recommended { border-left-color: var(--warning); background: linear-gradient(180deg, rgba(255,190,61,.08), rgba(255,255,255,.025)); }
+.deload-card.critical { border-left-color: var(--danger); background: linear-gradient(180deg, rgba(255,94,108,.09), rgba(255,255,255,.025)); }
+.deload-workout-banner { margin: 0 0 14px; }
+.deload-plan-grid { display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:10px; }
+.deload-plan-grid > div { border:1px solid var(--line); border-radius:14px; padding:12px; background:rgba(255,255,255,.035); }
+.deload-plan-grid strong { display:block; font-size:13px; margin-bottom:4px; }
+.deload-plan-grid span { color:var(--muted); font-size:13px; }
+.deload-plan-card { display:grid; gap:10px; }
+@media (max-width: 430px) {
+  .deload-plan-grid { grid-template-columns: 1fr; }
+}
