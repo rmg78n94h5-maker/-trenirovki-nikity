@@ -1,0 +1,18 @@
+TEST REPORT v1.5.2
+
+Проверено:
+- синтаксис app.js через node --check;
+- синтаксис db.js через node --check;
+- синтаксис seed.js через node --check;
+- синтаксис exercise-guides.js через node --check;
+- синтаксис version.js через node --check;
+- синтаксис service-worker.js через node --check;
+- manifest.webmanifest валиден как JSON;
+- версия в version.js: 1.5.2;
+- SERVICE_WORKER_RELEASE в service-worker.js: 1.5.2;
+- CACHE_NAME формируется как nikita-workouts-v1.5.2-update-manager-fix;
+- IndexedDB остаётся v3, db.js не требует новой миграции;
+- APP_SHELL Service Worker содержит существующие файлы;
+- ZIP проверен после сборки.
+
+Браузерный интерактивный прогон в sandbox не выполнялся: среда не даёт надёжный iOS/PWA/Service Worker сценарий. Логика проверена статически.

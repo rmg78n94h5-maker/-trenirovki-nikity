@@ -1,5 +1,5 @@
 // Маркер релиза меняется вместе с version.js, чтобы iPhone точно установил новый Service Worker.
-const SERVICE_WORKER_RELEASE = '1.5.1';
+const SERVICE_WORKER_RELEASE = '1.5.2';
 importScripts(`./version.js?v=${SERVICE_WORKER_RELEASE}`);
 if (self.NIKITA_APP.version !== SERVICE_WORKER_RELEASE) throw new Error('Версии приложения и Service Worker не совпадают');
 const CACHE_NAME = self.NIKITA_APP.cacheName;
@@ -42,6 +42,19 @@ self.addEventListener('message', (event) => {
   }
 });
 
+const NETWORK_FIRST_PATHS = new Set(APP_SHELL.filter((url) => /\.(js|css|webmanifest)$/i.test(url)).map((url) => new URL(url, self.location).pathname));
+
+function cacheMatchWithNormalizedUrl(request, url) {
+  return caches.match(request).then((cached) => cached || caches.match(new Request(`${url.origin}${url.pathname}`)));
+}
+
+function putBothRequestForms(cache, request, response, url) {
+  const copyForOriginal = response.clone();
+  const copyForClean = response.clone();
+  cache.put(request, copyForOriginal);
+  cache.put(new Request(`${url.origin}${url.pathname}`), copyForClean);
+}
+
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
@@ -60,8 +73,20 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  if (NETWORK_FIRST_PATHS.has(url.pathname)) {
+    event.respondWith(
+      fetch(new Request(event.request, { cache: 'reload' }))
+        .then((response) => {
+          if (response.ok) caches.open(CACHE_NAME).then((cache) => putBothRequestForms(cache, event.request, response, url));
+          return response;
+        })
+        .catch(() => cacheMatchWithNormalizedUrl(event.request, url))
+    );
+    return;
+  }
+
   event.respondWith(
-    caches.match(event.request).then((cached) => cached || fetch(new Request(event.request, { cache: 'reload' })).then((response) => {
+    cacheMatchWithNormalizedUrl(event.request, url).then((cached) => cached || fetch(new Request(event.request, { cache: 'reload' })).then((response) => {
       if (response.ok) {
         const copy = response.clone();
         caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));

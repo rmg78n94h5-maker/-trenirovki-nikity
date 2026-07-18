@@ -444,3 +444,43 @@ button { color: inherit; }
   .app-update-banner { grid-template-columns: 1fr; }
   .app-update-actions { display: grid; grid-template-columns: 1fr 1fr; }
 }
+
+/* v1.5.2 — понятный статус обновлений */
+.update-status-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 4px 0 12px;
+}
+.update-status-grid > div {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 10px;
+  background: rgba(255,255,255,.035);
+}
+.update-status-grid span {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  margin-bottom: 4px;
+}
+.update-status-grid strong {
+  display: block;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.25;
+}
+.app-update-banner-success {
+  border-color: rgba(77, 214, 122, .45);
+  background: rgba(17, 27, 20, .96);
+}
+.app-update-banner-warning {
+  border-color: rgba(255, 196, 87, .45);
+  background: rgba(31, 25, 13, .96);
+}
+@media (max-width: 430px) {
+  .update-status-grid { grid-template-columns: 1fr; }
+}

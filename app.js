@@ -3,6 +3,8 @@
 
   const DB = window.NikitaDB;
   const APP_VERSION = window.NIKITA_APP?.version || 'неизвестна';
+  const APP_VERSION_STORAGE_KEY = 'nikita-workouts-app-version';
+  const APP_UPDATE_MESSAGE_KEY = 'nikita-workouts-update-message';
   const BOOT_STARTED_AT = Date.now();
   const state = {
     route: 'home',
@@ -30,6 +32,11 @@
       checking: false,
       reloadOnControllerChange: false,
       autoCheckTimer: null,
+      lastCheckAt: null,
+      statusText: 'Пока не проверяли',
+      cacheStatus: 'неизвестно',
+      bannerMode: null,
+      dismissedVersion: null,
     },
   };
 
@@ -159,6 +166,7 @@
       if (!state.profiles.length) {
         showProfileOnboarding();
         hideSplash();
+        afterAppReady();
         return;
       }
       await ensurePersonalActiveProgram();
@@ -171,6 +179,7 @@
         navigate(initialRoute, false);
       }
       hideSplash();
+      afterAppReady();
     } catch (error) {
       console.error(error);
       hideSplash(true);
@@ -2409,7 +2418,7 @@
 
       <section class="section"><div class="section-head"><h2>Резервная копия всех профилей</h2></div><div class="card"><div class="button-row"><button class="button primary" id="export-data">Данные JSON</button><button class="button secondary" id="export-full">С фото</button></div><button class="button ghost full" id="import-data" style="margin-top:10px">Импортировать копию</button><input id="import-file" type="file" accept="application/json" hidden><div class="help" style="margin-top:10px">Копия включает все профили. «Данные JSON» не содержит фото; перед импортом такой копии приложение отдельно предупредит о возможном удалении локальных фотографий.</div></div></section>
 
-      <section class="section"><div class="section-head"><h2>Обновление приложения</h2></div><div class="card update-card"><div class="list-row no-border"><div class="list-row-main"><div class="list-row-title">Текущая версия: ${escapeHTML(APP_VERSION)}</div><div class="list-row-sub">Проверка не трогает профили, историю, фото и IndexedDB.</div></div><span class="update-status-dot" aria-hidden="true">↻</span></div><div class="button-row"><button class="button primary" id="check-app-update">Проверить обновление</button><button class="button secondary" id="force-app-refresh">Обновить кэш</button></div><div class="help" style="margin-top:10px">Если iPhone упрямо держит старую версию, нажми «Обновить кэш» — приложение очистит только PWA-кэш и перезапустится. Локальные данные останутся.</div></div></section>
+      <section class="section"><div class="section-head"><h2>Обновление приложения</h2></div><div class="card update-card"><div class="list-row no-border"><div class="list-row-main"><div class="list-row-title">Текущая версия: ${escapeHTML(APP_VERSION)}</div><div class="list-row-sub">Проверка не трогает профили, историю, фото и IndexedDB.</div></div><span class="update-status-dot" aria-hidden="true">↻</span></div><div class="update-status-grid"><div><span>Статус</span><strong id="app-update-status-text">${escapeHTML(state.update.statusText || 'Пока не проверяли')}</strong></div><div><span>Кэш</span><strong id="app-cache-status-text">${escapeHTML(state.update.cacheStatus || 'неизвестно')}</strong></div><div><span>Последняя проверка</span><strong id="app-update-last-check">${escapeHTML(formatUpdateTimestamp(state.update.lastCheckAt))}</strong></div></div><div class="button-row"><button class="button primary" id="check-app-update">Проверить обновление</button><button class="button secondary" id="force-app-refresh">Обновить кэш</button></div><div class="help" style="margin-top:10px">«Обновить кэш» очищает только файлы приложения. Профили, история, фото, боль, рекорды и черновики остаются в IndexedDB.</div></div></section>
 
       <section class="section"><div class="section-head"><h2>Установка PWA</h2></div><div class="card"><ol class="muted" style="padding-left:20px;line-height:1.6"><li>Открой опубликованный адрес в Safari.</li><li>Нажми «Поделиться».</li><li>Выбери «На экран Домой».</li><li>Открой иконку один раз при интернете — после этого оболочка работает офлайн.</li></ol><button class="button secondary full" id="storage-info">Проверить хранилище</button><div class="help" style="margin-top:10px">Версия приложения ${escapeHTML(APP_VERSION)} · база IndexedDB v3</div></div></section>
 
@@ -2961,6 +2970,46 @@
 
   function updateOnlineStatus(){el.offline.hidden=navigator.onLine;}
 
+  function afterAppReady() {
+    initUpdateStateFromStorage();
+    window.setTimeout(() => showStoredUpdateMessage(), 900);
+  }
+
+  function initUpdateStateFromStorage() {
+    try {
+      const previousVersion = localStorage.getItem(APP_VERSION_STORAGE_KEY);
+      if (previousVersion && previousVersion !== APP_VERSION) {
+        state.update.statusText = `Обновлено с ${previousVersion} до ${APP_VERSION}`;
+        state.update.cacheStatus = 'актуальный';
+        sessionStorage.setItem(APP_UPDATE_MESSAGE_KEY, JSON.stringify({
+          title: 'Приложение обновлено',
+          message: `Установлена версия ${APP_VERSION}. Локальные данные не тронуты.`,
+          tone: 'success',
+          createdAt: Date.now(),
+        }));
+      } else if (previousVersion === APP_VERSION) {
+        state.update.statusText = `Актуальная версия ${APP_VERSION}`;
+        state.update.cacheStatus = 'актуальный';
+      }
+      localStorage.setItem(APP_VERSION_STORAGE_KEY, APP_VERSION);
+    } catch (error) {
+      console.warn('Update state storage failed', error);
+    }
+  }
+
+  function showStoredUpdateMessage() {
+    try {
+      const raw = sessionStorage.getItem(APP_UPDATE_MESSAGE_KEY);
+      if (!raw) return;
+      sessionStorage.removeItem(APP_UPDATE_MESSAGE_KEY);
+      const payload = JSON.parse(raw);
+      if (!payload?.title || Date.now() - Number(payload.createdAt || 0) > 60000) return;
+      showAppUpdateStatusBanner(payload.title, payload.message || `Версия ${APP_VERSION}`, payload.tone || 'success', 8500);
+    } catch (error) {
+      console.warn('Stored update message failed', error);
+    }
+  }
+
   async function registerServiceWorker(){
     if (!('serviceWorker' in navigator)) return;
     try {
@@ -2972,18 +3021,30 @@
         if (!worker) return;
         worker.addEventListener('statechange', () => {
           if (worker.state === 'installed' && navigator.serviceWorker.controller) {
-            showAppUpdateBanner(state.update.availableVersion || 'новая');
+            const label = state.update.availableVersion || 'новая';
+            showAppUpdateBanner(label);
+            state.update.statusText = `Обновление скачано: ${label}`;
+            refreshUpdatePanel();
           }
         });
       });
 
       if (registration.waiting && navigator.serviceWorker.controller) {
-        showAppUpdateBanner(state.update.availableVersion || 'новая');
+        const label = state.update.availableVersion || 'новая';
+        showAppUpdateBanner(label);
+        state.update.statusText = `Обновление готово: ${label}`;
+        refreshUpdatePanel();
       }
 
       navigator.serviceWorker.addEventListener('controllerchange', () => {
         if (!state.update.reloadOnControllerChange) return;
         state.update.reloadOnControllerChange = false;
+        sessionStorage.setItem(APP_UPDATE_MESSAGE_KEY, JSON.stringify({
+          title: 'Обновление применено',
+          message: `Перезапускаю приложение. Новая версия должна открыться сразу.`,
+          tone: 'success',
+          createdAt: Date.now(),
+        }));
         window.location.reload();
       });
 
@@ -2999,10 +3060,15 @@
   async function checkForAppUpdate(manual = false) {
     if (state.update.checking) return null;
     if (!navigator.onLine) {
+      state.update.statusText = 'Нет интернета для проверки';
+      state.update.cacheStatus = 'офлайн';
+      refreshUpdatePanel();
       if (manual) toast('Нет интернета — обновление проверить не получится');
       return null;
     }
     state.update.checking = true;
+    state.update.statusText = 'Проверяю обновление…';
+    refreshUpdatePanel();
     if (manual) toast('Проверяю обновление…');
     try {
       const registration = state.swRegistration || (navigator.serviceWorker?.getRegistration ? await navigator.serviceWorker.getRegistration() : null);
@@ -3011,25 +3077,44 @@
       const response = await fetch(`./version.js?check=${Date.now()}`, { cache: 'no-store' });
       if (!response.ok) throw new Error('сервер не отдал version.js');
       const remoteVersion = parseVersionScript(await response.text());
+      state.update.lastCheckAt = new Date().toISOString();
 
       if (remoteVersion && isNewerVersion(remoteVersion, APP_VERSION)) {
         state.update.availableVersion = remoteVersion;
+        state.update.statusText = `Доступна версия ${remoteVersion}`;
+        state.update.cacheStatus = 'нужно обновить';
         showAppUpdateBanner(remoteVersion);
+        refreshUpdatePanel();
         if (manual) toast(`Доступна версия ${remoteVersion}`);
         return remoteVersion;
       }
 
       if (registration?.waiting && navigator.serviceWorker.controller) {
-        showAppUpdateBanner(remoteVersion || 'новая');
+        const label = remoteVersion || state.update.availableVersion || 'новая';
+        state.update.statusText = `Обновление готово: ${label}`;
+        state.update.cacheStatus = 'ждёт установки';
+        showAppUpdateBanner(label);
+        refreshUpdatePanel();
         if (manual) toast('Обновление уже скачано — нажми «Обновить»');
-        return remoteVersion || 'новая';
+        return label;
       }
 
-      hideAppUpdateBanner();
+      if (state.update.bannerMode === 'update') {
+        showAppUpdateStatusBanner('Версия уже актуальна', `Сейчас установлена v${APP_VERSION}. Баннер больше не будет моргать сам по себе.`, 'success', 8500);
+      } else if (manual) {
+        showAppUpdateStatusBanner('Обновлений нет', `Установлена актуальная версия ${APP_VERSION}.`, 'success', 6500);
+      }
+      state.update.availableVersion = null;
+      state.update.statusText = `Актуальная версия ${APP_VERSION}`;
+      state.update.cacheStatus = 'актуальный';
+      refreshUpdatePanel();
       if (manual) toast(`Установлена актуальная версия ${APP_VERSION}`);
       return null;
     } catch (error) {
       console.warn('App update check failed', error);
+      state.update.statusText = 'Не удалось проверить';
+      state.update.cacheStatus = navigator.onLine ? 'неизвестно' : 'офлайн';
+      refreshUpdatePanel();
       if (manual) toast('Не удалось проверить обновление. Попробуй с интернетом.');
       return null;
     } finally {
@@ -3059,19 +3144,70 @@
       banner.className = 'app-update-banner';
       document.body.appendChild(banner);
     }
+    state.update.bannerMode = 'update';
+    state.update.dismissedVersion = null;
     const safeVersion = escapeHTML(versionLabel);
     banner.hidden = false;
+    banner.className = 'app-update-banner';
     banner.innerHTML = `
-      <div class="app-update-copy"><strong>Доступно обновление</strong><span>Версия ${safeVersion}. Можно поставить без удаления данных.</span></div>
+      <div class="app-update-copy"><strong>Доступно обновление</strong><span>Версия ${safeVersion}. Баннер останется, пока ты сам не нажмёшь «Обновить» или «Позже».</span></div>
       <div class="app-update-actions"><button class="button primary" id="apply-app-update">Обновить</button><button class="button ghost" id="dismiss-app-update">Позже</button></div>
     `;
     banner.querySelector('#apply-app-update').addEventListener('click', forceRefreshAppShell);
-    banner.querySelector('#dismiss-app-update').addEventListener('click', () => { banner.hidden = true; });
+    banner.querySelector('#dismiss-app-update').addEventListener('click', () => {
+      state.update.dismissedVersion = versionLabel;
+      state.update.bannerMode = null;
+      banner.hidden = true;
+    });
   }
 
-  function hideAppUpdateBanner() {
+  function showAppUpdateStatusBanner(title, message, tone = 'success', autoHideMs = 0) {
+    let banner = document.getElementById('app-update-banner');
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'app-update-banner';
+      document.body.appendChild(banner);
+    }
+    state.update.bannerMode = 'status';
+    banner.hidden = false;
+    banner.className = `app-update-banner app-update-banner-${tone}`;
+    banner.innerHTML = `
+      <div class="app-update-copy"><strong>${escapeHTML(title)}</strong><span>${escapeHTML(message)}</span></div>
+      <div class="app-update-actions"><button class="button secondary" id="close-app-update-status">Понятно</button></div>
+    `;
+    banner.querySelector('#close-app-update-status').addEventListener('click', () => { state.update.bannerMode = null; banner.hidden = true; });
+    if (autoHideMs) {
+      window.setTimeout(() => {
+        if (state.update.bannerMode === 'status') {
+          state.update.bannerMode = null;
+          banner.hidden = true;
+        }
+      }, autoHideMs);
+    }
+  }
+
+  function hideAppUpdateBanner(force = false) {
     const banner = document.getElementById('app-update-banner');
-    if (banner) banner.hidden = true;
+    if (!banner) return;
+    if (!force && state.update.bannerMode === 'update') return;
+    state.update.bannerMode = null;
+    banner.hidden = true;
+  }
+
+  function refreshUpdatePanel() {
+    const status = document.getElementById('app-update-status-text');
+    const cache = document.getElementById('app-cache-status-text');
+    const last = document.getElementById('app-update-last-check');
+    if (status) status.textContent = state.update.statusText || 'Пока не проверяли';
+    if (cache) cache.textContent = state.update.cacheStatus || 'неизвестно';
+    if (last) last.textContent = formatUpdateTimestamp(state.update.lastCheckAt);
+  }
+
+  function formatUpdateTimestamp(value) {
+    if (!value) return 'пока нет';
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return 'пока нет';
+    return new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(date);
   }
 
   async function forceRefreshAppShell() {
@@ -3079,11 +3215,22 @@
       toast('Нужен интернет, чтобы скачать свежую версию');
       return;
     }
+    const confirmed = window.confirm('Обновить кэш приложения?\n\nПрофили, история, фото, боль, рекорды и черновики останутся. Будут очищены только файлы PWA и приложение перезапустится.');
+    if (!confirmed) return;
     try {
       toast('Обновляю оболочку…');
+      state.update.statusText = 'Обновляю кэш…';
+      state.update.cacheStatus = 'очистка';
+      refreshUpdatePanel();
       if (state.currentWorkout) await saveDraftWorkout();
       const registration = state.swRegistration || (navigator.serviceWorker?.getRegistration ? await navigator.serviceWorker.getRegistration() : null);
       state.update.reloadOnControllerChange = true;
+      sessionStorage.setItem(APP_UPDATE_MESSAGE_KEY, JSON.stringify({
+        title: 'Кэш обновлён',
+        message: `Открылась свежая оболочка приложения. Текущая версия: ${APP_VERSION}.`,
+        tone: 'success',
+        createdAt: Date.now(),
+      }));
       if (registration?.update) await registration.update().catch((error) => console.warn('SW forced update failed', error));
       if (registration?.waiting) registration.waiting.postMessage({ type: 'SKIP_WAITING' });
       if (registration?.active) registration.active.postMessage({ type: 'CLEAR_APP_CACHES' });
@@ -3091,9 +3238,12 @@
         const keys = await caches.keys();
         await Promise.all(keys.filter((key) => key.startsWith('nikita-workouts-')).map((key) => caches.delete(key)));
       }
-      window.setTimeout(() => window.location.reload(), 350);
+      window.setTimeout(() => window.location.reload(), 450);
     } catch (error) {
       console.warn('Force app refresh failed', error);
+      state.update.statusText = 'Ошибка обновления кэша';
+      state.update.cacheStatus = 'ошибка';
+      refreshUpdatePanel();
       toast(`Не удалось обновить: ${error.message}`);
     }
   }
