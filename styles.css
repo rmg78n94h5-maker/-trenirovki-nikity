@@ -159,6 +159,7 @@ button { color: inherit; }
 .inline-fields.three { grid-template-columns: repeat(3, 1fr); }
 .help { color: var(--muted); font-size: 12px; line-height: 1.4; }
 
+.workout-screen { padding-bottom: calc(120px + var(--safe-bottom)); }
 .workout-header { position: sticky; top: 73px; z-index: 15; margin: -6px -2px 12px; padding: 10px 2px; background: linear-gradient(180deg, var(--bg) 75%, rgba(8,10,12,0)); }
 .workout-clock { font-variant-numeric: tabular-nums; font-size: 28px; font-weight: 900; }
 .workout-exercise { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; overflow: hidden; margin-bottom: 12px; }
@@ -170,7 +171,8 @@ button { color: inherit; }
 .set-select { min-height: 42px; max-width: 105px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); padding: 7px; }
 .check-button { width: 42px; height: 42px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface-2); font-size: 18px; }
 .check-button.done { background: var(--accent); color: #080a0c; border-color: var(--accent); }
-.workout-footer { position: sticky; bottom: calc(72px + var(--safe-bottom)); display: grid; grid-template-columns: 1fr 1.4fr; gap: 9px; padding: 10px 0; background: linear-gradient(0deg, var(--bg) 75%, rgba(8,10,12,0)); }
+.workout-footer { position: sticky; bottom: calc(6px + var(--safe-bottom)); z-index: 12; display: grid; grid-template-columns: minmax(0, .82fr) minmax(0, 1.18fr); gap: 8px; padding: 6px 0 0; margin-top: 6px; background: linear-gradient(0deg, rgba(8,10,12,.98) 46%, rgba(8,10,12,.76) 72%, rgba(8,10,12,0)); }
+.workout-footer .button { min-height: 40px; padding: 8px 12px; border-radius: 12px; font-size: 15px; }
 
 
 /* v1.2.3 — крупный ввод веса, повторов и длительности */
@@ -208,6 +210,12 @@ button { color: inherit; }
   .stepper-button { min-width: 44px; }
   .set-row .set-select { width: 112px; font-size: 12px; }
 }
+@media (max-width: 430px) {
+  .workout-screen { padding-bottom: calc(96px + var(--safe-bottom)); }
+  .workout-footer { bottom: calc(4px + var(--safe-bottom)); grid-template-columns: .88fr 1.12fr; gap: 7px; padding-top: 5px; }
+  .workout-footer .button { min-height: 38px; padding: 7px 10px; font-size: 14px; }
+}
+
 
 .timer-overlay { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; padding: 20px; background: rgba(0,0,0,.82); backdrop-filter: blur(8px); }
 .timer-card { width: min(100%, 360px); background: var(--surface); border: 1px solid var(--line); border-radius: 24px; padding: 24px; text-align: center; box-shadow: var(--shadow); }
@@ -523,6 +531,8 @@ button { color: inherit; }
 }
 
 /* v1.7.0 — разгрузочная неделя */
+/* v1.7.1 — компактные кнопки тренировки */
+
 .deload-card { display: grid; gap: 10px; border-left: 4px solid var(--line); }
 .deload-card.ok { border-left-color: var(--success); }
 .deload-card.watch { border-left-color: var(--warning); }

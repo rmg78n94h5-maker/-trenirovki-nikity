@@ -1052,6 +1052,7 @@
     }
     setTopbar(workout.dayName, workout.shortMode ? 'Короткая тренировка' : 'Тренировка идёт');
     el.main.innerHTML = `
+      <div class="workout-screen">
       <div class="workout-header">
         <div class="card" style="padding:12px 14px">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
@@ -1072,6 +1073,7 @@
       <div class="workout-footer">
         <button class="button ghost" id="cancel-workout">Закрыть</button>
         <button class="button primary" id="finish-workout">Завершить</button>
+      </div>
       </div>
     `;
     bindWorkoutEvents();
