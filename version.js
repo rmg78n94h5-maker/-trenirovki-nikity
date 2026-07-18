@@ -1,10 +1,10 @@
 (() => {
   'use strict';
 
-  const version = '1.5.0';
+  const version = '1.5.1';
 
   globalThis.NIKITA_APP = Object.freeze({
     version,
-    cacheName: `nikita-workouts-v${version}-records`,
+    cacheName: `nikita-workouts-v${version}-update-manager`,
   });
 })();

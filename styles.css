@@ -402,3 +402,45 @@ button { color: inherit; }
 @media (max-width: 380px) {
   .record-icon { width: 34px; height: 34px; flex-basis: 34px; font-size: 18px; }
 }
+
+/* v1.5.1 — управление обновлением PWA */
+.update-card .no-border { border: 0; padding: 0 0 12px; }
+.update-status-dot {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: rgba(199,255,47,.10);
+  border: 1px solid rgba(199,255,47,.30);
+  color: var(--accent);
+  font-size: 20px;
+  font-weight: 950;
+}
+.app-update-banner {
+  position: fixed;
+  left: max(12px, env(safe-area-inset-left));
+  right: max(12px, env(safe-area-inset-right));
+  bottom: calc(78px + env(safe-area-inset-bottom));
+  z-index: 80;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid rgba(199,255,47,.38);
+  border-radius: 20px;
+  background: rgba(18,22,24,.96);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(14px);
+}
+.app-update-banner[hidden] { display: none; }
+.app-update-copy { min-width: 0; display: grid; gap: 3px; }
+.app-update-copy strong { color: var(--text); font-size: 15px; }
+.app-update-copy span { color: var(--muted); font-size: 12px; line-height: 1.35; }
+.app-update-actions { display: flex; gap: 8px; align-items: center; }
+.app-update-actions .button { min-height: 38px; padding: 9px 12px; }
+@media (max-width: 430px) {
+  .app-update-banner { grid-template-columns: 1fr; }
+  .app-update-actions { display: grid; grid-template-columns: 1fr 1fr; }
+}
