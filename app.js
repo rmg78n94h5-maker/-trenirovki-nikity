@@ -2512,21 +2512,51 @@
     return ctx.state === 'running' ? ctx : null;
   }
 
-  function scheduleTimerTone(ctx, { frequency, delay = 0, duration = 0.1, level = 1, type = 'sine' }) {
+  function scheduleTimerTone(ctx, {
+    frequency,
+    delay = 0,
+    duration = 0.16,
+    level = 1,
+    type = 'square',
+    overtone = true,
+  }) {
     const volume = timerVolumePercent() / 100;
     if (!ctx || volume <= 0) return;
+
     const startAt = ctx.currentTime + Math.max(0.01, Number(delay) || 0);
-    const finishAt = startAt + Math.max(0.04, Number(duration) || 0.1);
+    const finishAt = startAt + Math.max(0.08, Number(duration) || 0.16);
+    // На iPhone прежние синусоиды на 660–1040 Гц звучали слишком тихо.
+    // Нелинейная шкала, более высокая частота и дополнительная гармоника
+    // делают сигнал заметным через встроенный динамик, не затрагивая системную громкость.
+    const perceptualVolume = Math.pow(volume, 0.62);
+    const peak = Math.min(0.92, Math.max(0.015, 0.82 * perceptualVolume * level));
+    const attackEnd = Math.min(finishAt - 0.025, startAt + 0.012);
+
     const oscillator = ctx.createOscillator();
     const gain = ctx.createGain();
     oscillator.type = type;
     oscillator.frequency.setValueAtTime(frequency, startAt);
     gain.gain.setValueAtTime(0.0001, startAt);
-    gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, 0.28 * volume * level), startAt + 0.015);
+    gain.gain.exponentialRampToValueAtTime(peak, attackEnd);
+    gain.gain.setValueAtTime(peak, Math.max(attackEnd, finishAt - 0.045));
     gain.gain.exponentialRampToValueAtTime(0.0001, finishAt);
     oscillator.connect(gain).connect(ctx.destination);
     oscillator.start(startAt);
-    oscillator.stop(finishAt + 0.02);
+    oscillator.stop(finishAt + 0.025);
+
+    if (overtone) {
+      const harmonic = ctx.createOscillator();
+      const harmonicGain = ctx.createGain();
+      harmonic.type = 'triangle';
+      harmonic.frequency.setValueAtTime(frequency * 1.5, startAt);
+      harmonicGain.gain.setValueAtTime(0.0001, startAt);
+      harmonicGain.gain.exponentialRampToValueAtTime(Math.max(0.008, peak * 0.34), attackEnd);
+      harmonicGain.gain.setValueAtTime(Math.max(0.008, peak * 0.34), Math.max(attackEnd, finishAt - 0.045));
+      harmonicGain.gain.exponentialRampToValueAtTime(0.0001, finishAt);
+      harmonic.connect(harmonicGain).connect(ctx.destination);
+      harmonic.start(startAt);
+      harmonic.stop(finishAt + 0.025);
+    }
   }
 
   async function playTimerSound(kind, { force = false } = {}) {
@@ -2535,16 +2565,16 @@
       const ctx = await prepareTimerAudio({ force });
       if (!ctx) return false;
       if (kind === 'countdown') {
-        scheduleTimerTone(ctx, { frequency: 660, duration: 0.095, level: 0.68, type: 'sine' });
+        scheduleTimerTone(ctx, { frequency: 1500, duration: 0.17, level: 0.82, type: 'square' });
       } else if (kind === 'complete') {
-        scheduleTimerTone(ctx, { frequency: 820, duration: 0.16, level: 1, type: 'triangle' });
-        scheduleTimerTone(ctx, { frequency: 1040, delay: 0.2, duration: 0.24, level: 1, type: 'triangle' });
+        scheduleTimerTone(ctx, { frequency: 1250, duration: 0.23, level: 1, type: 'square' });
+        scheduleTimerTone(ctx, { frequency: 1850, delay: 0.28, duration: 0.34, level: 1, type: 'square' });
       } else if (kind === 'test') {
-        scheduleTimerTone(ctx, { frequency: 660, duration: 0.095, level: 0.68, type: 'sine' });
-        scheduleTimerTone(ctx, { frequency: 660, delay: 0.42, duration: 0.095, level: 0.68, type: 'sine' });
-        scheduleTimerTone(ctx, { frequency: 660, delay: 0.84, duration: 0.095, level: 0.68, type: 'sine' });
-        scheduleTimerTone(ctx, { frequency: 820, delay: 1.3, duration: 0.16, level: 1, type: 'triangle' });
-        scheduleTimerTone(ctx, { frequency: 1040, delay: 1.5, duration: 0.24, level: 1, type: 'triangle' });
+        scheduleTimerTone(ctx, { frequency: 1500, duration: 0.17, level: 0.82, type: 'square' });
+        scheduleTimerTone(ctx, { frequency: 1500, delay: 0.44, duration: 0.17, level: 0.82, type: 'square' });
+        scheduleTimerTone(ctx, { frequency: 1500, delay: 0.88, duration: 0.17, level: 0.82, type: 'square' });
+        scheduleTimerTone(ctx, { frequency: 1250, delay: 1.36, duration: 0.23, level: 1, type: 'square' });
+        scheduleTimerTone(ctx, { frequency: 1850, delay: 1.64, duration: 0.34, level: 1, type: 'square' });
       }
       return true;
     } catch (error) {
