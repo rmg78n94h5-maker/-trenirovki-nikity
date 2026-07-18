@@ -547,3 +547,18 @@ button { color: inherit; }
 @media (max-width: 430px) {
   .deload-plan-grid { grid-template-columns: 1fr; }
 }
+
+
+/* v1.7.2 — очистка истории боли */
+.section-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: flex-end; }
+.pain-history-tools { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.pain-cleanup-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.pain-day-row input[type="checkbox"] { width: 26px; height: 26px; accent-color: var(--accent); flex: 0 0 26px; }
+.pain-day-list { max-height: 42vh; overflow: auto; }
+.pain-history-row .delete-pain-entry { flex: 0 0 36px; color: var(--danger); border-color: rgba(255,94,108,.35); }
+@media (max-width: 430px) {
+  .section-head { align-items: flex-start; }
+  .section-actions { gap: 10px; }
+  .pain-cleanup-grid { grid-template-columns: 1fr; }
+  .pain-history-tools { grid-template-columns: 1fr; }
+}

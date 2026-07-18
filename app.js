@@ -832,15 +832,17 @@
       </section>`;
   }
 
-  function renderPainEntry(entry) {
+  function renderPainEntry(entry, options = {}) {
     const meta = painLevelMeta(entry.score);
     const source = entry.source === 'exercise' ? `во время: ${entry.exerciseName || 'упражнение'}` : entry.source === 'risk_action' ? 'действие по предупреждению' : 'перед тренировкой';
+    const deleteButton = options.withDelete ? `<button class="mini-button delete-pain-entry" data-id="${escapeAttr(entry.id)}" type="button" aria-label="Удалить запись боли">×</button>` : '';
     return `<div class="list-row pain-history-row">
       <div class="pain-dot ${meta.level}">!</div>
       <div class="list-row-main">
         <div class="list-row-title">${escapeHTML(entry.areaLabel || getPainArea(entry.areaId).label)} · ${entry.score}/10</div>
         <div class="list-row-sub">${formatShortDate(entry.date || todayISO())} · ${escapeHTML(source)}${entry.comment ? `<br>${escapeHTML(entry.comment)}` : ''}</div>
       </div>
+      ${deleteButton}
     </div>`;
   }
 
@@ -2611,7 +2613,7 @@
 
       <section class="section"><div class="section-head"><h2>Сигналы таймера</h2></div><div class="card list-card"><label class="list-row"><div><div class="list-row-title">Звук</div><div class="list-row-sub">Сигнал после отдыха</div></div><input id="sound-toggle" type="checkbox" ${state.settings.soundEnabled ? 'checked' : ''}></label><label class="list-row"><div><div class="list-row-title">Вибрация</div><div class="list-row-sub">На iPhone Safari может не поддерживаться</div></div><input id="vibration-toggle" type="checkbox" ${state.settings.vibrationEnabled ? 'checked' : ''}></label></div></section>
 
-      <section class="section"><div class="section-head"><h2>История боли</h2><button class="link-button" id="open-pain-history">Показать всё</button></div><div class="card list-card">${state.painEntries.length ? state.painEntries.slice(0, 4).map(renderPainEntry).join('') : '<div class="empty compact-empty"><strong>Пока пусто</strong>Отметки появятся после тренировок с контролем боли.</div>'}</div></section>
+      <section class="section"><div class="section-head"><h2>История боли</h2><div class="section-actions"><button class="link-button" id="open-pain-cleanup" type="button">Очистить</button><button class="link-button" id="open-pain-history" type="button">Показать всё</button></div></div><div class="card list-card">${state.painEntries.length ? state.painEntries.slice(0, 4).map(renderPainEntry).join('') : '<div class="empty compact-empty"><strong>Пока пусто</strong>Отметки появятся после тренировок с контролем боли.</div>'}</div></section>
 
       <section class="section"><div class="section-head"><h2>Резервная копия всех профилей</h2></div><div class="card"><div class="button-row"><button class="button primary" id="export-data">Данные JSON</button><button class="button secondary" id="export-full">С фото</button></div><button class="button ghost full" id="import-data" style="margin-top:10px">Импортировать копию</button><input id="import-file" type="file" accept="application/json" hidden><div class="help" style="margin-top:10px">Копия включает все профили. «Данные JSON» не содержит фото; перед импортом такой копии приложение отдельно предупредит о возможном удалении локальных фотографий.</div></div></section>
 
@@ -2628,6 +2630,7 @@
     document.getElementById('sound-toggle').addEventListener('change', (e)=>saveToggle('soundEnabled',e.target.checked));
     document.getElementById('vibration-toggle').addEventListener('change', (e)=>saveToggle('vibrationEnabled',e.target.checked));
     document.getElementById('open-pain-history').addEventListener('click', showPainHistoryModal);
+    document.getElementById('open-pain-cleanup').addEventListener('click', showPainCleanupModal);
     document.getElementById('export-data').addEventListener('click', ()=>exportBackup(false));
     document.getElementById('export-full').addEventListener('click', ()=>exportBackup(true));
     document.getElementById('import-data').addEventListener('click', ()=>document.getElementById('import-file').click());
@@ -2733,14 +2736,108 @@
   }
 
 
+  function painEntryDateKey(entry) {
+    const raw = entry.date || entry.createdAt || entry.timestamp || todayISO();
+    return String(raw).slice(0, 10);
+  }
+
+  function painEntryTime(entry) {
+    const value = new Date(entry.createdAt || entry.date || entry.timestamp || 0).getTime();
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  function sortedPainEntries() {
+    return [...(state.painEntries || [])].sort((a, b) => painEntryTime(b) - painEntryTime(a));
+  }
+
+  function painDateGroups() {
+    const groups = new Map();
+    for (const entry of sortedPainEntries()) {
+      const key = painEntryDateKey(entry);
+      const current = groups.get(key) || { date: key, count: 0, maxScore: 0 };
+      current.count += 1;
+      current.maxScore = Math.max(current.maxScore, Number(entry.score) || 0);
+      groups.set(key, current);
+    }
+    return [...groups.values()].sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  }
+
+  async function deletePainEntries(ids, message = 'Записи боли удалены') {
+    const uniqueIds = [...new Set(ids)].filter(Boolean);
+    if (!uniqueIds.length) {
+      toast('Нечего удалять');
+      return false;
+    }
+    await Promise.all(uniqueIds.map((id) => DB.remove('painEntries', id)));
+    state.painEntries = (state.painEntries || []).filter((entry) => !uniqueIds.includes(entry.id));
+    toast(message);
+    return true;
+  }
+
+  async function confirmDeletePainEntries(ids, label, afterDelete = 'history') {
+    const uniqueIds = [...new Set(ids)].filter(Boolean);
+    if (!uniqueIds.length) {
+      toast('Нечего удалять');
+      return;
+    }
+    const text = `${label}: ${uniqueIds.length} запис${uniqueIds.length === 1 ? 'ь' : uniqueIds.length < 5 ? 'и' : 'ей'}. Удалить?\n\nТренировки, профили, фото и замеры не трогаются.`;
+    if (!window.confirm(text)) return;
+    await deletePainEntries(uniqueIds, 'История боли очищена');
+    if (afterDelete === 'cleanup') showPainCleanupModal();
+    else showPainHistoryModal();
+    if (state.route === 'more') renderMore();
+  }
+
   function showPainHistoryModal() {
+    const entries = sortedPainEntries();
     showModal(`
       <div class="modal-head"><h2>История боли</h2><button class="modal-close" data-close>×</button></div>
       <div class="notice"><strong>Это дневник ощущений, не диагноз.</strong><br>Если боль сильная, новая, нарастает или появляется выпуклость/отёк — лучше остановиться и обратиться к врачу.</div>
+      <div class="button-row pain-history-tools" style="margin-top:12px">
+        <button class="button secondary" id="open-pain-cleanup-modal" type="button" ${entries.length ? '' : 'disabled'}>Очистить</button>
+        <button class="button ghost" id="delete-latest-pain" type="button" ${entries.length ? '' : 'disabled'}>Удалить последнюю</button>
+      </div>
       <div class="card list-card" style="margin-top:12px">
-        ${state.painEntries.length ? state.painEntries.slice(0, 60).map(renderPainEntry).join('') : '<div class="empty compact-empty"><strong>Пока нет записей</strong>Отметь боль перед тренировкой или возле упражнения.</div>'}
+        ${entries.length ? entries.slice(0, 80).map((entry) => renderPainEntry(entry, { withDelete: true })).join('') : '<div class="empty compact-empty"><strong>Пока нет записей</strong>Отметь боль перед тренировкой или возле упражнения.</div>'}
       </div>
     `);
+    el.modalRoot.querySelector('#open-pain-cleanup-modal')?.addEventListener('click', showPainCleanupModal);
+    el.modalRoot.querySelector('#delete-latest-pain')?.addEventListener('click', () => confirmDeletePainEntries(entries.slice(0, 1).map((entry) => entry.id), 'Удалить последнюю запись'));
+    el.modalRoot.querySelectorAll('.delete-pain-entry').forEach((button) => {
+      button.addEventListener('click', () => confirmDeletePainEntries([button.dataset.id], 'Удалить эту запись'));
+    });
+  }
+
+  function showPainCleanupModal() {
+    const entries = sortedPainEntries();
+    const weekFrom = Date.now() - (7 * 24 * 60 * 60 * 1000);
+    const lastWeekIds = entries.filter((entry) => painEntryTime(entry) >= weekFrom).map((entry) => entry.id);
+    const groups = painDateGroups();
+    showModal(`
+      <div class="modal-head"><h2>Очистить историю боли</h2><button class="modal-close" data-close>×</button></div>
+      <div class="notice warning"><strong>Удаляются только отметки боли.</strong><br>Тренировки, профили, фото, замеры, программы и резервные копии не трогаются.</div>
+      <div class="pain-cleanup-grid" style="margin-top:12px">
+        <button class="button secondary" id="delete-pain-last" type="button" ${entries.length ? '' : 'disabled'}>Последнюю</button>
+        <button class="button secondary" id="delete-pain-week" type="button" ${lastWeekIds.length ? '' : 'disabled'}>За 7 дней</button>
+        <button class="button danger" id="delete-pain-all" type="button" ${entries.length ? '' : 'disabled'}>Очистить всё</button>
+      </div>
+      <div class="section-head pain-days-head" style="margin-top:16px"><h2>Выбрать дни</h2><button class="link-button" id="select-all-pain-days" type="button" ${groups.length ? '' : 'disabled'}>Все дни</button></div>
+      <div class="card list-card pain-day-list">
+        ${groups.length ? groups.map((group) => `<label class="list-row pain-day-row"><div class="list-row-main"><div class="list-row-title">${formatShortDate(group.date)}</div><div class="list-row-sub">${group.count} запис${group.count === 1 ? 'ь' : group.count < 5 ? 'и' : 'ей'} · максимум ${group.maxScore}/10</div></div><input class="pain-day-check" type="checkbox" value="${escapeAttr(group.date)}"></label>`).join('') : '<div class="empty compact-empty"><strong>Пока нечего удалять</strong>История боли пустая.</div>'}
+      </div>
+      <button class="button primary full" id="delete-selected-pain-days" type="button" style="margin-top:12px" ${groups.length ? '' : 'disabled'}>Удалить выбранные дни</button>
+    `);
+    el.modalRoot.querySelector('#delete-pain-last')?.addEventListener('click', () => confirmDeletePainEntries(entries.slice(0, 1).map((entry) => entry.id), 'Удалить последнюю запись', 'cleanup'));
+    el.modalRoot.querySelector('#delete-pain-week')?.addEventListener('click', () => confirmDeletePainEntries(lastWeekIds, 'Удалить записи за 7 дней', 'cleanup'));
+    el.modalRoot.querySelector('#delete-pain-all')?.addEventListener('click', () => confirmDeletePainEntries(entries.map((entry) => entry.id), 'Очистить всю историю боли', 'cleanup'));
+    el.modalRoot.querySelector('#select-all-pain-days')?.addEventListener('click', () => {
+      el.modalRoot.querySelectorAll('.pain-day-check').forEach((input) => { input.checked = true; });
+    });
+    el.modalRoot.querySelector('#delete-selected-pain-days')?.addEventListener('click', () => {
+      const dates = [...el.modalRoot.querySelectorAll('.pain-day-check:checked')].map((input) => input.value);
+      const ids = entries.filter((entry) => dates.includes(painEntryDateKey(entry))).map((entry) => entry.id);
+      confirmDeletePainEntries(ids, 'Удалить записи за выбранные дни', 'cleanup');
+    });
   }
 
   async function showStorageInfo() {

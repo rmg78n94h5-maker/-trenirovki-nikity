@@ -1,0 +1,12 @@
+# TEST REPORT v1.7.2
+
+Проверено статически:
+- синтаксис JS-файлов через node --check;
+- валидность manifest.webmanifest;
+- совпадение версии 1.7.2 в version.js, index.html и service-worker.js;
+- наличие файлов офлайн-кэша;
+- IndexedDB остаётся v3;
+- новых objectStore нет;
+- добавлены функции удаления только для painEntries.
+
+Интерактивный iPhone/PWA-тест в sandbox не выполнялся: среда не даёт корректно проверить установленную PWA на iOS.
