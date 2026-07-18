@@ -1948,3 +1948,17 @@ button:disabled {
   .iron-result-top strong { font-size: 25px; }
   .iron-card-head h3 { font-size: 20px; }
 }
+
+/* v1.8.1 — фикс читаемости активных фильтров прогресса */
+.premium-filter-panel .tab.active,
+.premium-filter-panel .tab.active:focus,
+.premium-filter-panel .tab.active:active,
+.body-period-row .period-pill.active,
+.body-period-row .period-pill.active:focus,
+.body-period-row .period-pill.active:active {
+  color: #080a0c;
+  -webkit-text-fill-color: #080a0c;
+  background: var(--accent);
+  border-color: var(--accent);
+  text-shadow: none;
+}
