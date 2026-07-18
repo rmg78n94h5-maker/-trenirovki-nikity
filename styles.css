@@ -390,3 +390,15 @@ button { color: inherit; }
   .pain-level-picker { grid-template-columns: repeat(5, minmax(0, 1fr)); }
   .pain-actions { grid-template-columns: 1fr; }
 }
+
+
+/* v1.5.0 — рекорды */
+.records-list { overflow: hidden; padding: 0; }
+.record-row { align-items: flex-start; }
+.record-icon { width: 38px; height: 38px; display: grid; place-items: center; flex: 0 0 38px; border-radius: 14px; background: rgba(199,255,47,.12); border: 1px solid rgba(199,255,47,.32); font-size: 20px; }
+.record-icon.caution { background: rgba(255,190,61,.14); border-color: rgba(255,190,61,.42); }
+.records-result-card .list-row, .records-stack .list-row { border-radius: 14px; }
+.records-stack { display: grid; gap: 8px; }
+@media (max-width: 380px) {
+  .record-icon { width: 34px; height: 34px; flex-basis: 34px; font-size: 18px; }
+}

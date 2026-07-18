@@ -1551,6 +1551,7 @@
     workout.durationSec = elapsedSeconds(workout.startedAt);
     workout.completionPct = workoutCompletion(workout);
     workout.totalLoadKg = calculateLoad(workout);
+    workout.records = calculateWorkoutRecords(workout, state.workouts);
     workout.progression = workout.exercises.map((result) => ({ exerciseId: result.exerciseId, ...postWorkoutSuggestion(result) }));
     await DB.put('workouts', workout);
     const shouldAdvanceCycle = workout.shouldAdvanceCycle !== false;
@@ -1567,6 +1568,7 @@
     closeModal();
     toast(shouldAdvanceCycle ? 'Тренировка сохранена, цикл сдвинут дальше' : 'Тренировка сохранена, цикл не сдвинут');
     navigate('home');
+    if (workout.records?.length) window.setTimeout(() => showWorkoutRecordsModal(workout), 120);
   }
 
   function updateWorkoutClock() {
@@ -1961,7 +1963,7 @@
 
   function workoutSummaryCard(workout) {
     return `<div class="card">
-      <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div><div class="eyebrow">${formatDate(new Date(workout.startedAt), { day:'numeric', month:'long', year:'numeric' })}</div><h3 style="margin:5px 0 4px">${escapeHTML(workout.dayName)}</h3><div class="muted">${formatDuration(workout.durationSec || 0)} · ${workout.completionPct ?? workoutCompletion(workout)}% · ${formatCompactLoad(workout.totalLoadKg || 0)} кг</div></div><button class="mini-button view-workout" data-id="${workout.id}">›</button></div>
+      <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div><div class="eyebrow">${formatDate(new Date(workout.startedAt), { day:'numeric', month:'long', year:'numeric' })}</div><h3 style="margin:5px 0 4px">${escapeHTML(workout.dayName)}</h3><div class="muted">${formatDuration(workout.durationSec || 0)} · ${workout.completionPct ?? workoutCompletion(workout)}% · ${formatCompactLoad(workout.totalLoadKg || 0)} кг${workout.records?.length ? ` · 🔥 ${workout.records.length} рек.` : ''}</div></div><button class="mini-button view-workout" data-id="${workout.id}">›</button></div>
       <div class="progress-bar" style="margin-top:12px"><span style="width:${workout.completionPct ?? workoutCompletion(workout)}%"></span></div>
     </div>`;
   }
@@ -1978,6 +1980,7 @@
         <div class="stat"><div class="stat-value">${workout.exercises.filter((x)=>x.skipped).length}</div><div class="stat-label">пропущено</div></div>
       </div>
       ${workout.preWorkoutPain?.hasPain ? `<div class="notice warning" style="margin-top:12px"><strong>Перед стартом:</strong> ${escapeHTML(workout.preWorkoutPain.areaLabel)} · ${workout.preWorkoutPain.score}/10${workout.preWorkoutPain.comment ? `<br>${escapeHTML(workout.preWorkoutPain.comment)}` : ''}</div>` : ''}
+      ${renderWorkoutRecordsBlock(workout)}
       <div class="card list-card" style="margin-top:12px">
         ${workout.exercises.map((result) => `<div class="list-row"><div class="list-row-main"><div class="list-row-title">${result.painRisk ? '⚠️ ' : ''}${result.skipped ? '○ ' : '✓ '}${escapeHTML(result.name)}</div><div class="list-row-sub">${result.skipped ? 'Пропущено' : result.sets.filter((s)=>s.completed).map((s)=> result.defaults.unit === 'reps' ? `${s.weightKg || 0}×${s.reps}` : `${s.durationMin || s.durationSec}`).join(' · ') || 'Нет выполненных подходов'}${result.painRisk ? `<br>Боль/риск: ${escapeHTML(result.painRisk.areaLabel)} ${result.painRisk.score}/10 · ${escapeHTML(result.painRisk.title)}${result.painRisk.action ? ` · ${escapeHTML(painActionLabel(result.painRisk.action))}` : ''}` : ''}${result.painEvents?.length ? `<br>Отмечено в упражнении: ${result.painEvents.map((event) => `${escapeHTML(event.areaLabel)} ${event.score}/10`).join(' · ')}` : ''}${result.comment ? `<br>Комментарий: ${escapeHTML(result.comment)}` : ''}</div></div></div>`).join('')}
       </div>
@@ -2000,7 +2003,7 @@
     setTopbar('Прогресс', 'Без самообмана — только данные');
     el.main.innerHTML = `
       <section class="section"><div class="tabs">
-        ${[['body','Тело'],['training','Тренировки'],['strength','Рабочие веса'],['stepper','Степпер'],['photos','Фото']].map(([value,label]) => `<button class="tab ${state.progressTab === value ? 'active' : ''} progress-tab" data-tab="${value}">${label}</button>`).join('')}
+        ${[['body','Тело'],['training','Тренировки'],['records','Рекорды'],['strength','Рабочие веса'],['stepper','Степпер'],['photos','Фото']].map(([value,label]) => `<button class="tab ${state.progressTab === value ? 'active' : ''} progress-tab" data-tab="${value}">${label}</button>`).join('')}
       </div></section>
       <div id="progress-content">${renderProgressContent()}</div>
     `;
@@ -2011,6 +2014,7 @@
   function renderProgressContent() {
     if (state.progressTab === 'body') return renderBodyProgress();
     if (state.progressTab === 'training') return renderTrainingProgress();
+    if (state.progressTab === 'records') return renderRecordsProgress();
     if (state.progressTab === 'strength') return renderStrengthProgress();
     if (state.progressTab === 'stepper') return renderStepperProgress();
     return renderPhotoProgress();
@@ -2035,6 +2039,24 @@
         <div class="stat"><div class="stat-value">${Math.round(avgCompletion(state.workouts))}%</div><div class="stat-label">среднее выполнение</div></div>
       </div></section>
       <section class="section"><div class="card"><div class="section-head"><h2>Тренировки по неделям</h2></div>${barChart(weeks.map(x=>({label:x.label,value:x.count})), 'трен.')}</div></section>`;
+  }
+
+  function renderRecordsProgress() {
+    const timeline = recordsTimeline();
+    const latest = timeline[0];
+    const exerciseCount = new Set(timeline.map((record) => record.exerciseId).filter(Boolean)).size;
+    const cautionCount = timeline.filter((record) => record.caution).length;
+    const leaders = bestCurrentRecords().slice(0, 10);
+    return `
+      <section class="section"><div class="stats-grid">
+        <div class="stat"><div class="stat-value">${timeline.length}</div><div class="stat-label">рекордов</div></div>
+        <div class="stat"><div class="stat-value">${exerciseCount}</div><div class="stat-label">упражнений</div></div>
+        <div class="stat"><div class="stat-value">${latest ? formatShortDate(latest.date) : '—'}</div><div class="stat-label">последний</div></div>
+        <div class="stat"><div class="stat-value">${cautionCount}</div><div class="stat-label">с болью</div></div>
+      </div></section>
+      <section class="section"><div class="section-head"><h2>Последние рекорды</h2></div><div class="card list-card records-list">${timeline.length ? timeline.slice(0, 30).map(renderRecordRow).join('') : '<div class="empty compact-empty"><strong>Пока рекордов нет</strong>Они появятся после повторных тренировок, когда будет с чем сравнить.</div>'}</div></section>
+      <section class="section"><div class="section-head"><h2>Лучшие текущие показатели</h2></div><div class="card list-card records-list">${leaders.length ? leaders.map(renderBestRecordRow).join('') : '<div class="empty compact-empty"><strong>Нет данных</strong>Выполни хотя бы несколько подходов с весом или временем.</div>'}</div></section>
+      <div class="notice">Рекорды считаются из истории текущего профиля. Если была сильная боль, рекорд сохраняется, но приложение не будет подталкивать к новой прогрессии.</div>`;
   }
 
   function renderStrengthProgress() {
@@ -2648,6 +2670,265 @@
 
   function workoutCompletion(workout){const sets=workout.exercises.filter((x)=>!x.skipped).flatMap((x)=>x.sets);if(!sets.length)return 0;return Math.round(sets.filter((s)=>s.completed).length/sets.length*100);}
   function calculateLoad(workout){return Math.round(workout.exercises.reduce((sum,r)=>sum+r.sets.reduce((s,set)=>s+(set.completed?(Number(set.weightKg)||0)*(Number(set.reps)||0):0),0),0));}
+  function recordWeightKey(weight) {
+    const value = Number(weight) || 0;
+    return value > 0 ? String(roundHalf(value)) : '0';
+  }
+
+  function setDurationSeconds(result, set) {
+    const unit = result?.defaults?.unit;
+    if (unit === 'minutes') return Math.max(0, Number(set.durationMin) || 0) * 60;
+    if (unit === 'seconds') return Math.max(0, Number(set.durationSec) || 0);
+    return 0;
+  }
+
+  function isTimeResult(result) {
+    return ['minutes', 'seconds'].includes(result?.defaults?.unit);
+  }
+
+  function isStepperResult(result) {
+    const exercise = getExercise(result?.exerciseId);
+    const haystack = `${exercise?.equipment || ''} ${exercise?.name || ''} ${result?.name || ''}`.toLowerCase();
+    return haystack.includes('степпер');
+  }
+
+  function completedWorkoutList(workouts = state.workouts) {
+    return (workouts || []).filter((workout) => workout?.status === 'completed' && Array.isArray(workout.exercises));
+  }
+
+  function resultHasHighPain(result, workout) {
+    const pre = normalizePainInput(workout?.preWorkoutPain);
+    if (pre.hasPain && pre.score >= 7 && result?.painRisk) return true;
+    if (result?.painRisk?.level === 'high') return true;
+    return Boolean(result?.painEvents?.some((event) => Number(event.score) >= 7));
+  }
+
+  function exerciseRecordStats(result) {
+    const done = completedSets(result);
+    const stats = {
+      completedSets: done.length,
+      maxWeight: 0,
+      bestSetScore: 0,
+      bestSet: null,
+      bestNoFailureScore: 0,
+      bestNoFailureSet: null,
+      totalVolume: 0,
+      bestRepsByWeight: new Map(),
+      timeTotalSec: 0,
+      timeBestSetSec: 0,
+    };
+    if (!done.length) return stats;
+
+    if (result.defaults?.unit === 'reps') {
+      for (const set of done) {
+        const weight = Math.max(0, Number(set.weightKg) || 0);
+        const reps = Math.max(0, Number(set.reps) || 0);
+        const score = weight * reps;
+        stats.maxWeight = Math.max(stats.maxWeight, weight);
+        stats.totalVolume += score;
+        if (score > stats.bestSetScore) {
+          stats.bestSetScore = score;
+          stats.bestSet = { weightKg: weight, reps };
+        }
+        if (set.difficulty !== 'failure' && score > stats.bestNoFailureScore) {
+          stats.bestNoFailureScore = score;
+          stats.bestNoFailureSet = { weightKg: weight, reps };
+        }
+        if (weight > 0 && reps > 0) {
+          const key = recordWeightKey(weight);
+          stats.bestRepsByWeight.set(key, Math.max(stats.bestRepsByWeight.get(key) || 0, reps));
+        }
+      }
+      stats.totalVolume = Math.round(stats.totalVolume);
+    } else if (isTimeResult(result)) {
+      for (const set of done) {
+        const seconds = setDurationSeconds(result, set);
+        stats.timeTotalSec += seconds;
+        stats.timeBestSetSec = Math.max(stats.timeBestSetSec, seconds);
+      }
+    }
+    return stats;
+  }
+
+  function buildRecordBaseline(workouts) {
+    const baseline = new Map();
+    let stepperBestSec = 0;
+    for (const workout of completedWorkoutList(workouts)) {
+      let stepperTotalSec = 0;
+      for (const result of workout.exercises || []) {
+        const stats = exerciseRecordStats(result);
+        if (!stats.completedSets) continue;
+        const current = baseline.get(result.exerciseId) || {
+          maxWeight: 0,
+          bestSetScore: 0,
+          bestVolume: 0,
+          bestNoFailureScore: 0,
+          bestRepsByWeight: new Map(),
+          timeTotalSec: 0,
+          timeBestSetSec: 0,
+        };
+        current.maxWeight = Math.max(current.maxWeight, stats.maxWeight);
+        current.bestSetScore = Math.max(current.bestSetScore, stats.bestSetScore);
+        current.bestVolume = Math.max(current.bestVolume, stats.totalVolume);
+        current.bestNoFailureScore = Math.max(current.bestNoFailureScore, stats.bestNoFailureScore);
+        current.timeTotalSec = Math.max(current.timeTotalSec, stats.timeTotalSec);
+        current.timeBestSetSec = Math.max(current.timeBestSetSec, stats.timeBestSetSec);
+        for (const [weight, reps] of stats.bestRepsByWeight.entries()) {
+          current.bestRepsByWeight.set(weight, Math.max(current.bestRepsByWeight.get(weight) || 0, reps));
+        }
+        baseline.set(result.exerciseId, current);
+        if (isStepperResult(result)) stepperTotalSec += stats.timeTotalSec;
+      }
+      stepperBestSec = Math.max(stepperBestSec, stepperTotalSec);
+    }
+    return { byExercise: baseline, stepperBestSec };
+  }
+
+  function previousWorkoutsForRecord(workout, workouts = state.workouts) {
+    const startedAt = new Date(workout?.startedAt || workout?.date || 0).getTime() || Date.now();
+    return completedWorkoutList(workouts).filter((item) => item.id !== workout.id && (new Date(item.startedAt || item.date || 0).getTime() || 0) < startedAt);
+  }
+
+  function createRecord({ workout, result, type, title, value, previousValue, unit, description, caution }) {
+    return {
+      id: uid('record'),
+      type,
+      workoutId: workout.id,
+      date: localDateISO(new Date(workout.startedAt || workout.date || Date.now())),
+      createdAt: workout.finishedAt || new Date().toISOString(),
+      exerciseId: result?.exerciseId || null,
+      exerciseName: result?.name || 'Тренировка',
+      title,
+      value,
+      previousValue,
+      unit,
+      description,
+      caution: Boolean(caution),
+    };
+  }
+
+  function calculateWorkoutRecords(workout, workouts = state.workouts) {
+    if (!workout || workout.status !== 'completed') return [];
+    const previous = previousWorkoutsForRecord(workout, workouts);
+    const baseline = buildRecordBaseline(previous);
+    const records = [];
+    let stepperTotalSec = 0;
+
+    for (const result of workout.exercises || []) {
+      const stats = exerciseRecordStats(result);
+      if (!stats.completedSets || result.skipped) continue;
+      const before = baseline.byExercise.get(result.exerciseId) || { bestRepsByWeight: new Map() };
+      const caution = resultHasHighPain(result, workout);
+
+      if (result.defaults?.unit === 'reps') {
+        if (before.maxWeight > 0 && stats.maxWeight > before.maxWeight) {
+          records.push(createRecord({ workout, result, type: 'max_weight', title: 'Максимальный вес', value: stats.maxWeight, previousValue: before.maxWeight, unit: 'кг', description: `${stats.maxWeight} кг вместо ${before.maxWeight} кг`, caution }));
+        }
+        if (before.bestSetScore > 0 && stats.bestSetScore > before.bestSetScore && stats.bestSet) {
+          records.push(createRecord({ workout, result, type: 'best_weight_reps', title: 'Лучший вес × повторы', value: stats.bestSetScore, previousValue: before.bestSetScore, unit: 'кг×повт.', description: `${stats.bestSet.weightKg} кг × ${stats.bestSet.reps} повт.`, caution }));
+        }
+        let sameWeightRecord = null;
+        for (const set of completedSets(result)) {
+          const weight = Math.max(0, Number(set.weightKg) || 0);
+          const reps = Math.max(0, Number(set.reps) || 0);
+          const key = recordWeightKey(weight);
+          const previousReps = before.bestRepsByWeight?.get(key) || 0;
+          if (weight > 0 && previousReps > 0 && reps > previousReps) {
+            const gain = reps - previousReps;
+            if (!sameWeightRecord || gain > sameWeightRecord.gain) sameWeightRecord = { weight, reps, previousReps, gain };
+          }
+        }
+        if (sameWeightRecord) {
+          records.push(createRecord({ workout, result, type: 'more_reps_same_weight', title: 'Больше повторов с тем же весом', value: sameWeightRecord.reps, previousValue: sameWeightRecord.previousReps, unit: 'повт.', description: `${sameWeightRecord.weight} кг: ${sameWeightRecord.reps} вместо ${sameWeightRecord.previousReps}`, caution }));
+        }
+        if (before.bestVolume > 0 && stats.totalVolume > before.bestVolume) {
+          records.push(createRecord({ workout, result, type: 'best_volume', title: 'Лучший объём', value: stats.totalVolume, previousValue: before.bestVolume, unit: 'кг', description: `${formatCompactLoad(stats.totalVolume)} кг за упражнение`, caution }));
+        }
+        if (before.bestNoFailureScore > 0 && stats.bestNoFailureScore > before.bestNoFailureScore && stats.bestNoFailureSet) {
+          records.push(createRecord({ workout, result, type: 'no_failure', title: 'Рекорд без отказа', value: stats.bestNoFailureScore, previousValue: before.bestNoFailureScore, unit: 'кг×повт.', description: `${stats.bestNoFailureSet.weightKg} кг × ${stats.bestNoFailureSet.reps} без отказа`, caution }));
+        }
+      } else if (isTimeResult(result)) {
+        if (before.timeTotalSec > 0 && stats.timeTotalSec > before.timeTotalSec) {
+          records.push(createRecord({ workout, result, type: isStepperResult(result) ? 'stepper_exercise_time' : 'time_total', title: isStepperResult(result) ? 'Рекорд степпера' : 'Лучшее время', value: Math.round(stats.timeTotalSec / 60), previousValue: Math.round(before.timeTotalSec / 60), unit: 'мин', description: `${formatDuration(stats.timeTotalSec)} вместо ${formatDuration(before.timeTotalSec)}`, caution }));
+        }
+      }
+
+      if (isStepperResult(result)) stepperTotalSec += stats.timeTotalSec;
+    }
+
+    if (baseline.stepperBestSec > 0 && stepperTotalSec > baseline.stepperBestSec) {
+      records.push(createRecord({ workout, result: { exerciseId: 'stepper-total', name: 'Степпер' }, type: 'stepper_total', title: 'Лучший степпер за тренировку', value: Math.round(stepperTotalSec / 60), previousValue: Math.round(baseline.stepperBestSec / 60), unit: 'мин', description: `${formatDuration(stepperTotalSec)} за тренировку`, caution: false }));
+    }
+
+    return records
+      .filter((record, index, list) => list.findIndex((item) => item.type === record.type && item.exerciseId === record.exerciseId) === index)
+      .slice(0, 12);
+  }
+
+  function recordsTimeline() {
+    const completed = completedWorkoutList(state.workouts).slice().sort((a, b) => new Date(a.startedAt || a.date) - new Date(b.startedAt || b.date));
+    const rows = [];
+    for (const workout of completed) {
+      const records = Array.isArray(workout.records) && workout.records.length ? workout.records : calculateWorkoutRecords(workout, completed);
+      records.forEach((record) => rows.push({ ...record, workoutId: workout.id, date: record.date || localDateISO(new Date(workout.startedAt || workout.date)) }));
+    }
+    return rows.sort((a, b) => String(b.createdAt || b.date || '').localeCompare(String(a.createdAt || a.date || '')));
+  }
+
+  function bestCurrentRecords() {
+    const baseline = buildRecordBaseline(completedWorkoutList(state.workouts));
+    const rows = [];
+    baseline.byExercise.forEach((stats, exerciseId) => {
+      const exercise = getExercise(exerciseId);
+      if (!exercise) return;
+      if (stats.maxWeight > 0) rows.push({ exerciseName: exercise.name, label: 'макс. вес', value: `${stats.maxWeight} кг`, score: stats.maxWeight });
+      if (stats.bestVolume > 0) rows.push({ exerciseName: exercise.name, label: 'объём', value: `${formatCompactLoad(stats.bestVolume)} кг`, score: stats.bestVolume / 10 });
+      if (stats.timeTotalSec > 0) rows.push({ exerciseName: exercise.name, label: 'время', value: formatDuration(stats.timeTotalSec), score: stats.timeTotalSec / 60 });
+    });
+    return rows.sort((a, b) => b.score - a.score);
+  }
+
+  function recordTypeIcon(type) {
+    if (type === 'max_weight') return '🏋️';
+    if (type === 'best_volume') return '💪';
+    if (type === 'more_reps_same_weight') return '🔁';
+    if (type === 'no_failure') return '✅';
+    if (String(type).includes('stepper')) return '⏱';
+    if (String(type).includes('time')) return '⏱';
+    return '🔥';
+  }
+
+  function renderRecordRow(record) {
+    return `<div class="list-row record-row">
+      <div class="record-icon ${record.caution ? 'caution' : ''}">${record.caution ? '⚠️' : recordTypeIcon(record.type)}</div>
+      <div class="list-row-main">
+        <div class="list-row-title">${escapeHTML(record.title)} · ${escapeHTML(record.exerciseName)}</div>
+        <div class="list-row-sub">${formatShortDate(record.date)} · ${escapeHTML(record.description || '')}${record.previousValue ? `<br>Было: ${escapeHTML(String(record.previousValue))} ${escapeHTML(record.unit || '')}` : ''}${record.caution ? '<br>Сильная боль была отмечена — прогрессию лучше закрепить без повышения нагрузки.' : ''}</div>
+      </div>
+    </div>`;
+  }
+
+  function renderBestRecordRow(record) {
+    return `<div class="list-row record-row"><div class="record-icon">★</div><div class="list-row-main"><div class="list-row-title">${escapeHTML(record.exerciseName)}</div><div class="list-row-sub">${escapeHTML(record.label)} · ${escapeHTML(record.value)}</div></div></div>`;
+  }
+
+  function renderWorkoutRecordsBlock(workout) {
+    const records = Array.isArray(workout?.records) && workout.records.length ? workout.records : calculateWorkoutRecords(workout, state.workouts);
+    if (!records.length) return '';
+    return `<div class="card records-result-card" style="margin-top:12px"><div class="section-head"><h2>Рекорды</h2><span class="chip accent">${records.length}</span></div><div class="records-stack">${records.map(renderRecordRow).join('')}</div></div>`;
+  }
+
+  function showWorkoutRecordsModal(workout) {
+    const records = Array.isArray(workout?.records) ? workout.records : [];
+    if (!records.length) return;
+    const caution = records.some((record) => record.caution);
+    showModal(`
+      <div class="modal-head"><div><div class="eyebrow">Тренировка сохранена</div><h2>Новые рекорды 🔥</h2></div><button class="modal-close" data-close>×</button></div>
+      <div class="card list-card records-list">${records.map(renderRecordRow).join('')}</div>
+      ${caution ? '<div class="notice warning" style="margin-top:12px"><strong>Важно.</strong><br>Есть рекорд на фоне сильной боли. Лучше закрепить результат без увеличения нагрузки, а не геройствовать через боль.</div>' : ''}
+    `);
+  }
+
   function workoutsSince(date){return state.workouts.filter((w)=>new Date(w.startedAt)>=date);}
   function avgCompletion(workouts){if(!workouts.length)return 0;return workouts.reduce((s,w)=>s+(w.completionPct??workoutCompletion(w)),0)/workouts.length;}
   function calculateStreak(){const dates=[...new Set(state.workouts.filter((w)=>w.status==='completed').map((w)=>localDateISO(new Date(w.startedAt))))].sort().reverse();if(!dates.length)return 0;let streak=0;let cursor=startOfDay(new Date());const latest=new Date(`${dates[0]}T00:00:00`);if((cursor-latest)/86400000>1)return 0;cursor=latest;for(const date of dates){const d=new Date(`${date}T00:00:00`);if(Math.round((cursor-d)/86400000)===0){streak++;cursor=new Date(cursor.getTime()-86400000);}else if(Math.round((cursor-d)/86400000)>0)break;}return streak;}
