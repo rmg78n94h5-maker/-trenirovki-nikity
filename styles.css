@@ -1776,3 +1776,175 @@ button:disabled {
   .share-fast-button strong { font-size: 13px; }
   .share-link-row { grid-template-columns: 1fr; }
 }
+
+/* v1.8.0 — Iron Calculator */
+.iron-card {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(199,255,47,.18);
+  background:
+    radial-gradient(circle at 88% 8%, rgba(199,255,47,.18), transparent 36%),
+    linear-gradient(145deg, rgba(255,255,255,.038), rgba(16,19,23,.96));
+}
+.iron-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(120deg, rgba(255,255,255,.055), transparent 44%);
+}
+.iron-card > * { position: relative; }
+.iron-card-head {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: start;
+  margin-bottom: 12px;
+}
+.iron-card-head h3 {
+  margin: 5px 0 6px;
+  font-size: 22px;
+  letter-spacing: -.45px;
+}
+.iron-card-head p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+  font-size: 13px;
+}
+.iron-card-mark {
+  width: 48px;
+  height: 48px;
+  border-radius: 17px;
+  display: grid;
+  place-items: center;
+  background: rgba(199,255,47,.14);
+  border: 1px solid rgba(199,255,47,.28);
+  color: var(--accent);
+  font-size: 23px;
+  font-weight: 950;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 12px 30px rgba(0,0,0,.16);
+}
+.iron-result-card {
+  padding: 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,.075);
+  background: rgba(0,0,0,.18);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.045);
+}
+.iron-result-card.exact {
+  border-color: rgba(87,227,137,.36);
+  background: linear-gradient(145deg, rgba(87,227,137,.10), rgba(0,0,0,.16));
+}
+.iron-result-card.nearest {
+  border-color: rgba(255,190,61,.30);
+  background: linear-gradient(145deg, rgba(255,190,61,.075), rgba(0,0,0,.16));
+}
+.iron-result-top {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: start;
+}
+.iron-result-top span,
+.iron-side-load > span,
+.iron-result-details span,
+.iron-mini-grid span {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.iron-result-top strong {
+  display: block;
+  margin-top: 2px;
+  color: var(--text);
+  font-size: 28px;
+  font-weight: 950;
+  letter-spacing: -.7px;
+}
+.iron-result-top em {
+  display: inline-grid;
+  place-items: center;
+  min-height: 30px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(199,255,47,.12);
+  border: 1px solid rgba(199,255,47,.22);
+  color: var(--accent);
+  font-style: normal;
+  font-weight: 900;
+  font-size: 12px;
+}
+.iron-side-load {
+  margin-top: 11px;
+  display: grid;
+  gap: 8px;
+}
+.iron-side-load > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.iron-plate-chip,
+.iron-empty-stack {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(199,255,47,.22);
+  background: rgba(199,255,47,.08);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 850;
+}
+.iron-empty-stack {
+  color: var(--muted);
+  border-color: rgba(255,255,255,.08);
+  background: rgba(255,255,255,.04);
+}
+.iron-result-details,
+.iron-mini-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 11px;
+}
+.iron-result-details > div,
+.iron-mini-grid > div {
+  min-width: 0;
+  padding: 9px 10px;
+  border-radius: 14px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.055);
+}
+.iron-result-details strong,
+.iron-mini-grid strong {
+  display: block;
+  margin-top: 3px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 900;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.iron-card .button.full { margin-top: 12px; }
+.iron-form textarea { min-height: 88px; }
+.iron-modal-result { margin-top: 12px; }
+.sport-iron-workout-button {
+  margin-top: 10px;
+  min-height: 40px;
+  border-color: rgba(199,255,47,.18);
+  background: rgba(199,255,47,.075);
+  color: var(--text);
+}
+@media (max-width: 430px) {
+  .iron-result-details,
+  .iron-mini-grid { grid-template-columns: 1fr; }
+  .iron-result-top strong { font-size: 25px; }
+  .iron-card-head h3 { font-size: 20px; }
+}

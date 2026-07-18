@@ -248,6 +248,13 @@
       vibrationEnabled: true,
       theme: 'dark',
       lastBackupAt: null,
+      ironCalculator: {
+        mode: 'dumbbell',
+        targetKg: 28,
+        dumbbellHandleKg: 2,
+        barbellBarKg: 20,
+        platesPerSide: '10, 5, 2.5, 1.25, 1',
+      },
     },
     exercises,
     programs: [shipCycle, journal20],

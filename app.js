@@ -1183,6 +1183,7 @@
             </div>
           </div>
           <div class="progress-bar sport-workout-progress"><span id="workout-progress-bar" style="width:0%"></span></div>
+          <button class="button secondary full sport-iron-workout-button" id="open-iron-calculator-workout" type="button">⚖️ Калькулятор железа</button>
         </div>
       </div>
 
@@ -1392,6 +1393,7 @@
     el.main.querySelectorAll('.pain-exercise').forEach((button) => button.addEventListener('click', () => showExercisePainModal(Number(button.dataset.index))));
     el.main.querySelectorAll('.pain-action').forEach((button) => button.addEventListener('click', () => applyPainAction(Number(button.dataset.index), button.dataset.action)));
     document.getElementById('apply-deload-workout')?.addEventListener('click', applyDeloadToCurrentWorkout);
+    document.getElementById('open-iron-calculator-workout')?.addEventListener('click', () => showIronCalculatorModal(currentWorkoutTargetWeight()));
     el.main.querySelectorAll('.add-set').forEach((button) => button.addEventListener('click', () => addWorkoutSet(Number(button.dataset.index))));
     el.main.querySelectorAll('.remove-set').forEach((button) => button.addEventListener('click', () => removeLastWorkoutSet(Number(button.dataset.index))));
     document.getElementById('workout-comment').addEventListener('input', (event) => {
@@ -3095,6 +3097,8 @@
 
       <section class="section"><div class="section-head"><h2>Поделиться приложением</h2></div><div class="card share-app-card"><div class="share-app-head"><div><div class="eyebrow">Ссылка на PWA</div><h3>Отправить приложение</h3><p>Передаётся только ссылка. Профили, история, фото, замеры и тренировки остаются на этом телефоне.</p></div><div class="share-app-mark" aria-hidden="true">↗</div></div><button class="button primary full" id="share-app-system" type="button">Поделиться через iPhone</button><div class="share-fast-grid" aria-label="Быстрый шаринг"><button class="share-fast-button telegram" id="share-app-telegram" type="button"><span>✈️</span><strong>Telegram</strong></button><button class="share-fast-button whatsapp" id="share-app-whatsapp" type="button"><span>🟢</span><strong>WhatsApp</strong></button><button class="share-fast-button vk" id="share-app-vk" type="button"><span>VK</span><strong>ВК</strong></button><button class="share-fast-button max" id="share-app-max" type="button"><span>MAX</span><strong>MAX</strong></button></div><div class="button-row share-link-row"><button class="button secondary" id="copy-app-link" type="button">Скопировать ссылку</button><button class="button ghost" id="open-app-link" type="button">Открыть в Safari</button></div><div class="help share-app-url" id="share-app-url">${escapeHTML(getAppShareUrl())}</div></div></section>
 
+      <section class="section"><div class="section-head"><h2>Калькулятор железа</h2><button class="link-button" id="open-iron-calculator-settings" type="button">Настроить</button></div>${renderIronCalculatorCard()}</section>
+
       <section class="section"><div class="section-head"><h2>Калории и БЖУ</h2><button class="link-button" id="edit-nutrition">Изменить</button></div><div class="card"><div class="stats-grid"><div><div class="stat-value">${state.nutrition.trainingCalories}</div><div class="stat-label">тренировка, ккал</div></div><div><div class="stat-value">${state.nutrition.recoveryCalories}</div><div class="stat-label">восстановление</div></div><div><div class="stat-value">${state.nutrition.proteinG}</div><div class="stat-label">белок, г</div></div><div><div class="stat-value">${state.nutrition.trainingFatG}</div><div class="stat-label">жиры, г</div></div></div><div class="divider"></div><div class="help">${escapeHTML(state.nutrition.note)}</div></div></section>
 
       <section class="section"><div class="section-head"><h2>Сигналы таймера</h2></div><div class="card list-card"><label class="list-row"><div><div class="list-row-title">Звук</div><div class="list-row-sub">Сигнал после отдыха</div></div><input id="sound-toggle" type="checkbox" ${state.settings.soundEnabled ? 'checked' : ''}></label><label class="list-row"><div><div class="list-row-title">Вибрация</div><div class="list-row-sub">На iPhone Safari может не поддерживаться</div></div><input id="vibration-toggle" type="checkbox" ${state.settings.vibrationEnabled ? 'checked' : ''}></label></div></section>
@@ -3119,6 +3123,8 @@
     document.getElementById('share-app-max').addEventListener('click', () => openShareTarget('max'));
     document.getElementById('copy-app-link').addEventListener('click', copyAppLink);
     document.getElementById('open-app-link').addEventListener('click', openAppSharePage);
+    document.getElementById('open-iron-calculator').addEventListener('click', () => showIronCalculatorModal());
+    document.getElementById('open-iron-calculator-settings').addEventListener('click', () => showIronCalculatorModal());
     document.getElementById('edit-nutrition').addEventListener('click', showNutritionModal);
     document.getElementById('sound-toggle').addEventListener('change', (e)=>saveToggle('soundEnabled',e.target.checked));
     document.getElementById('vibration-toggle').addEventListener('change', (e)=>saveToggle('vibrationEnabled',e.target.checked));
@@ -3216,6 +3222,249 @@
     textarea.select();
     document.execCommand('copy');
     textarea.remove();
+  }
+
+  const defaultIronCalculatorSettings = Object.freeze({
+    mode: 'dumbbell',
+    targetKg: 28,
+    dumbbellHandleKg: 2,
+    barbellBarKg: 20,
+    platesPerSide: '10, 5, 2.5, 1.25, 1',
+  });
+
+  function ironCalculatorSettings(overrides = {}) {
+    return {
+      ...defaultIronCalculatorSettings,
+      ...(state.settings.ironCalculator || {}),
+      ...overrides,
+    };
+  }
+
+  function parseIronWeight(value) {
+    if (value === null || value === undefined) return null;
+    const normalized = String(value).trim().replace(',', '.');
+    if (!normalized) return null;
+    const number = Number(normalized);
+    return Number.isFinite(number) && number >= 0 ? number : null;
+  }
+
+  function parseIronPlates(value) {
+    return String(value || '')
+      .split(/[\n,;]+/)
+      .map(parseIronWeight)
+      .filter((number) => Number.isFinite(number) && number > 0)
+      .slice(0, 16)
+      .sort((a, b) => b - a);
+  }
+
+  function formatKg(value, fallback = '—') {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return fallback;
+    const rounded = Math.round(number * 100) / 100;
+    const text = Number.isInteger(rounded) ? String(rounded) : String(rounded).replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1');
+    return text.replace('.', ',');
+  }
+
+  function ironModeLabel(mode) {
+    return mode === 'barbell' ? 'Штанга' : 'Гантель';
+  }
+
+  function ironBaseWeight(settings) {
+    return settings.mode === 'barbell'
+      ? Number(settings.barbellBarKg || 0)
+      : Number(settings.dumbbellHandleKg || 0);
+  }
+
+  function calculateIronOptions(settings) {
+    const targetKg = Number(settings.targetKg || 0);
+    const baseKg = ironBaseWeight(settings);
+    const plates = parseIronPlates(settings.platesPerSide);
+    const mode = settings.mode === 'barbell' ? 'barbell' : 'dumbbell';
+    const neededPerSide = (targetKg - baseKg) / 2;
+
+    if (!Number.isFinite(targetKg) || targetKg <= 0) return { status: 'bad-target', mode, targetKg, baseKg, plates, neededPerSide, options: [] };
+    if (!Number.isFinite(baseKg) || baseKg < 0) return { status: 'bad-base', mode, targetKg, baseKg, plates, neededPerSide, options: [] };
+    if (neededPerSide < 0) return { status: 'too-light', mode, targetKg, baseKg, plates, neededPerSide, options: [] };
+    if (!plates.length) return { status: 'no-plates', mode, targetKg, baseKg, plates, neededPerSide, options: [] };
+
+    const bySum = new Map();
+    bySum.set(0, { sum: 0, plates: [] });
+    for (const plate of plates) {
+      const current = [...bySum.values()];
+      for (const item of current) {
+        const nextSum = Math.round((item.sum + plate) * 100) / 100;
+        const nextPlates = [...item.plates, plate].sort((a, b) => b - a);
+        const previous = bySum.get(Math.round(nextSum * 100));
+        if (!previous || nextPlates.length < previous.plates.length) {
+          bySum.set(Math.round(nextSum * 100), { sum: nextSum, plates: nextPlates });
+        }
+      }
+    }
+
+    const options = [...bySum.values()]
+      .map((item) => ({
+        ...item,
+        totalKg: Math.round((baseKg + item.sum * 2) * 100) / 100,
+        diffKg: Math.round((baseKg + item.sum * 2 - targetKg) * 100) / 100,
+      }))
+      .sort((a, b) => Math.abs(a.diffKg) - Math.abs(b.diffKg) || Math.abs(a.totalKg - targetKg) - Math.abs(b.totalKg - targetKg) || a.plates.length - b.plates.length);
+
+    const exact = options.find((option) => Math.abs(option.diffKg) < 0.005) || null;
+    const lighter = options.filter((option) => option.totalKg < targetKg - 0.005).sort((a, b) => b.totalKg - a.totalKg)[0] || null;
+    const heavier = options.filter((option) => option.totalKg > targetKg + 0.005).sort((a, b) => a.totalKg - b.totalKg)[0] || null;
+    const best = exact || options[0] || null;
+    return { status: exact ? 'exact' : 'nearest', mode, targetKg, baseKg, plates, neededPerSide, exact, best, lighter, heavier, options };
+  }
+
+  function renderIronPlateStack(plates) {
+    if (!plates?.length) return '<span class="iron-empty-stack">без блинов</span>';
+    return plates.map((plate) => `<span class="iron-plate-chip">${formatKg(plate)} кг</span>`).join('');
+  }
+
+  function renderIronResult(result, compact = false) {
+    if (result.status === 'bad-target') return '<div class="notice warning"><strong>Укажи целевой вес.</strong><br>Например: 28 кг для гантели или 60 кг для штанги.</div>';
+    if (result.status === 'bad-base') return '<div class="notice warning"><strong>Проверь вес ручки/грифа.</strong><br>Он не может быть отрицательным.</div>';
+    if (result.status === 'too-light') return `<div class="notice warning"><strong>Цель легче основы.</strong><br>${ironModeLabel(result.mode)} уже весит ${formatKg(result.baseKg)} кг без блинов.</div>`;
+    if (result.status === 'no-plates') return '<div class="notice warning"><strong>Добавь блины.</strong><br>Введи доступные блины на одну сторону через запятую.</div>';
+    if (!result.best) return '<div class="notice warning"><strong>Не удалось посчитать.</strong><br>Проверь введённые веса.</div>';
+
+    const best = result.best;
+    const diff = Math.abs(best.diffKg) < 0.005 ? 'точно' : best.diffKg > 0 ? `+${formatKg(best.diffKg)} кг` : `−${formatKg(Math.abs(best.diffKg))} кг`;
+    const nearest = [result.lighter, result.heavier]
+      .filter(Boolean)
+      .map((option) => `${formatKg(option.totalKg)} кг`)
+      .join(' / ');
+
+    return `
+      <div class="iron-result-card ${result.status === 'exact' ? 'exact' : 'nearest'}">
+        <div class="iron-result-top">
+          <div><span>${result.status === 'exact' ? 'Собирается точно' : 'Ближайший вариант'}</span><strong>${formatKg(best.totalKg)} кг</strong></div>
+          <em>${escapeHTML(diff)}</em>
+        </div>
+        <div class="iron-side-load"><span>На каждую сторону</span><div>${renderIronPlateStack(best.plates)}</div></div>
+        ${compact ? '' : `<div class="iron-result-details"><div><span>Основа</span><strong>${formatKg(result.baseKg)} кг</strong></div><div><span>Нужно на сторону</span><strong>${formatKg(Math.max(result.neededPerSide, 0))} кг</strong></div><div><span>Ближайшие</span><strong>${escapeHTML(nearest || '—')}</strong></div></div>`}
+      </div>
+    `;
+  }
+
+  function renderIronCalculatorCard() {
+    const settings = ironCalculatorSettings();
+    const result = calculateIronOptions(settings);
+    const plates = parseIronPlates(settings.platesPerSide);
+    return `
+      <div class="card iron-card">
+        <div class="iron-card-head">
+          <div><div class="eyebrow">Гантели · штанга · блины</div><h3>Собрать нужный вес</h3><p>Считает симметрично: ручка/гриф + одинаковые блины с двух сторон.</p></div>
+          <div class="iron-card-mark" aria-hidden="true">⚖️</div>
+        </div>
+        ${renderIronResult(result, true)}
+        <div class="iron-mini-grid">
+          <div><span>Режим</span><strong>${escapeHTML(ironModeLabel(settings.mode))}</strong></div>
+          <div><span>Цель</span><strong>${formatKg(settings.targetKg)} кг</strong></div>
+          <div><span>Блинов</span><strong>${plates.length}</strong></div>
+        </div>
+        <button class="button primary full" id="open-iron-calculator" type="button">Открыть калькулятор</button>
+      </div>
+    `;
+  }
+
+  function currentWorkoutTargetWeight() {
+    const fallback = ironCalculatorSettings().targetKg;
+    const exercise = state.currentWorkout?.exercises?.find((result) => result.defaults?.unit === 'reps' && !result.skipped && result.sets?.some((set) => !set.completed));
+    if (!exercise) return fallback;
+    const activeIndex = workoutActiveSetIndex(exercise);
+    const value = exercise.sets?.[activeIndex]?.weightKg;
+    const number = Number(value);
+    return Number.isFinite(number) && number > 0 ? number : fallback;
+  }
+
+  function modalIronSettings(presetTargetKg = null) {
+    const settings = ironCalculatorSettings();
+    if (presetTargetKg !== null && presetTargetKg !== undefined) {
+      const target = Number(presetTargetKg);
+      if (Number.isFinite(target) && target > 0) settings.targetKg = target;
+    }
+    return settings;
+  }
+
+  function getIronModalSettings() {
+    return {
+      mode: el.modalRoot.querySelector('#iron-mode')?.value === 'barbell' ? 'barbell' : 'dumbbell',
+      targetKg: parseIronWeight(el.modalRoot.querySelector('#iron-target')?.value) || 0,
+      dumbbellHandleKg: parseIronWeight(el.modalRoot.querySelector('#iron-dumbbell-handle')?.value) ?? 0,
+      barbellBarKg: parseIronWeight(el.modalRoot.querySelector('#iron-barbell-bar')?.value) ?? 0,
+      platesPerSide: el.modalRoot.querySelector('#iron-plates')?.value || '',
+    };
+  }
+
+  function updateIronCalculatorResult() {
+    const settings = getIronModalSettings();
+    const result = calculateIronOptions(settings);
+    const resultNode = el.modalRoot.querySelector('#iron-calculator-result');
+    const modeHint = el.modalRoot.querySelector('#iron-mode-hint');
+    const baseLabel = settings.mode === 'barbell' ? `Гриф ${formatKg(settings.barbellBarKg)} кг` : `Ручка ${formatKg(settings.dumbbellHandleKg)} кг`;
+    if (modeHint) modeHint.textContent = `${ironModeLabel(settings.mode)} · ${baseLabel} · блины на одну сторону`;
+    if (resultNode) resultNode.innerHTML = renderIronResult(result);
+  }
+
+  function showIronCalculatorModal(presetTargetKg = null) {
+    const settings = modalIronSettings(presetTargetKg);
+    showModal(`
+      <div class="modal-head"><h2>Калькулятор железа</h2><button class="modal-close" data-close>×</button></div>
+      <div class="notice"><strong>Считает симметрично.</strong><br>Введи блины, которые доступны на одну сторону. Одинаковые блины можно указать несколько раз.</div>
+      <div class="form-grid iron-form">
+        <div class="field"><label>Что собираем</label><select id="iron-mode"><option value="dumbbell" ${settings.mode === 'dumbbell' ? 'selected' : ''}>Гантель</option><option value="barbell" ${settings.mode === 'barbell' ? 'selected' : ''}>Штанга</option></select><div class="help" id="iron-mode-hint"></div></div>
+        <div class="field"><label>Нужный общий вес, кг</label><input id="iron-target" type="number" inputmode="decimal" step="0.5" min="0" value="${escapeAttr(String(settings.targetKg ?? ''))}"></div>
+        <div class="inline-fields two">
+          <div class="field"><label>Ручка гантели, кг</label><input id="iron-dumbbell-handle" type="number" inputmode="decimal" step="0.1" min="0" value="${escapeAttr(String(settings.dumbbellHandleKg ?? ''))}"></div>
+          <div class="field"><label>Гриф штанги, кг</label><input id="iron-barbell-bar" type="number" inputmode="decimal" step="0.5" min="0" value="${escapeAttr(String(settings.barbellBarKg ?? ''))}"></div>
+        </div>
+        <div class="field"><label>Блины на одну сторону</label><textarea id="iron-plates" rows="3" placeholder="10, 5, 2.5, 1.25, 1">${escapeHTML(settings.platesPerSide || '')}</textarea><div class="help">Например: 10, 5, 2.5, 1.25, 1. Если есть две одинаковые пары — повтори вес два раза.</div></div>
+      </div>
+      <div id="iron-calculator-result" class="iron-modal-result"></div>
+      <div class="button-row" style="margin-top:12px"><button class="button primary" id="save-iron-calculator" type="button">Сохранить набор</button><button class="button secondary" id="copy-iron-calculator" type="button">Скопировать расчёт</button></div>
+    `);
+
+    ['iron-mode', 'iron-target', 'iron-dumbbell-handle', 'iron-barbell-bar', 'iron-plates'].forEach((id) => {
+      el.modalRoot.querySelector(`#${id}`)?.addEventListener(id === 'iron-mode' ? 'change' : 'input', updateIronCalculatorResult);
+    });
+    el.modalRoot.querySelector('#save-iron-calculator')?.addEventListener('click', saveIronCalculatorSettings);
+    el.modalRoot.querySelector('#copy-iron-calculator')?.addEventListener('click', copyIronCalculatorResult);
+    updateIronCalculatorResult();
+  }
+
+  async function saveIronCalculatorSettings() {
+    const settings = getIronModalSettings();
+    state.settings.ironCalculator = settings;
+    await DB.setSettingsObject({ ironCalculator: settings }, state.activeProfileId);
+    toast('Набор железа сохранён');
+  }
+
+  async function copyIronCalculatorResult() {
+    const settings = getIronModalSettings();
+    const text = ironResultText(settings, calculateIronOptions(settings));
+    try {
+      if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(text);
+      else fallbackCopyText(text);
+      toast('Расчёт скопирован');
+    } catch (error) {
+      fallbackCopyText(text);
+      toast('Расчёт скопирован');
+    }
+  }
+
+  function ironResultText(settings, result) {
+    const lines = [`${ironModeLabel(settings.mode)}: цель ${formatKg(settings.targetKg)} кг`];
+    lines.push(`Основа: ${formatKg(result.baseKg)} кг`);
+    if (!result.best) {
+      lines.push('Не удалось подобрать вес.');
+      return lines.join('\n');
+    }
+    lines.push(`Итого: ${formatKg(result.best.totalKg)} кг`);
+    lines.push(`На каждую сторону: ${result.best.plates.length ? result.best.plates.map((plate) => `${formatKg(plate)} кг`).join(' + ') : 'без блинов'}`);
+    if (Math.abs(result.best.diffKg) >= 0.005) lines.push(`Отклонение: ${result.best.diffKg > 0 ? '+' : '-'}${formatKg(Math.abs(result.best.diffKg))} кг`);
+    if (result.lighter || result.heavier) lines.push(`Ближайшие: ${[result.lighter, result.heavier].filter(Boolean).map((option) => `${formatKg(option.totalKg)} кг`).join(' / ')}`);
+    return lines.join('\n');
   }
 
   function showProfileModal() {
