@@ -1,0 +1,18 @@
+TEST REPORT v1.7.7
+
+Проверено:
+- app.js: синтаксис без ошибок.
+- db.js: синтаксис без ошибок.
+- seed.js: синтаксис без ошибок.
+- exercise-guides.js: синтаксис без ошибок.
+- manifest.webmanifest: валидный JSON.
+- version.js: версия 1.7.7.
+- service-worker.js: SERVICE_WORKER_RELEASE 1.7.7.
+- index.html: query-параметры обновлены до v=1.7.7.
+- APP_SHELL Service Worker: все файлы на месте.
+- ZIP: архив собран и проверен.
+
+Риск для данных:
+- Низкий.
+- IndexedDB не менялась.
+- Миграции нет.

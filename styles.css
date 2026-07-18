@@ -789,7 +789,11 @@ button { color: inherit; }
   background: rgba(255,255,255,.035);
 }
 .premium-program-tabs .tab.active {
-  box-shadow: 0 10px 24px rgba(199,255,47,.12);
+  color: var(--accent);
+  border-color: rgba(199,255,47,.88);
+  background: linear-gradient(180deg, rgba(199,255,47,.15), rgba(199,255,47,.065));
+  box-shadow: 0 10px 24px rgba(199,255,47,.12), inset 0 0 0 1px rgba(199,255,47,.14);
+  text-shadow: 0 0 12px rgba(199,255,47,.18);
 }
 .premium-plan-hero {
   position: relative;
@@ -1064,4 +1068,12 @@ button { color: inherit; }
   .premium-plan-actions .button.primary { grid-column: auto; }
   .premium-exercise-mini { grid-template-columns: 28px minmax(0, 1fr); }
   .premium-exercise-mini em { grid-column: 2; max-width: none; }
+}
+
+/* v1.7.7 — фикс читаемости активной программы в верхней ленте */
+.premium-program-tabs .tab.active,
+.premium-program-tabs .tab.active:focus,
+.premium-program-tabs .tab.active:active {
+  color: var(--accent);
+  -webkit-text-fill-color: var(--accent);
 }
