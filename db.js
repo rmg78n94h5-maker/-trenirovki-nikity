@@ -204,18 +204,37 @@
   }
 
   async function seedIfNeeded() {
-    const seeded = await get('meta', 'seeded');
-    if (seeded?.value) return false;
     const seed = window.NIKITA_SEED;
     if (!seed) throw new Error('Не найдены стартовые данные');
+    const seeded = await get('meta', 'seeded');
 
-    // В новой установке сначала загружаются только шаблоны упражнений и программ.
-    // Личный профиль создаётся на первом экране самим пользователем.
-    await transaction(['meta', 'exercises', 'programs'], 'readwrite', async (stores) => {
-      stores.meta.put({ key: 'seeded', value: true, version: seed.version, date: new Date().toISOString() });
-      stores.meta.put({ key: 'profilesVersion', value: 2, date: new Date().toISOString() });
+    if (!seeded?.value) {
+      // В новой установке сначала загружаются только шаблоны упражнений и программ.
+      // Личный профиль создаётся на первом экране самим пользователем.
+      await transaction(['meta', 'exercises', 'programs'], 'readwrite', async (stores) => {
+        stores.meta.put({ key: 'seeded', value: true, version: seed.version, date: new Date().toISOString() });
+        stores.meta.put({ key: 'profilesVersion', value: 2, date: new Date().toISOString() });
+        for (const exercise of seed.exercises) stores.exercises.put(exercise);
+        for (const program of seed.programs) stores.programs.put(program);
+      });
+      return true;
+    }
+
+    const installedCatalogVersion = Number(seeded.version || 1);
+    const targetCatalogVersion = Number(seed.version || 1);
+    if (installedCatalogVersion >= targetCatalogVersion) return false;
+
+    // Обновляем только встроенный каталог. История, программы пользователей,
+    // рабочие веса, замеры и пользовательские упражнения не затрагиваются.
+    await transaction(['meta', 'exercises'], 'readwrite', async (stores) => {
       for (const exercise of seed.exercises) stores.exercises.put(exercise);
-      for (const program of seed.programs) stores.programs.put(program);
+      stores.meta.put({
+        ...seeded,
+        key: 'seeded',
+        value: true,
+        version: targetCatalogVersion,
+        updatedAt: new Date().toISOString(),
+      });
     });
     return true;
   }

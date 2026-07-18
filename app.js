@@ -93,68 +93,68 @@
 
   const painRiskRules = {
     groin: {
-      exerciseIds: ['goblet-squat', 'chair-squat', 'barbell-squat', 'romanian-deadlift', 'good-morning-bodyweight', 'bulgarian-split-squat', 'reverse-lunge', 'hip-thrust', 'single-leg-bridge', 'wall-sit', 'dead-bug', 'reverse-crunch', 'lying-leg-raise', 'side-plank', 'front-plank', 'russian-twist', 'ab-roller', 'barbell-row', 'farmer-hold', 'suitcase-hold', 'db-shoulder-press'],
+      exerciseIds: ['goblet-squat', 'chair-squat', 'barbell-squat', 'romanian-deadlift', 'good-morning-bodyweight', 'bulgarian-split-squat', 'reverse-lunge', 'hip-thrust', 'single-leg-bridge', 'wall-sit', 'dead-bug', 'reverse-crunch', 'lying-leg-raise', 'side-plank', 'front-plank', 'russian-twist', 'ab-roller', 'ab-roller-short', 'ab-roller-diagonal', 'barbell-row', 'farmer-hold', 'suitcase-hold', 'db-shoulder-press', 'barbell-bench-press', 'incline-barbell-bench-press', 'seated-barbell-press', 'close-grip-bench-press', 'barbell-hip-thrust-bench', 'bench-step-up', 'dips-knee-raise', 'dips-leg-raise', 'cable-crunch', 'cable-woodchop'],
       keywords: ['присед', 'выпад', 'тяга', 'наклон', 'мост', 'планка', 'скруч', 'ролик', 'подъём', 'кор', 'пресс', 'ягод', 'ног'],
       reason: 'может повышать давление на паховую область и низ живота',
     },
     abs: {
-      exerciseIds: ['dead-bug', 'reverse-crunch', 'lying-leg-raise', 'side-plank', 'front-plank', 'russian-twist', 'ab-roller', 'goblet-squat', 'barbell-squat', 'romanian-deadlift', 'farmer-hold', 'suitcase-hold'],
+      exerciseIds: ['dead-bug', 'reverse-crunch', 'lying-leg-raise', 'side-plank', 'front-plank', 'russian-twist', 'ab-roller', 'ab-roller-short', 'ab-roller-diagonal', 'dips-knee-raise', 'dips-leg-raise', 'cable-crunch', 'cable-woodchop', 'plank-pushup-handles', 'mountain-climber-handles', 'goblet-squat', 'barbell-squat', 'romanian-deadlift', 'farmer-hold', 'suitcase-hold', 'barbell-bench-press', 'incline-barbell-bench-press', 'seated-barbell-press', 'close-grip-bench-press', 'barbell-hip-thrust-bench', 'bench-step-up'],
       keywords: ['пресс', 'кор', 'скруч', 'планка', 'ролик', 'подъём ног', 'тяга', 'присед'],
       reason: 'сильно включает пресс и внутрибрюшное давление',
     },
     'lower-back': {
-      exerciseIds: ['barbell-row', 'romanian-deadlift', 'good-morning-bodyweight', 'goblet-squat', 'barbell-squat', 'ab-roller', 'lying-leg-raise', 'front-plank', 'bird-dog', 'suitcase-hold'],
+      exerciseIds: ['barbell-row', 'romanian-deadlift', 'good-morning-bodyweight', 'goblet-squat', 'barbell-squat', 'ab-roller', 'ab-roller-short', 'ab-roller-diagonal', 'lying-leg-raise', 'dips-leg-raise', 'mountain-climber-handles', 'barbell-hip-thrust-bench', 'bench-step-up', 'front-plank', 'bird-dog', 'suitcase-hold'],
       keywords: ['поясница', 'тяга', 'наклон', 'присед', 'ролик', 'планка', 'кор'],
       reason: 'может грузить поясницу и корпус',
     },
     knee: {
-      exerciseIds: ['goblet-squat', 'chair-squat', 'barbell-squat', 'bulgarian-split-squat', 'reverse-lunge', 'wall-sit', 'stepper-easy', 'stepper-intervals', 'stepper-short', 'calf-raise'],
-      keywords: ['присед', 'выпад', 'степпер', 'стульчик', 'ноги', 'икры'],
+      exerciseIds: ['goblet-squat', 'chair-squat', 'barbell-squat', 'bulgarian-split-squat', 'reverse-lunge', 'wall-sit', 'stepper-easy', 'stepper-intervals', 'stepper-short', 'calf-raise', 'leg-extension-machine', 'bench-step-up'],
+      keywords: ['присед', 'выпад', 'степпер', 'стульчик', 'ноги', 'икры', 'разгибание ног', 'зашаг'],
       reason: 'даёт нагрузку на колено и ноги',
     },
     shoulder: {
-      exerciseIds: ['pushups', 'chair-incline-pushups', 'db-floor-press', 'machine-chest-press', 'pec-deck', 'db-fly-floor', 'db-shoulder-press', 'pike-pushups', 'lateral-raise', 'rear-delt-fly', 'face-pull-machine', 'db-pullover', 'overhead-triceps', 'close-pushups', 'ab-roller'],
-      keywords: ['жим', 'отжим', 'плеч', 'развод', 'дельт', 'пуловер', 'трицепс', 'ролик'],
+      exerciseIds: ['pushups', 'chair-incline-pushups', 'db-floor-press', 'machine-chest-press', 'pec-deck', 'db-fly-floor', 'db-shoulder-press', 'pike-pushups', 'lateral-raise', 'rear-delt-fly', 'face-pull-machine', 'db-pullover', 'overhead-triceps', 'close-pushups', 'ab-roller', 'ab-roller-short', 'ab-roller-diagonal', 'barbell-bench-press', 'incline-barbell-bench-press', 'db-bench-press', 'incline-db-bench-press', 'db-bench-fly', 'pushups-handles', 'dips-chest', 'dips-triceps', 'seated-barbell-press', 'arnold-press', 'front-raise', 'seated-lateral-raise', 'incline-rear-delt-fly', 'cable-upright-row', 'close-grip-bench-press', 'lying-barbell-triceps-extension', 'rope-overhead-triceps', 'plank-pushup-handles', 'mountain-climber-handles'],
+      keywords: ['жим', 'отжим', 'плеч', 'развод', 'дельт', 'пуловер', 'трицепс', 'ролик', 'брусья'],
       reason: 'может раздражать плечо и жимовую зону',
     },
     elbow: {
-      exerciseIds: ['pushups', 'chair-incline-pushups', 'db-floor-press', 'db-shoulder-press', 'barbell-curl', 'db-curl', 'hammer-curl', 'reverse-curl', 'overhead-triceps', 'close-pushups', 'triceps-pushdown', 'farmer-hold', 'suitcase-hold'],
-      keywords: ['сгибание', 'трицепс', 'бицепс', 'жим', 'отжим', 'удержание'],
+      exerciseIds: ['pushups', 'chair-incline-pushups', 'db-floor-press', 'db-shoulder-press', 'barbell-curl', 'db-curl', 'hammer-curl', 'reverse-curl', 'overhead-triceps', 'close-pushups', 'triceps-pushdown', 'farmer-hold', 'suitcase-hold', 'barbell-bench-press', 'incline-barbell-bench-press', 'db-bench-press', 'incline-db-bench-press', 'pushups-handles', 'dips-chest', 'dips-triceps', 'seated-barbell-press', 'arnold-press', 'rope-triceps-pushdown', 'rope-overhead-triceps', 'close-grip-bench-press', 'lying-barbell-triceps-extension', 'incline-db-curl', 'cable-curl', 'concentration-curl'],
+      keywords: ['сгибание', 'разгибание', 'трицепс', 'бицепс', 'жим', 'отжим', 'удержание', 'брусья'],
       reason: 'нагружает локоть и сухожилия рук',
     },
     wrist: {
-      exerciseIds: ['pushups', 'chair-incline-pushups', 'pike-pushups', 'close-pushups', 'barbell-curl', 'db-curl', 'hammer-curl', 'reverse-curl', 'farmer-hold', 'suitcase-hold', 'ab-roller'],
-      keywords: ['отжим', 'сгибание', 'удержание', 'хват', 'предплеч', 'ролик'],
+      exerciseIds: ['pushups', 'chair-incline-pushups', 'pike-pushups', 'close-pushups', 'barbell-curl', 'db-curl', 'hammer-curl', 'reverse-curl', 'farmer-hold', 'suitcase-hold', 'ab-roller', 'ab-roller-short', 'ab-roller-diagonal', 'pushups-handles', 'dips-chest', 'dips-triceps', 'plank-pushup-handles', 'mountain-climber-handles', 'barbell-bench-press', 'incline-barbell-bench-press', 'db-bench-press', 'incline-db-bench-press', 'seated-barbell-press', 'arnold-press', 'close-grip-bench-press', 'lying-barbell-triceps-extension', 'incline-db-curl', 'cable-curl', 'concentration-curl'],
+      keywords: ['отжим', 'сгибание', 'удержание', 'хват', 'предплеч', 'ролик', 'жим', 'брусья'],
       reason: 'может давить на кисть, запястье или хват',
     },
     chest: {
-      exerciseIds: ['pushups', 'chair-incline-pushups', 'db-floor-press', 'machine-chest-press', 'pec-deck', 'db-fly-floor', 'db-pullover', 'close-pushups'],
-      keywords: ['груд', 'жим', 'отжим', 'развод', 'бабочка', 'пуловер'],
+      exerciseIds: ['pushups', 'chair-incline-pushups', 'db-floor-press', 'machine-chest-press', 'pec-deck', 'db-fly-floor', 'db-pullover', 'close-pushups', 'barbell-bench-press', 'incline-barbell-bench-press', 'db-bench-press', 'incline-db-bench-press', 'db-bench-fly', 'pushups-handles', 'dips-chest', 'dips-triceps', 'close-grip-bench-press'],
+      keywords: ['груд', 'жим', 'отжим', 'развод', 'бабочка', 'пуловер', 'брусья'],
       reason: 'нагружает грудь и жимовые мышцы',
     },
     'upper-back': {
-      exerciseIds: ['rear-delt-fly', 'face-pull-machine', 'one-arm-row', 'barbell-row', 'lat-pulldown', 'seated-row-machine', 'shrugs', 'farmer-hold'],
-      keywords: ['спина', 'тяга', 'дельта', 'трапеции', 'шраги'],
+      exerciseIds: ['rear-delt-fly', 'face-pull-machine', 'one-arm-row', 'barbell-row', 'lat-pulldown', 'seated-row-machine', 'shrugs', 'farmer-hold', 'chest-supported-db-row', 'lat-pulldown-wide', 'lat-pulldown-reverse', 'straight-arm-rope-pulldown', 'barbell-shrugs', 'incline-rear-delt-fly', 'cable-upright-row'],
+      keywords: ['спина', 'тяга', 'дельта', 'трапеции', 'шраги', 'верхний блок', 'нижний блок'],
       reason: 'нагружает верх спины и лопатки',
     },
     neck: {
-      exerciseIds: ['shrugs', 'farmer-hold', 'suitcase-hold', 'db-shoulder-press', 'pike-pushups', 'rear-delt-fly', 'face-pull-machine'],
+      exerciseIds: ['shrugs', 'farmer-hold', 'suitcase-hold', 'db-shoulder-press', 'pike-pushups', 'rear-delt-fly', 'face-pull-machine', 'barbell-shrugs', 'seated-barbell-press', 'arnold-press', 'front-raise', 'seated-lateral-raise', 'incline-rear-delt-fly', 'cable-upright-row'],
       keywords: ['шраги', 'трапеции', 'плеч', 'удержание', 'дельт'],
       reason: 'может усиливать напряжение шеи и трапеций',
     },
     hip: {
-      exerciseIds: ['goblet-squat', 'chair-squat', 'barbell-squat', 'romanian-deadlift', 'good-morning-bodyweight', 'bulgarian-split-squat', 'reverse-lunge', 'hip-thrust', 'single-leg-bridge', 'side-plank'],
-      keywords: ['таз', 'ягод', 'присед', 'выпад', 'тяга', 'мост', 'бедро'],
+      exerciseIds: ['goblet-squat', 'chair-squat', 'barbell-squat', 'romanian-deadlift', 'good-morning-bodyweight', 'bulgarian-split-squat', 'reverse-lunge', 'hip-thrust', 'single-leg-bridge', 'side-plank', 'leg-extension-machine', 'barbell-hip-thrust-bench', 'bench-step-up', 'dips-knee-raise', 'dips-leg-raise', 'cable-woodchop'],
+      keywords: ['таз', 'ягод', 'присед', 'выпад', 'тяга', 'мост', 'бедро', 'зашаг'],
       reason: 'нагружает таз, ягодицы и тазобедренную зону',
     },
     thigh: {
-      exerciseIds: ['goblet-squat', 'chair-squat', 'barbell-squat', 'bulgarian-split-squat', 'reverse-lunge', 'wall-sit', 'romanian-deadlift', 'stepper-easy', 'stepper-intervals', 'stepper-short'],
-      keywords: ['ноги', 'бедро', 'присед', 'выпад', 'степпер', 'тяга'],
+      exerciseIds: ['goblet-squat', 'chair-squat', 'barbell-squat', 'bulgarian-split-squat', 'reverse-lunge', 'wall-sit', 'romanian-deadlift', 'stepper-easy', 'stepper-intervals', 'stepper-short', 'leg-extension-machine', 'barbell-hip-thrust-bench', 'bench-step-up'],
+      keywords: ['ноги', 'бедро', 'присед', 'выпад', 'степпер', 'тяга', 'разгибание ног', 'зашаг'],
       reason: 'нагружает бедро и ноги',
     },
     'shin-foot': {
-      exerciseIds: ['stepper-easy', 'stepper-intervals', 'stepper-short', 'calf-raise', 'reverse-lunge', 'bulgarian-split-squat'],
-      keywords: ['степпер', 'икры', 'носки', 'выпад', 'голень', 'стопа'],
+      exerciseIds: ['stepper-easy', 'stepper-intervals', 'stepper-short', 'calf-raise', 'reverse-lunge', 'bulgarian-split-squat', 'bench-step-up'],
+      keywords: ['степпер', 'икры', 'носки', 'выпад', 'голень', 'стопа', 'зашаг'],
       reason: 'нагружает голень, стопу и устойчивость',
     },
   };
@@ -216,6 +216,43 @@
     'front-plank': ['abs'],
     'russian-twist': ['abs'],
     'ab-roller': ['abs'],
+    'barbell-bench-press': ['chest', 'triceps'],
+    'incline-barbell-bench-press': ['chest', 'shoulders', 'triceps'],
+    'db-bench-press': ['chest', 'triceps'],
+    'incline-db-bench-press': ['chest', 'shoulders', 'triceps'],
+    'db-bench-fly': ['chest'],
+    'pushups-handles': ['chest', 'triceps'],
+    'dips-chest': ['chest', 'triceps'],
+    'dips-triceps': ['triceps', 'chest'],
+    'chest-supported-db-row': ['back', 'biceps'],
+    'lat-pulldown-wide': ['back', 'biceps'],
+    'lat-pulldown-reverse': ['back', 'biceps'],
+    'straight-arm-rope-pulldown': ['back', 'abs'],
+    'barbell-shrugs': ['back', 'shoulders'],
+    'seated-barbell-press': ['shoulders', 'triceps'],
+    'arnold-press': ['shoulders', 'triceps'],
+    'front-raise': ['shoulders'],
+    'seated-lateral-raise': ['shoulders'],
+    'incline-rear-delt-fly': ['shoulders', 'back'],
+    'cable-upright-row': ['shoulders', 'back'],
+    'rope-triceps-pushdown': ['triceps'],
+    'rope-overhead-triceps': ['triceps'],
+    'close-grip-bench-press': ['triceps', 'chest'],
+    'lying-barbell-triceps-extension': ['triceps'],
+    'incline-db-curl': ['biceps'],
+    'cable-curl': ['biceps'],
+    'concentration-curl': ['biceps'],
+    'leg-extension-machine': ['legs'],
+    'barbell-hip-thrust-bench': ['glutes'],
+    'bench-step-up': ['legs', 'glutes'],
+    'dips-knee-raise': ['abs'],
+    'dips-leg-raise': ['abs'],
+    'plank-pushup-handles': ['abs', 'shoulders'],
+    'mountain-climber-handles': ['abs', 'shoulders'],
+    'ab-roller-short': ['abs'],
+    'ab-roller-diagonal': ['abs'],
+    'cable-crunch': ['abs'],
+    'cable-woodchop': ['abs'],
   };
 
   const smartWorkoutTargets = [
@@ -231,14 +268,14 @@
   ];
 
   const smartWorkoutExercisePools = {
-    chest: ['db-floor-press', 'machine-chest-press', 'pushups', 'pec-deck', 'db-fly-floor', 'chair-incline-pushups'],
-    back: ['lat-pulldown', 'seated-row-machine', 'one-arm-row', 'barbell-row', 'rear-delt-fly', 'face-pull-machine', 'db-pullover'],
-    shoulders: ['db-shoulder-press', 'lateral-raise', 'rear-delt-fly', 'face-pull-machine', 'pike-pushups'],
-    biceps: ['barbell-curl', 'db-curl', 'hammer-curl', 'reverse-curl'],
-    triceps: ['overhead-triceps', 'triceps-pushdown', 'close-pushups', 'db-floor-press'],
-    legs: ['goblet-squat', 'chair-squat', 'reverse-lunge', 'bulgarian-split-squat', 'calf-raise', 'wall-sit'],
-    glutes: ['romanian-deadlift', 'hip-thrust', 'single-leg-bridge', 'reverse-lunge', 'bulgarian-split-squat', 'good-morning-bodyweight'],
-    abs: ['dead-bug', 'reverse-crunch', 'side-plank', 'front-plank', 'bird-dog', 'lying-leg-raise', 'suitcase-hold', 'russian-twist'],
+    chest: ['db-floor-press', 'db-bench-press', 'incline-db-bench-press', 'machine-chest-press', 'pushups', 'pushups-handles', 'pec-deck', 'db-fly-floor', 'db-bench-fly', 'chair-incline-pushups', 'dips-chest'],
+    back: ['lat-pulldown', 'lat-pulldown-wide', 'lat-pulldown-reverse', 'seated-row-machine', 'one-arm-row', 'chest-supported-db-row', 'barbell-row', 'rear-delt-fly', 'incline-rear-delt-fly', 'face-pull-machine', 'straight-arm-rope-pulldown', 'db-pullover', 'shrugs', 'barbell-shrugs'],
+    shoulders: ['db-shoulder-press', 'arnold-press', 'lateral-raise', 'seated-lateral-raise', 'front-raise', 'rear-delt-fly', 'incline-rear-delt-fly', 'face-pull-machine', 'cable-upright-row', 'pike-pushups'],
+    biceps: ['barbell-curl', 'db-curl', 'hammer-curl', 'reverse-curl', 'incline-db-curl', 'cable-curl', 'concentration-curl'],
+    triceps: ['overhead-triceps', 'triceps-pushdown', 'rope-triceps-pushdown', 'rope-overhead-triceps', 'close-pushups', 'dips-triceps', 'db-floor-press'],
+    legs: ['goblet-squat', 'chair-squat', 'reverse-lunge', 'bulgarian-split-squat', 'leg-extension-machine', 'bench-step-up', 'calf-raise', 'wall-sit'],
+    glutes: ['romanian-deadlift', 'hip-thrust', 'barbell-hip-thrust-bench', 'single-leg-bridge', 'reverse-lunge', 'bulgarian-split-squat', 'bench-step-up', 'good-morning-bodyweight'],
+    abs: ['dead-bug', 'reverse-crunch', 'side-plank', 'front-plank', 'plank-pushup-handles', 'bird-dog', 'lying-leg-raise', 'dips-knee-raise', 'suitcase-hold', 'russian-twist', 'cable-crunch', 'cable-woodchop'],
   };
 
   const smartPainMuscleGroups = {
@@ -1075,7 +1112,7 @@
   }
 
   function smartExerciseAvailable(exercise) {
-    if (!exercise || exercise.id === 'ab-roller') return false;
+    if (!exercise || ['ab-roller', 'ab-roller-short', 'ab-roller-diagonal'].includes(exercise.id)) return false;
     const equipment = String(exercise.equipment || '').toLowerCase();
     const available = String(state.profile?.equipment || '').toLowerCase();
     if (equipment.includes('мультитренаж') && !/мультитренаж|тренаж/.test(available)) return false;

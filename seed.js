@@ -75,6 +75,50 @@
     ex('russian-twist', 'Русские повороты без веса', 'Косые мышцы живота', 'Коврик', { sets: 3, repsMin: 12, repsMax: 20, restSec: 45 }, { replacements: ['side-plank', 'suitcase-hold'], safety: 'При дискомфорте в пояснице заменить на анти-ротацию.' }),
     ex('ab-roller', 'Ролик для пресса с колен', 'Пресс / кор', 'Ролик + коврик', { sets: 2, repsMin: 5, repsMax: 10, restSec: 75 }, { replacements: ['dead-bug', 'front-plank'], safety: 'Не включён по умолчанию: после операции на паховой грыже использовать только без симптомов и без натуживания.' }),
 
+    // Скамья, стойки, брусья, упоры и расширенный набор рукоятей мультитренажёра.
+    ex('barbell-bench-press', 'Жим штанги лёжа на скамье', 'Грудь / трицепс', 'Штанга + скамья + стойки', { sets: 4, repsMin: 6, repsMax: 10, restSec: 120 }, { replacements: ['db-bench-press', 'machine-chest-press', 'db-floor-press'], safety: 'Без страховочных упоров или партнёра не работать до отказа. Оставляй минимум 2 повтора в запасе.' }),
+    ex('incline-barbell-bench-press', 'Жим штанги на наклонной скамье', 'Верх груди / плечи / трицепс', 'Штанга + регулируемая скамья + стойки', { sets: 3, repsMin: 6, repsMax: 10, restSec: 120 }, { replacements: ['incline-db-bench-press', 'machine-chest-press'], safety: 'Выставь стойки симметрично и не используй предельный вес без страховки.' }),
+    ex('db-bench-press', 'Жим гантелей лёжа на скамье', 'Грудь / трицепс', 'Гантели + скамья', { sets: 4, repsMin: 8, repsMax: 12, restSec: 90 }, { replacements: ['db-floor-press', 'machine-chest-press', 'pushups-handles'] }),
+    ex('incline-db-bench-press', 'Жим гантелей на наклонной скамье', 'Верх груди / плечи / трицепс', 'Гантели + регулируемая скамья', { sets: 3, repsMin: 8, repsMax: 12, restSec: 90 }, { replacements: ['db-bench-press', 'machine-chest-press'] }),
+    ex('db-bench-fly', 'Разводка гантелей на скамье', 'Грудь', 'Гантели + скамья', { sets: 3, repsMin: 10, repsMax: 15, restSec: 60 }, { replacements: ['pec-deck', 'db-fly-floor'], notes: 'Небольшой сгиб локтей, амплитуда только до комфортного растяжения.' }),
+    ex('pushups-handles', 'Отжимания на упорах', 'Грудь / трицепс', 'Упоры для отжиманий', { sets: 3, repsMin: 8, repsMax: 20, restSec: 75 }, { replacements: ['pushups', 'db-bench-press'], notes: 'Упоры держат кисти нейтрально и дают чуть большую амплитуду.' }),
+    ex('dips-chest', 'Отжимания на брусьях — акцент на грудь', 'Грудь / трицепс', 'Брусья', { sets: 3, repsMin: 5, repsMax: 12, restSec: 90 }, { replacements: ['pushups-handles', 'machine-chest-press'], safety: 'Не проваливай плечи глубоко вниз; при боли уменьши амплитуду или замени.' }),
+    ex('dips-triceps', 'Отжимания на брусьях — акцент на трицепс', 'Трицепс / грудь', 'Брусья', { sets: 3, repsMin: 5, repsMax: 12, restSec: 90 }, { replacements: ['rope-triceps-pushdown', 'close-pushups'], safety: 'Корпус ближе к вертикали, но без жёсткого запирания локтей.' }),
+
+    ex('chest-supported-db-row', 'Тяга гантелей грудью на скамье', 'Спина / бицепс', 'Гантели + регулируемая скамья', { sets: 4, repsMin: 8, repsMax: 12, restSec: 75 }, { replacements: ['seated-row-machine', 'one-arm-row'], notes: 'Опора грудью снимает лишнюю нагрузку с поясницы.' }),
+    ex('lat-pulldown-wide', 'Тяга верхнего блока широким хватом', 'Широчайшие / бицепс', 'Мультитренажёр + длинная перекладина', { sets: 4, repsMin: 8, repsMax: 12, restSec: 90 }, { replacements: ['lat-pulldown', 'lat-pulldown-reverse'] }),
+    ex('lat-pulldown-reverse', 'Тяга верхнего блока обратным хватом', 'Широчайшие / бицепс', 'Мультитренажёр + длинная перекладина', { sets: 3, repsMin: 8, repsMax: 12, restSec: 75 }, { replacements: ['lat-pulldown', 'seated-row-machine'] }),
+    ex('straight-arm-rope-pulldown', 'Пуловер на верхнем блоке с канатом', 'Широчайшие / кор', 'Мультитренажёр + канат', { sets: 3, repsMin: 10, repsMax: 15, restSec: 60 }, { replacements: ['db-pullover', 'lat-pulldown'], notes: 'Руки почти прямые, движение идёт от плеч к бёдрам.' }),
+    ex('barbell-shrugs', 'Шраги со штангой', 'Трапеции / хват', 'Штанга', { sets: 3, repsMin: 10, repsMax: 15, restSec: 75 }, { replacements: ['shrugs', 'farmer-hold'] }),
+
+    ex('seated-barbell-press', 'Жим штанги сидя на скамье', 'Плечи / трицепс', 'Штанга + регулируемая скамья + стойки', { sets: 3, repsMin: 6, repsMax: 10, restSec: 120 }, { replacements: ['db-shoulder-press', 'arnold-press'], safety: 'Не работать до отказа без страховки; спинка и стойки должны быть устойчивы.' }),
+    ex('arnold-press', 'Жим Арнольда сидя', 'Плечи / трицепс', 'Гантели + регулируемая скамья', { sets: 3, repsMin: 8, repsMax: 12, restSec: 90 }, { replacements: ['db-shoulder-press', 'seated-barbell-press'] }),
+    ex('front-raise', 'Подъёмы гантелей перед собой', 'Передняя дельта', 'Гантели', { sets: 3, repsMin: 10, repsMax: 15, restSec: 60 }, { replacements: ['db-shoulder-press', 'lateral-raise'] }),
+    ex('seated-lateral-raise', 'Подъёмы гантелей в стороны сидя', 'Средняя дельта', 'Гантели + скамья', { sets: 3, repsMin: 12, repsMax: 18, restSec: 60 }, { replacements: ['lateral-raise'] }),
+    ex('incline-rear-delt-fly', 'Обратные разведения грудью на скамье', 'Задняя дельта / верх спины', 'Гантели + регулируемая скамья', { sets: 3, repsMin: 12, repsMax: 18, restSec: 60 }, { replacements: ['rear-delt-fly', 'face-pull-machine'] }),
+    ex('cable-upright-row', 'Тяга нижнего блока к подбородку', 'Плечи / трапеции', 'Мультитренажёр + короткая перекладина', { sets: 3, repsMin: 10, repsMax: 15, restSec: 60 }, { replacements: ['lateral-raise', 'face-pull-machine'], safety: 'Не поднимай локти выше комфортного уровня плеч и не используй узкий болезненный хват.' }),
+
+    ex('rope-triceps-pushdown', 'Разгибание рук на блоке с канатом', 'Трицепс', 'Мультитренажёр + канат', { sets: 3, repsMin: 10, repsMax: 15, restSec: 60 }, { replacements: ['triceps-pushdown', 'overhead-triceps'] }),
+    ex('rope-overhead-triceps', 'Разгибание рук из-за головы на блоке', 'Трицепс', 'Мультитренажёр + канат', { sets: 3, repsMin: 10, repsMax: 15, restSec: 60 }, { replacements: ['overhead-triceps', 'rope-triceps-pushdown'] }),
+    ex('close-grip-bench-press', 'Жим штанги узким хватом', 'Трицепс / грудь', 'Штанга + скамья + стойки', { sets: 3, repsMin: 6, repsMax: 10, restSec: 120 }, { replacements: ['dips-triceps', 'rope-triceps-pushdown'], safety: 'Без страховки не работать до отказа. Хват чуть уже плеч, а не ладони вплотную.' }),
+    ex('lying-barbell-triceps-extension', 'Французский жим со штангой лёжа', 'Трицепс', 'Штанга + скамья', { sets: 3, repsMin: 8, repsMax: 12, restSec: 75 }, { replacements: ['rope-overhead-triceps', 'overhead-triceps'], safety: 'Начинай с небольшого веса и не разводи локти широко.' }),
+    ex('incline-db-curl', 'Сгибание рук с гантелями на наклонной скамье', 'Бицепс', 'Гантели + регулируемая скамья', { sets: 3, repsMin: 8, repsMax: 12, restSec: 60 }, { replacements: ['db-curl', 'cable-curl'] }),
+    ex('cable-curl', 'Сгибание рук на нижнем блоке', 'Бицепс', 'Мультитренажёр + короткая перекладина', { sets: 3, repsMin: 10, repsMax: 15, restSec: 60 }, { replacements: ['barbell-curl', 'incline-db-curl'] }),
+    ex('concentration-curl', 'Концентрированное сгибание с гантелью', 'Бицепс', 'Гантель + скамья', { sets: 3, repsMin: 10, repsMax: 15, restSec: 60 }, { replacements: ['db-curl', 'incline-db-curl'] }),
+
+    ex('leg-extension-machine', 'Разгибание ног в тренажёре', 'Квадрицепсы', 'Мультитренажёр', { sets: 3, repsMin: 10, repsMax: 15, restSec: 75 }, { replacements: ['goblet-squat', 'wall-sit'], notes: 'Ось колена совмести с осью рычага, не бросай груз.' }),
+    ex('barbell-hip-thrust-bench', 'Ягодичный мост со штангой у скамьи', 'Ягодицы / задняя цепь', 'Штанга + скамья', { sets: 4, repsMin: 8, repsMax: 12, restSec: 90 }, { replacements: ['hip-thrust', 'romanian-deadlift'], safety: 'Скамья должна упираться в стену или быть надёжно зафиксирована.' }),
+    ex('bench-step-up', 'Зашагивания на скамью', 'Ноги / ягодицы', 'Гантели + скамья', { sets: 3, repsMin: 8, repsMax: 12, restSec: 75 }, { replacements: ['reverse-lunge', 'bulgarian-split-squat'], safety: 'Только на устойчивую скамью подходящей высоты; при качке не выполнять.' }),
+
+    ex('dips-knee-raise', 'Подъём коленей в упоре на брусьях', 'Нижняя часть пресса / сгибатели бедра', 'Брусья', { sets: 3, repsMin: 8, repsMax: 15, restSec: 60 }, { replacements: ['reverse-crunch', 'lying-leg-raise'], safety: 'Без раскачки и натуживания; при дискомфорте в паху заменить.' }),
+    ex('dips-leg-raise', 'Подъём прямых ног в упоре на брусьях', 'Пресс / сгибатели бедра', 'Брусья', { sets: 3, repsMin: 5, repsMax: 10, restSec: 75 }, { replacements: ['dips-knee-raise', 'reverse-crunch'], safety: 'Продвинутый вариант: не выполнять через напряжение в паху или пояснице.' }),
+    ex('plank-pushup-handles', 'Планка на упорах', 'Пресс / кор', 'Упоры для отжиманий + коврик', { sets: 3, unit: 'seconds', durationSec: 40, restSec: 45 }, { replacements: ['front-plank', 'dead-bug'] }),
+    ex('mountain-climber-handles', 'Альпинист на упорах', 'Пресс / плечи / кардио', 'Упоры для отжиманий + коврик', { sets: 3, unit: 'seconds', durationSec: 30, restSec: 45 }, { replacements: ['dead-bug', 'stepper-short'], safety: 'При качке, боли в запястьях или пояснице заменить на dead bug.' }),
+    ex('ab-roller-short', 'Ролик для пресса — короткая амплитуда', 'Пресс / кор', 'Ролик + коврик', { sets: 2, repsMin: 5, repsMax: 10, restSec: 75 }, { replacements: ['dead-bug', 'front-plank'], safety: 'Только без симптомов в паху и без задержки дыхания; не до отказа.' }),
+    ex('ab-roller-diagonal', 'Диагональные выкаты роликом', 'Пресс / косые мышцы', 'Ролик + коврик', { sets: 2, repsMin: 4, repsMax: 8, restSec: 75 }, { replacements: ['side-plank', 'cable-woodchop'], safety: 'Продвинутый вариант: сначала уверенно освой прямые короткие выкаты.' }),
+    ex('cable-crunch', 'Скручивания на верхнем блоке с канатом', 'Пресс', 'Мультитренажёр + канат', { sets: 3, repsMin: 10, repsMax: 15, restSec: 60 }, { replacements: ['reverse-crunch', 'dead-bug'], safety: 'Не тянуть канат руками и не задерживать дыхание.' }),
+    ex('cable-woodchop', '«Дровосек» на верхнем блоке', 'Косые мышцы живота / кор', 'Мультитренажёр + канат', { sets: 3, repsMin: 10, repsMax: 15, restSec: 60 }, { replacements: ['side-plank', 'suitcase-hold'], safety: 'Поворачивай грудную клетку и таз контролируемо, без рывка поясницей.' }),
+
     ex('mobility', 'Мобилизация и растяжка', 'Восстановление', 'Коврик', { sets: 1, unit: 'minutes', durationMin: 10, restSec: 0 }, { notes: 'Грудной отдел, сгибатели бедра, ягодицы, задняя поверхность бедра, плечи.' }),
     ex('breathing', 'Спокойное дыхание и расслабление', 'Восстановление', 'Коврик', { sets: 1, unit: 'minutes', durationMin: 5, restSec: 0 }),
   ];
@@ -200,7 +244,7 @@
   };
 
   window.NIKITA_SEED = {
-    version: 1,
+    version: 2,
     profile: {
       name: 'Никита',
       age: 34,
@@ -215,13 +259,18 @@
       ],
       equipment: [
         'Степпер без поручня',
-        'Регулируемая штанга',
+        'Разборная штанга',
+        'Две регулируемые стойки под штангу',
+        'Регулируемая скамья',
         'Разборные гантели',
         'Ролик для пресса',
+        'Брусья',
+        'Упоры для отжиманий высотой около 10 см',
         'Стул',
         'Коврик',
         'Собственный вес',
-        'Мультитренажёр с верхним/нижним блоком, бабочкой и жимом от себя',
+        'Мультитренажёр: жим от груди, бабочка, верхний и нижний блок, разгибание ног',
+        'Рукояти мультитренажёра: канат, длинная и короткая перекладины, двухручная рукоять для тяги сидя',
       ],
       constraints: [
         'Работа на ногах и физическая нагрузка на камбузе',
