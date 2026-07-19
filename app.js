@@ -5,6 +5,9 @@
   const APP_VERSION = window.NIKITA_APP?.version || 'неизвестна';
   const APP_VERSION_STORAGE_KEY = 'nikita-workouts-app-version';
   const APP_UPDATE_MESSAGE_KEY = 'nikita-workouts-update-message';
+  const PUSH_API_URL = 'https://trenirovki-push.bvj79cfn6n.workers.dev';
+  const PUSH_PUBLIC_KEY = 'BD34nVBjRSF5nDU5BQ7tAUoKLk173l2t2-Dr-F-V3yJO02i8G_KhGCcy6SUNVmx5HNV0kOxII6fwoa9bl4Cq8ag';
+  const PUSH_DEVICE_ID_KEY = 'nikita-workouts-push-device-id';
   const BOOT_STARTED_AT = Date.now();
   const state = {
     route: 'home',
@@ -34,6 +37,16 @@
     timer: { seconds: 0, interval: null, nextLabel: '', lastAnnouncedSecond: null },
     photoUrls: new Map(),
     swRegistration: null,
+    push: {
+      supported: false,
+      standalone: false,
+      permission: 'default',
+      subscribed: false,
+      busy: false,
+      statusText: 'Проверяю поддержку…',
+      detailText: 'Уведомления ещё не проверялись',
+      lastCheckedAt: null,
+    },
     update: {
       availableVersion: null,
       checking: false,
@@ -4373,6 +4386,11 @@
             <span><strong>Звук таймера</strong><small>${state.settings.soundEnabled ? `${timerVolumePercent()}% громкости` : 'Выключен'}</small></span>
             <span class="more-shortcut-arrow" aria-hidden="true">›</span>
           </button>
+          <button class="more-shortcut" id="open-push-settings" type="button">
+            <span class="more-shortcut-icon push" aria-hidden="true">🔔</span>
+            <span><strong>Уведомления</strong><small>${escapeHTML(pushSupportSummary())}</small></span>
+            <span class="more-shortcut-arrow" aria-hidden="true">›</span>
+          </button>
           <button class="more-shortcut" id="open-backup-settings" type="button">
             <span class="more-shortcut-icon backup" aria-hidden="true">⇅</span>
             <span><strong>Резервная копия</strong><small>Все профили</small></span>
@@ -4447,6 +4465,28 @@
               <div class="card share-app-card"><div class="share-app-head"><div><h3>Отправить приложение</h3><p>Передаётся только ссылка. Профили, история, фото, замеры и тренировки остаются на этом телефоне.</p></div><div class="share-app-mark" aria-hidden="true">↗</div></div><button class="button primary full" id="share-app-system" type="button">Поделиться через iPhone</button><div class="share-fast-grid" aria-label="Быстрый шаринг"><button class="share-fast-button telegram" id="share-app-telegram" type="button"><span>✈️</span><strong>Telegram</strong></button><button class="share-fast-button whatsapp" id="share-app-whatsapp" type="button"><span>🟢</span><strong>WhatsApp</strong></button><button class="share-fast-button vk" id="share-app-vk" type="button"><span>VK</span><strong>ВК</strong></button><button class="share-fast-button max" id="share-app-max" type="button"><span>MAX</span><strong>MAX</strong></button></div><div class="button-row share-link-row"><button class="button secondary" id="copy-app-link" type="button">Скопировать ссылку</button><button class="button ghost" id="open-app-link" type="button">Открыть в Safari</button></div><div class="help share-app-url" id="share-app-url">${escapeHTML(getAppShareUrl())}</div></div>
             </div>
 
+            <div class="more-subsection notifications-subsection">
+              <div class="more-subsection-head"><div><span class="eyebrow">Для этого iPhone</span><h3>Системные уведомления</h3></div></div>
+              <div class="card push-card">
+                <div class="list-row no-border">
+                  <div class="list-row-main"><div class="list-row-title">Web Push</div><div class="list-row-sub">Работает при закрытом приложении и на заблокированном экране</div></div>
+                  <span class="push-status-mark" aria-hidden="true">🔔</span>
+                </div>
+                <div class="update-status-grid push-status-grid">
+                  <div><span>Статус</span><strong id="push-status-text">${escapeHTML(pushSupportSummary())}</strong></div>
+                  <div><span>Разрешение</span><strong id="push-permission-text">${escapeHTML(pushPermissionLabel(state.push.permission))}</strong></div>
+                  <div><span>Запуск</span><strong id="push-device-text">${state.push.standalone ? 'PWA на экране Домой' : 'Открыто в браузере'}</strong></div>
+                </div>
+                <div class="notice push-detail" id="push-detail-text">${escapeHTML(state.push.detailText || state.push.statusText)}</div>
+                <div class="button-row push-actions">
+                  <button class="button primary" id="push-enable" type="button">Включить уведомления</button>
+                  <button class="button secondary" id="push-test" type="button" ${state.push.subscribed ? '' : 'disabled'}>Тестовый пуш</button>
+                </div>
+                <button class="button ghost full" id="push-disable" type="button" ${state.push.subscribed ? '' : 'disabled'}>Отключить на этом iPhone</button>
+                <div class="help" style="margin-top:10px">Сейчас подключаем основу и тестовую доставку. Напоминания о воде, тренировках, замерах и новых версиях добавятся следующим этапом.</div>
+              </div>
+            </div>
+
             <div class="more-subsection update-subsection">
               <div class="more-subsection-head"><div><span class="eyebrow">Версия ${escapeHTML(APP_VERSION)}</span><h3>Обновление приложения</h3></div></div>
               <div class="card update-card"><div class="list-row no-border"><div class="list-row-main"><div class="list-row-title">Текущая версия: ${escapeHTML(APP_VERSION)}</div><div class="list-row-sub">Проверка не трогает профили, историю, фото и IndexedDB.</div></div><span class="update-status-dot" aria-hidden="true">↻</span></div><div class="update-status-grid"><div><span>Статус</span><strong id="app-update-status-text">${escapeHTML(state.update.statusText || 'Пока не проверяли')}</strong></div><div><span>Кэш</span><strong id="app-cache-status-text">${escapeHTML(state.update.cacheStatus || 'неизвестно')}</strong></div><div><span>Последняя проверка</span><strong id="app-update-last-check">${escapeHTML(formatUpdateTimestamp(state.update.lastCheckAt))}</strong></div></div><div class="button-row"><button class="button primary" id="check-app-update" type="button">Проверить обновление</button><button class="button secondary" id="force-app-refresh" type="button">Обновить кэш</button></div><div class="help" style="margin-top:10px">«Обновить кэш» очищает только файлы приложения. Профили, история, фото, боль, рекорды и черновики остаются в IndexedDB.</div></div>
@@ -4466,6 +4506,7 @@
     document.getElementById('open-offline-guide').addEventListener('click', () => navigate('guide'));
     document.getElementById('open-iron-calculator').addEventListener('click', () => showIronCalculatorModal());
     document.getElementById('open-sound-settings').addEventListener('click', () => openMoreGroup('more-group-training', '.timer-subsection'));
+    document.getElementById('open-push-settings').addEventListener('click', () => openMoreGroup('more-group-app', '.notifications-subsection'));
     document.getElementById('open-backup-settings').addEventListener('click', () => openMoreGroup('more-group-data', '.backup-subsection'));
     document.getElementById('share-app-system').addEventListener('click', shareAppViaSystem);
     document.getElementById('share-app-telegram').addEventListener('click', () => openShareTarget('telegram'));
@@ -4502,7 +4543,11 @@
     document.getElementById('import-data').addEventListener('click', () => document.getElementById('import-file').click());
     document.getElementById('import-file').addEventListener('change', importBackupFile);
     document.getElementById('check-app-update').addEventListener('click', () => checkForAppUpdate(true));
+    document.getElementById('push-enable').addEventListener('click', enablePushNotifications);
+    document.getElementById('push-test').addEventListener('click', sendTestPush);
+    document.getElementById('push-disable').addEventListener('click', disablePushNotifications);
     document.getElementById('force-app-refresh').addEventListener('click', forceRefreshAppShell);
+    refreshPushState({ verifyServer: true }).catch((error) => console.warn('Push panel refresh failed', error));
     document.getElementById('storage-info').addEventListener('click', showStorageInfo);
   }
 
@@ -6052,11 +6097,267 @@
     }
   }
 
+  function isIOSDevice() {
+    return /iPad|iPhone|iPod/i.test(navigator.userAgent || '') || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  }
+
+  function isStandalonePWA() {
+    return Boolean(window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true);
+  }
+
+  function getPushDeviceId() {
+    let value = localStorage.getItem(PUSH_DEVICE_ID_KEY);
+    if (value && /^[A-Za-z0-9_-]{24,160}$/.test(value)) return value;
+    const random = crypto.randomUUID ? crypto.randomUUID() : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
+    value = `device-${random}`;
+    localStorage.setItem(PUSH_DEVICE_ID_KEY, value);
+    return value;
+  }
+
+  function pushApplicationUrl() {
+    const url = new URL('./', window.location.href);
+    url.hash = '/more';
+    return url.href;
+  }
+
+  function urlBase64ToUint8Array(value) {
+    const padding = '='.repeat((4 - (value.length % 4)) % 4);
+    const base64 = (value + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const raw = window.atob(base64);
+    return Uint8Array.from([...raw].map((char) => char.charCodeAt(0)));
+  }
+
+  async function pushApi(path, options = {}) {
+    if (!navigator.onLine) throw new Error('Нет интернета');
+    const response = await fetch(`${PUSH_API_URL}${path}`, {
+      cache: 'no-store',
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(options.headers || {}),
+      },
+    });
+    let payload = null;
+    try { payload = await response.json(); } catch {}
+    if (!response.ok || payload?.ok === false) {
+      throw new Error(payload?.error || `Сервер уведомлений ответил ${response.status}`);
+    }
+    return payload || { ok: true };
+  }
+
+  function pushPermissionLabel(value) {
+    return ({ granted: 'Разрешены', denied: 'Запрещены', default: 'Не запрошены' })[value] || 'Неизвестно';
+  }
+
+  function pushSupportSummary() {
+    if (!state.push.supported) return 'Не поддерживаются';
+    if (isIOSDevice() && !state.push.standalone) return 'Нужно установить PWA';
+    if (state.push.permission === 'denied') return 'Запрещены в iPhone';
+    if (state.push.subscribed) return 'Подключены';
+    return 'Не подключены';
+  }
+
+  function refreshPushPanel() {
+    const status = document.getElementById('push-status-text');
+    const permission = document.getElementById('push-permission-text');
+    const device = document.getElementById('push-device-text');
+    const detail = document.getElementById('push-detail-text');
+    const shortcut = document.querySelector('#open-push-settings small');
+    const enable = document.getElementById('push-enable');
+    const test = document.getElementById('push-test');
+    const disable = document.getElementById('push-disable');
+
+    if (status) status.textContent = pushSupportSummary();
+    if (permission) permission.textContent = pushPermissionLabel(state.push.permission);
+    if (device) device.textContent = state.push.standalone ? 'PWA на экране Домой' : 'Открыто в браузере';
+    if (detail) detail.textContent = state.push.detailText || state.push.statusText;
+    if (shortcut) shortcut.textContent = pushSupportSummary();
+    if (enable) {
+      enable.disabled = state.push.busy || !state.push.supported || state.push.subscribed || state.push.permission === 'denied';
+      enable.textContent = state.push.busy ? 'Подождите…' : (state.push.subscribed ? 'Уведомления включены' : 'Включить уведомления');
+    }
+    if (test) test.disabled = state.push.busy || !state.push.subscribed || state.push.permission !== 'granted';
+    if (disable) disable.disabled = state.push.busy || !state.push.subscribed;
+  }
+
+  async function refreshPushState({ verifyServer = false } = {}) {
+    state.push.supported = Boolean('serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window);
+    state.push.standalone = isStandalonePWA();
+    state.push.permission = 'Notification' in window ? Notification.permission : 'default';
+    state.push.subscribed = false;
+
+    if (!state.push.supported) {
+      state.push.statusText = 'Устройство не поддерживает Web Push';
+      state.push.detailText = 'Нужны Service Worker, Push API и системные уведомления.';
+      refreshPushPanel();
+      return state.push;
+    }
+
+    if (isIOSDevice() && !state.push.standalone) {
+      state.push.statusText = 'Открой приложение с экрана Домой';
+      state.push.detailText = 'На iPhone Web Push работает только у PWA, добавленного на экран Домой.';
+      refreshPushPanel();
+      return state.push;
+    }
+
+    if (state.push.permission === 'denied') {
+      state.push.statusText = 'Разрешение запрещено';
+      state.push.detailText = 'Открой Настройки iPhone → Уведомления → Тренировки и разреши уведомления.';
+      refreshPushPanel();
+      return state.push;
+    }
+
+    try {
+      const registration = state.swRegistration || await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.getSubscription();
+      state.push.subscribed = Boolean(subscription);
+      state.push.statusText = subscription ? 'Подписка активна' : 'Можно подключить уведомления';
+      state.push.detailText = subscription
+        ? 'Телефон подписан. Тестовый пуш можно отправить прямо сейчас.'
+        : 'Нажми «Включить уведомления» и подтверди системный запрос iPhone.';
+
+      if (subscription && verifyServer && navigator.onLine) {
+        const result = await pushApi(`/api/status?deviceId=${encodeURIComponent(getPushDeviceId())}`, { method: 'GET', headers: {} });
+        if (!result.subscribed) {
+          await registerPushSubscription(subscription);
+          state.push.detailText = 'Подписка телефона восстановлена на сервере.';
+        }
+      }
+    } catch (error) {
+      console.warn('Push state check failed', error);
+      state.push.statusText = 'Не удалось проверить подписку';
+      state.push.detailText = error.message || String(error);
+    }
+
+    state.push.lastCheckedAt = new Date().toISOString();
+    refreshPushPanel();
+    return state.push;
+  }
+
+  async function registerPushSubscription(subscription) {
+    return pushApi('/api/subscribe', {
+      method: 'POST',
+      body: JSON.stringify({
+        deviceId: getPushDeviceId(),
+        subscription: subscription.toJSON ? subscription.toJSON() : subscription,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+        locale: navigator.language || 'ru-RU',
+        appUrl: pushApplicationUrl(),
+      }),
+    });
+  }
+
+  async function enablePushNotifications() {
+    if (state.push.busy) return;
+    state.push.supported = Boolean('serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window);
+    state.push.standalone = isStandalonePWA();
+    state.push.permission = 'Notification' in window ? Notification.permission : 'default';
+    if (!state.push.supported) return toast('Уведомления не поддерживаются на этом устройстве');
+    if (isIOSDevice() && !state.push.standalone) {
+      toast('Сначала добавь приложение на экран Домой');
+      openMoreGroup('more-group-app', '.install-subsection');
+      return;
+    }
+    if (Notification.permission === 'denied') {
+      toast('Уведомления запрещены в настройках iPhone');
+      return;
+    }
+
+    const permissionPromise = Notification.permission === 'granted'
+      ? Promise.resolve('granted')
+      : Notification.requestPermission();
+    state.push.busy = true;
+    state.push.detailText = 'Запрашиваю разрешение…';
+    refreshPushPanel();
+    try {
+      const permission = await permissionPromise;
+      state.push.permission = permission;
+      if (permission !== 'granted') throw new Error(permission === 'denied' ? 'Уведомления запрещены' : 'Разрешение не получено');
+
+      const registration = state.swRegistration || await navigator.serviceWorker.ready;
+      let subscription = await registration.pushManager.getSubscription();
+      if (!subscription) {
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(PUSH_PUBLIC_KEY),
+        });
+      }
+      await registerPushSubscription(subscription);
+      state.push.subscribed = true;
+      state.push.statusText = 'Уведомления подключены';
+      state.push.detailText = 'Готово. Теперь отправь тестовый пуш и закрой приложение для проверки.';
+      toast('Уведомления подключены');
+    } catch (error) {
+      console.warn('Push subscribe failed', error);
+      state.push.statusText = 'Не удалось подключить';
+      state.push.detailText = error.message || String(error);
+      toast(`Не удалось подключить: ${error.message}`);
+    } finally {
+      state.push.busy = false;
+      refreshPushPanel();
+    }
+  }
+
+  async function sendTestPush() {
+    if (state.push.busy) return;
+    state.push.busy = true;
+    state.push.detailText = 'Отправляю тестовый пуш…';
+    refreshPushPanel();
+    try {
+      await pushApi('/api/test', {
+        method: 'POST',
+        body: JSON.stringify({ deviceId: getPushDeviceId() }),
+      });
+      state.push.detailText = 'Пуш отправлен. Заблокируй экран или сверни приложение — уведомление должно появиться системно.';
+      toast('Тестовый пуш отправлен');
+    } catch (error) {
+      console.warn('Test push failed', error);
+      state.push.detailText = error.message || String(error);
+      toast(`Пуш не отправился: ${error.message}`);
+    } finally {
+      state.push.busy = false;
+      refreshPushPanel();
+    }
+  }
+
+  async function disablePushNotifications() {
+    if (state.push.busy) return;
+    const confirmed = window.confirm('Отключить уведомления на этом iPhone? Настройки тренировок и данные приложения не изменятся.');
+    if (!confirmed) return;
+    state.push.busy = true;
+    state.push.detailText = 'Отключаю подписку…';
+    refreshPushPanel();
+    try {
+      const registration = state.swRegistration || await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.getSubscription();
+      if (subscription) await subscription.unsubscribe();
+      if (navigator.onLine) {
+        await pushApi('/api/unsubscribe', {
+          method: 'POST',
+          body: JSON.stringify({ deviceId: getPushDeviceId() }),
+        }).catch((error) => console.warn('Server unsubscribe failed', error));
+      }
+      localStorage.removeItem(PUSH_DEVICE_ID_KEY);
+      state.push.subscribed = false;
+      state.push.statusText = 'Уведомления отключены';
+      state.push.detailText = 'Подписка удалена с телефона и сервера.';
+      toast('Уведомления отключены');
+    } catch (error) {
+      console.warn('Push unsubscribe failed', error);
+      state.push.detailText = error.message || String(error);
+      toast(`Не удалось отключить: ${error.message}`);
+    } finally {
+      state.push.busy = false;
+      refreshPushPanel();
+    }
+  }
+
   async function registerServiceWorker(){
     if (!('serviceWorker' in navigator)) return;
     try {
       const registration = await navigator.serviceWorker.register(`./service-worker.js?v=${encodeURIComponent(APP_VERSION)}`);
       state.swRegistration = registration;
+      refreshPushState({ verifyServer: true }).catch((error) => console.warn('Initial push check failed', error));
 
       registration.addEventListener('updatefound', () => {
         const worker = registration.installing;

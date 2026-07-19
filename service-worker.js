@@ -1,5 +1,5 @@
 // Маркер релиза меняется вместе с version.js, чтобы iPhone точно установил новый Service Worker.
-const SERVICE_WORKER_RELEASE = '1.12.0';
+const SERVICE_WORKER_RELEASE = '1.13.0';
 importScripts(`./version.js?v=${SERVICE_WORKER_RELEASE}`);
 if (self.NIKITA_APP.version !== SERVICE_WORKER_RELEASE) throw new Error('Версии приложения и Service Worker не совпадают');
 const CACHE_NAME = self.NIKITA_APP.cacheName;
@@ -41,6 +41,50 @@ self.addEventListener('message', (event) => {
       caches.keys().then((keys) => Promise.all(keys.filter((key) => key.startsWith('nikita-workouts-') && key !== CACHE_NAME).map((key) => caches.delete(key))))
     );
   }
+});
+
+
+self.addEventListener('push', (event) => {
+  let payload = {};
+  try {
+    payload = event.data ? event.data.json() : {};
+  } catch {
+    payload = { body: event.data?.text?.() || '' };
+  }
+
+  const title = payload.title || 'Тренировки';
+  const targetUrl = payload.targetUrl || './#/more';
+  const tag = payload.tag || `trenirovki-${payload.kind || 'notice'}`;
+  const options = {
+    body: payload.body || 'Новое уведомление из приложения.',
+    icon: './icons/icon-192.png',
+    badge: './icons/icon-192.png',
+    tag,
+    renotify: true,
+    data: {
+      targetUrl,
+      kind: payload.kind || 'notice',
+      version: payload.version || null,
+    },
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const requested = event.notification.data?.targetUrl || './#/more';
+  const targetUrl = new URL(requested, self.registration.scope).href;
+
+  event.waitUntil((async () => {
+    const windowClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const client of windowClients) {
+      if (new URL(client.url).origin !== new URL(targetUrl).origin) continue;
+      if ('navigate' in client) await client.navigate(targetUrl).catch(() => null);
+      return client.focus();
+    }
+    return self.clients.openWindow(targetUrl);
+  })());
 });
 
 const NETWORK_FIRST_PATHS = new Set(APP_SHELL.filter((url) => /\.(js|css|webmanifest)$/i.test(url)).map((url) => new URL(url, self.location).pathname));
