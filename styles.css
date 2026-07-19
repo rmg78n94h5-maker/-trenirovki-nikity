@@ -2779,3 +2779,27 @@ button:disabled {
 @media (max-width: 380px) {
   .push-actions { grid-template-columns: 1fr; }
 }
+
+/* v1.14.0 — автоматические Web Push напоминания */
+.push-auto-summary {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+.push-auto-summary > div {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  border: 1px solid rgba(180, 255, 62, 0.12);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.035);
+}
+.push-auto-summary strong {
+  color: var(--text);
+  font-size: 0.96rem;
+}
+.push-auto-summary span {
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.35;
+}

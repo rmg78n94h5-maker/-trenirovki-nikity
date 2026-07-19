@@ -8,6 +8,22 @@
   const PUSH_API_URL = 'https://trenirovki-push.bvj79cfn6n.workers.dev';
   const PUSH_PUBLIC_KEY = 'BLfLt7xYAExNFkVyqYu2rZ-CdBCPE8zgw0YFjPe5yMq6Hes41M8ZMuwOkQwBwFyJUD9b2dtgJNfcAC2_s3W4afQ';
   const PUSH_DEVICE_ID_KEY = 'nikita-workouts-push-device-id';
+  const PUSH_TIMEZONE = 'Asia/Vladivostok';
+  const PUSH_AUTOMATION_DEFAULTS = Object.freeze({
+    waterEnabled: true,
+    waterIntervalMinutes: 75,
+    activeStartMinutes: 9 * 60,
+    activeEndMinutes: 22 * 60,
+    workoutEnabled: true,
+    workoutTimeMinutes: 19 * 60,
+    measurementsEnabled: true,
+    measurementsIntervalDays: 1,
+    measurementsTimeMinutes: 8 * 60,
+    weeklyMeasurementsEnabled: true,
+    weeklyMeasurementsWeekday: 0,
+    weeklyMeasurementsTimeMinutes: 8 * 60 + 5,
+    updatesEnabled: true,
+  });
   const BOOT_STARTED_AT = Date.now();
   const state = {
     route: 'home',
@@ -46,6 +62,8 @@
       statusText: 'Проверяю поддержку…',
       detailText: 'Уведомления ещё не проверялись',
       lastCheckedAt: null,
+      automationText: 'Автоматические напоминания ещё не синхронизированы',
+      automationSyncedAt: null,
     },
     update: {
       availableVersion: null,
@@ -2497,6 +2515,7 @@
     closeModal();
     toast(shouldAdvanceCycle ? 'Тренировка сохранена, цикл сдвинут дальше' : 'Тренировка сохранена, цикл не сдвинут');
     navigate('home');
+    syncPushAutomationSettings({ silent: true }).catch((error) => console.warn('Push schedule sync after workout failed', error));
     if (workout.records?.length) window.setTimeout(() => showWorkoutRecordsModal(workout), 120);
   }
 
@@ -4483,7 +4502,13 @@
                   <button class="button secondary" id="push-test" type="button" ${state.push.subscribed ? '' : 'disabled'}>Тестовый пуш</button>
                 </div>
                 <button class="button ghost full" id="push-disable" type="button" ${state.push.subscribed ? '' : 'disabled'}>Отключить на этом iPhone</button>
-                <div class="help" style="margin-top:10px">Сейчас подключаем основу и тестовую доставку. Напоминания о воде, тренировках, замерах и новых версиях добавятся следующим этапом.</div>
+                <div class="push-auto-summary">
+                  <div><strong>💧 Вода</strong><span>09:00–22:00 · каждые 75 мин · Владивосток</span></div>
+                  <div><strong>⚖️ Вес</strong><span>каждый день в 08:00 · до еды и воды</span></div>
+                  <div><strong>💪 Тренировка</strong><span>19:00 · по ближайшему дню цикла</span></div>
+                  <div><strong>🚀 Обновления</strong><span>автоматический пуш при новой версии</span></div>
+                </div>
+                <div class="help" id="push-automation-text" style="margin-top:10px">${escapeHTML(state.push.automationText || 'Автоматические напоминания синхронизируются после включения уведомлений.')}</div>
               </div>
             </div>
 
@@ -6060,6 +6085,7 @@
   function afterAppReady() {
     initUpdateStateFromStorage();
     window.setTimeout(() => showStoredUpdateMessage(), 900);
+    window.setTimeout(() => syncPushAutomationSettings({ silent: true }).catch((error) => console.warn('Push schedule sync after app ready failed', error)), 2200);
   }
 
   function initUpdateStateFromStorage() {
@@ -6166,6 +6192,7 @@
     const enable = document.getElementById('push-enable');
     const test = document.getElementById('push-test');
     const disable = document.getElementById('push-disable');
+    const automation = document.getElementById('push-automation-text');
 
     if (status) status.textContent = pushSupportSummary();
     if (permission) permission.textContent = pushPermissionLabel(state.push.permission);
@@ -6178,6 +6205,7 @@
     }
     if (test) test.disabled = state.push.busy || !state.push.subscribed || state.push.permission !== 'granted';
     if (disable) disable.disabled = state.push.busy || !state.push.subscribed;
+    if (automation) automation.textContent = state.push.automationText || 'Автоматические напоминания синхронизируются после включения уведомлений.';
   }
 
   async function refreshPushState({ verifyServer = false } = {}) {
@@ -6222,6 +6250,7 @@
           await registerPushSubscription(subscription);
           state.push.detailText = 'Подписка телефона восстановлена на сервере.';
         }
+        await syncPushAutomationSettings({ silent: true });
       }
     } catch (error) {
       console.warn('Push state check failed', error);
@@ -6240,11 +6269,70 @@
       body: JSON.stringify({
         deviceId: getPushDeviceId(),
         subscription: subscription.toJSON ? subscription.toJSON() : subscription,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+        timezone: PUSH_TIMEZONE,
         locale: navigator.language || 'ru-RU',
         appUrl: pushApplicationUrl(),
+        settings: buildPushAutomationSettings(),
       }),
     });
+  }
+
+  function tomorrowISOFromLocal(date = new Date()) {
+    const tomorrow = localDateStart(date);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return localDateISO(tomorrow);
+  }
+
+  function workoutReminderPlan() {
+    const today = todayISO();
+    const completedToday = completedWorkoutList(state.workouts).some((workout) => String(workout.date || workout.startedAt || '').slice(0, 10) === today);
+    const inProgressToday = state.currentWorkout?.status === 'in_progress' && String(state.currentWorkout.date || state.currentWorkout.startedAt || '').slice(0, 10) === today;
+    if (completedToday || inProgressToday) return { enabled: true, nextLocalDate: tomorrowISOFromLocal(), note: 'сегодня уже была тренировка' };
+
+    const status = trainingScheduleStatus();
+    if (status.mode === 'every_other_day' && !status.due && status.nextDate) {
+      return { enabled: true, nextLocalDate: localDateISO(status.nextDate), note: 'по графику через день' };
+    }
+    return { enabled: true, nextLocalDate: today, note: 'можно продолжать цикл' };
+  }
+
+  function buildPushAutomationSettings() {
+    const workoutPlan = workoutReminderPlan();
+    return {
+      ...PUSH_AUTOMATION_DEFAULTS,
+      timezone: PUSH_TIMEZONE,
+      workoutEnabled: workoutPlan.enabled,
+      workoutNextLocalDate: workoutPlan.nextLocalDate,
+    };
+  }
+
+  function pushAutomationSummaryText() {
+    const plan = workoutReminderPlan();
+    return `Авто: вода 09:00–22:00 каждые 75 мин, вес каждый день 08:00, тренировка 19:00 (${plan.note}), обновления включены.`;
+  }
+
+  async function syncPushAutomationSettings({ silent = true } = {}) {
+    if (!state.push.subscribed || state.push.permission !== 'granted' || !navigator.onLine) return null;
+    try {
+      const result = await pushApi('/api/settings', {
+        method: 'POST',
+        body: JSON.stringify({
+          deviceId: getPushDeviceId(),
+          settings: buildPushAutomationSettings(),
+        }),
+      });
+      state.push.automationSyncedAt = new Date().toISOString();
+      state.push.automationText = pushAutomationSummaryText();
+      refreshPushPanel();
+      if (!silent) toast('Расписание уведомлений обновлено');
+      return result;
+    } catch (error) {
+      console.warn('Push automation sync failed', error);
+      state.push.automationText = `Автоматические напоминания не синхронизированы: ${error.message}`;
+      refreshPushPanel();
+      if (!silent) toast(`Не удалось обновить расписание: ${error.message}`);
+      return null;
+    }
   }
 
   async function enablePushNotifications() {
@@ -6285,7 +6373,9 @@
       await registerPushSubscription(subscription);
       state.push.subscribed = true;
       state.push.statusText = 'Уведомления подключены';
-      state.push.detailText = 'Готово. Теперь отправь тестовый пуш и закрой приложение для проверки.';
+      state.push.detailText = 'Готово. Автоматические напоминания синхронизируются с Cloudflare.';
+      state.push.automationText = pushAutomationSummaryText();
+      await syncPushAutomationSettings({ silent: true });
       toast('Уведомления подключены');
     } catch (error) {
       console.warn('Push subscribe failed', error);
@@ -6306,7 +6396,7 @@
     try {
       await pushApi('/api/test', {
         method: 'POST',
-        body: JSON.stringify({ deviceId: getPushDeviceId() }),
+        body: JSON.stringify({ deviceId: getPushDeviceId(), requestId: `test-${Date.now()}` }),
       });
       state.push.detailText = 'Пуш отправлен. Заблокируй экран или сверни приложение — уведомление должно появиться системно.';
       toast('Тестовый пуш отправлен');
@@ -6341,6 +6431,7 @@
       state.push.subscribed = false;
       state.push.statusText = 'Уведомления отключены';
       state.push.detailText = 'Подписка удалена с телефона и сервера.';
+      state.push.automationText = 'Автоматические напоминания отключены на этом iPhone.';
       toast('Уведомления отключены');
     } catch (error) {
       console.warn('Push unsubscribe failed', error);
