@@ -6,7 +6,7 @@
   const APP_VERSION_STORAGE_KEY = 'nikita-workouts-app-version';
   const APP_UPDATE_MESSAGE_KEY = 'nikita-workouts-update-message';
   const PUSH_API_URL = 'https://trenirovki-push.bvj79cfn6n.workers.dev';
-  const PUSH_PUBLIC_KEY = 'BD34nVBjRSF5nDU5BQ7tAUoKLk173l2t2-Dr-F-V3yJO02i8G_KhGCcy6SUNVmx5HNV0kOxII6fwoa9bl4Cq8ag';
+  const PUSH_PUBLIC_KEY = 'BGxhC47-ovlC-FUs70gKQXolOtGr5kwyuh3FaN0sLNQGJvTAdZVqNaMhjXhiFRNhyf-ZNB83vjC-fL_L6qa0viE';
   const PUSH_DEVICE_ID_KEY = 'nikita-workouts-push-device-id';
   const BOOT_STARTED_AT = Date.now();
   const state = {
