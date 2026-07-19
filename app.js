@@ -3344,6 +3344,16 @@
       .sort((a, b) => a.date.localeCompare(b.date));
   }
 
+  function latestProfileWeightKg() {
+    const latestWeight = state.measurements.find((measurement) => {
+      const value = Number(measurement?.weightKg);
+      return Number.isFinite(value) && value > 0;
+    });
+    if (latestWeight) return Number(latestWeight.weightKg);
+    const profileWeight = Number(state.profile?.currentWeightKg);
+    return Number.isFinite(profileWeight) && profileWeight > 0 ? profileWeight : null;
+  }
+
   function filterBodySeriesByPeriod(series, days) {
     if (!days) return series;
     const end = startOfDay(new Date());
@@ -4310,7 +4320,7 @@
           <div class="list-row profile-row ${profile.id === state.activeProfileId ? 'current-profile' : ''}">
             <button class="profile-row-main switch-profile" data-id="${escapeAttr(profile.id)}" type="button">
               <span class="profile-avatar">${escapeHTML(profile.name.charAt(0).toUpperCase())}</span>
-              <span class="list-row-main"><span class="list-row-title">${escapeHTML(profile.name)}</span><span class="list-row-sub">${profile.age || '—'} лет · ${profile.heightCm || '—'} см · ${profile.currentWeightKg || '—'} кг${profile.id === state.activeProfileId ? ' · выбран' : ''}</span></span>
+              <span class="list-row-main"><span class="list-row-title">${escapeHTML(profile.name)}</span><span class="list-row-sub">${profile.age || '—'} лет · ${profile.heightCm || '—'} см · ${profile.id === state.activeProfileId ? formatBodyValue(latestProfileWeightKg()) : (profile.currentWeightKg || '—')} кг${profile.id === state.activeProfileId ? ' · выбран' : ''}</span></span>
             </button>
             ${profile.id !== state.activeProfileId ? `<button class="mini-button delete-profile" data-id="${escapeAttr(profile.id)}" type="button" aria-label="Удалить профиль">×</button>` : '<span class="profile-check">✓</span>'}
           </div>`).join('')}
@@ -4373,7 +4383,7 @@
             <div class="more-profile-copy">
               <div class="eyebrow">Текущий профиль · ${state.profiles.length} всего</div>
               <h2>${escapeHTML(state.profile.name)}</h2>
-              <p>${state.profile.age || '—'} лет · ${state.profile.heightCm || '—'} см · ${state.profile.currentWeightKg || '—'} кг</p>
+              <p>${state.profile.age || '—'} лет · ${state.profile.heightCm || '—'} см · ${formatBodyValue(latestProfileWeightKg())} кг</p>
             </div>
           </div>
           <div class="more-goal-scroll" aria-label="Цели профиля">
@@ -5077,7 +5087,7 @@
       <div class="modal-head"><h2>Профиль ${escapeHTML(state.profile.name)}</h2><button class="modal-close" data-close>×</button></div>
       <div class="form-grid">
         <div class="field"><label>Имя</label><input id="profile-name" value="${escapeAttr(state.profile.name)}"></div>
-        <div class="inline-fields three"><div class="field"><label>Возраст</label><input id="profile-age" type="number" value="${state.profile.age || ''}"></div><div class="field"><label>Рост, см</label><input id="profile-height" type="number" value="${state.profile.heightCm || ''}"></div><div class="field"><label>Вес, кг</label><input id="profile-weight" type="number" step="0.1" value="${state.profile.currentWeightKg || ''}"></div></div>
+        <div class="inline-fields three"><div class="field"><label>Возраст</label><input id="profile-age" type="number" value="${state.profile.age || ''}"></div><div class="field"><label>Рост, см</label><input id="profile-height" type="number" value="${state.profile.heightCm || ''}"></div><div class="field"><label>Вес, кг</label><input id="profile-weight" type="number" step="0.1" value="${latestProfileWeightKg() ?? ''}"></div></div>
         <div class="field"><label>Цели — по одной на строке</label><textarea id="profile-goals">${escapeHTML((state.profile.goals || []).join('\n'))}</textarea></div>
         <div class="field"><label>Инвентарь — по одному на строке</label><textarea id="profile-equipment">${escapeHTML((state.profile.equipment || []).join('\n'))}</textarea></div>
         <div class="field"><label>Ограничения — по одному на строке</label><textarea id="profile-constraints">${escapeHTML((state.profile.constraints || []).join('\n'))}</textarea></div>
