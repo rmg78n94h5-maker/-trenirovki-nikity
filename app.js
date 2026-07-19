@@ -30,6 +30,7 @@
     guideCategory: 'all',
     guideQuery: '',
     smartWorkoutProposal: null,
+    profileBuilder: null,
     timer: { seconds: 0, interval: null, nextLabel: '', lastAnnouncedSecond: null },
     photoUrls: new Map(),
     swRegistration: null,
@@ -296,6 +297,62 @@
     'shin-foot': ['legs'],
     neck: ['shoulders', 'back'],
   };
+
+
+  const profileBuilderGoals = [
+    { id: 'shape', label: 'Подтянуть тело', note: 'Форма, тонус и умеренная нагрузка' },
+    { id: 'strength', label: 'Стать сильнее', note: 'Больше базовых движений и отдыха' },
+    { id: 'muscle', label: 'Набрать мышцы', note: 'Рабочий объём и прогрессия' },
+    { id: 'weight', label: 'Снизить вес', note: 'Силовая база и больше движения' },
+    { id: 'maintain', label: 'Поддерживать форму', note: 'Ровная нагрузка без перегиба' },
+    { id: 'return', label: 'Вернуться после перерыва', note: 'Мягкий старт и запас сил' },
+  ];
+
+  const profileBuilderLevels = [
+    { id: 'beginner', label: 'Начинаю', note: 'Мало опыта или большой перерыв' },
+    { id: 'regular', label: 'Тренируюсь иногда', note: 'Техника знакома, режима пока нет' },
+    { id: 'experienced', label: 'Опытный', note: 'Регулярно тренируюсь и знаю веса' },
+  ];
+
+  const profileBuilderEquipment = [
+    { id: 'bodyweight', label: 'Собственный вес', value: 'Собственный вес', always: true },
+    { id: 'mat', label: 'Коврик', value: 'Коврик' },
+    { id: 'chair', label: 'Стул', value: 'Стул' },
+    { id: 'dumbbells', label: 'Разборные гантели', value: 'Разборные гантели' },
+    { id: 'barbell', label: 'Разборная штанга', value: 'Разборная штанга' },
+    { id: 'rack', label: 'Стойки под штангу', value: 'Две регулируемые стойки под штангу' },
+    { id: 'bench', label: 'Регулируемая скамья', value: 'Регулируемая скамья' },
+    { id: 'multigym', label: 'Мультитренажёр', value: 'Мультитренажёр: жим от груди, бабочка, верхний и нижний блок, разгибание ног' },
+    { id: 'dips', label: 'Брусья', value: 'Брусья' },
+    { id: 'roller', label: 'Ролик', value: 'Ролик для пресса' },
+    { id: 'stepper', label: 'Степпер', value: 'Степпер без поручня' },
+    { id: 'pushup-handles', label: 'Упоры для отжиманий', value: 'Упоры для отжиманий высотой около 10 см' },
+  ];
+
+  const profileBuilderConstraintAreas = [
+    { id: 'shoulder', label: 'Плечи' },
+    { id: 'elbow', label: 'Локти' },
+    { id: 'wrist', label: 'Кисти / запястья' },
+    { id: 'lower-back', label: 'Поясница' },
+    { id: 'knee', label: 'Колени' },
+    { id: 'hip', label: 'Тазобедренные' },
+    { id: 'groin', label: 'Пах / низ живота' },
+  ];
+
+  const profileBuilderAdvancedExerciseIds = new Set([
+    'barbell-squat', 'barbell-bench-press', 'incline-barbell-bench-press', 'seated-barbell-press',
+    'close-grip-bench-press', 'dips-chest', 'dips-triceps', 'pike-pushups', 'bench-step-up',
+    'dips-leg-raise', 'ab-roller', 'ab-roller-short', 'ab-roller-diagonal', 'cable-upright-row',
+  ]);
+
+  const profileBuilderCompoundIds = new Set([
+    'pushups', 'chair-incline-pushups', 'db-floor-press', 'machine-chest-press', 'db-bench-press',
+    'incline-db-bench-press', 'barbell-bench-press', 'incline-barbell-bench-press', 'dips-chest',
+    'one-arm-row', 'barbell-row', 'lat-pulldown', 'lat-pulldown-wide', 'lat-pulldown-reverse',
+    'seated-row-machine', 'chest-supported-db-row', 'db-shoulder-press', 'arnold-press',
+    'seated-barbell-press', 'goblet-squat', 'chair-squat', 'barbell-squat', 'romanian-deadlift',
+    'bulgarian-split-squat', 'reverse-lunge', 'hip-thrust', 'barbell-hip-thrust-bench',
+  ]);
 
 
   document.addEventListener('DOMContentLoaded', init);
@@ -611,6 +668,62 @@
     return { program, day: program.days[index], index };
   }
 
+
+  function activeTrainingSchedule(program = getActiveProgram()) {
+    const preferences = state.profile?.trainingPreferences || {};
+    const mode = program?.scheduleMode || preferences.scheduleMode || state.settings.scheduleMode || 'cycle';
+    const daysPerWeek = Number(program?.daysPerWeek || preferences.daysPerWeek || state.settings.daysPerWeek || 0);
+    return { mode, daysPerWeek };
+  }
+
+  function localDateStart(value) {
+    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) {
+      const [year, month, day] = value.slice(0, 10).split('-').map(Number);
+      return new Date(year, month - 1, day);
+    }
+    const date = value instanceof Date ? new Date(value) : new Date(value || Date.now());
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  }
+
+  function formatScheduleDate(date) {
+    return formatDate(date, { day: 'numeric', month: 'long' });
+  }
+
+  function trainingScheduleStatus(program = getActiveProgram()) {
+    const schedule = activeTrainingSchedule(program);
+    if (schedule.mode !== 'every_other_day') {
+      return {
+        mode: schedule.mode,
+        due: true,
+        label: schedule.daysPerWeek ? `${schedule.daysPerWeek} раз/нед.` : 'свободный цикл',
+        detail: schedule.daysPerWeek ? `План: ${schedule.daysPerWeek} тренировок в неделю` : 'Тренируйся по готовности и продолжай цикл',
+      };
+    }
+    const lastWorkout = completedWorkoutList(state.workouts)[0] || null;
+    if (!lastWorkout) {
+      return { mode: schedule.mode, due: true, label: 'через день', detail: 'Первая тренировка доступна сегодня' };
+    }
+    const lastDate = localDateStart(lastWorkout.startedAt || lastWorkout.date);
+    const nextDate = new Date(lastDate);
+    nextDate.setDate(nextDate.getDate() + 2);
+    const today = localDateStart(new Date());
+    const due = today.getTime() >= nextDate.getTime();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const nextLabel = nextDate.getTime() === today.getTime()
+      ? 'сегодня'
+      : nextDate.getTime() === tomorrow.getTime()
+        ? 'завтра'
+        : formatScheduleDate(nextDate);
+    return {
+      mode: schedule.mode,
+      due,
+      label: due ? 'сегодня тренировка' : 'сегодня отдых',
+      detail: due ? 'График «через день»: можно продолжать цикл' : `Следующая по графику — ${nextLabel}`,
+      nextDate,
+    };
+  }
+
   function renderHome() {
     const { program, day, index } = getCurrentDay();
     const today = new Date();
@@ -641,8 +754,9 @@
     const weightDiffText = weightDiff === null ? 'нет динамики' : `${formatSignedBodyValue(weightDiff)} кг`;
     const restNow = smartRestAnalysis({ includeTodayTraining: true });
     const restShort = restNow.status === 'critical' ? 'стоп' : restNow.status === 'recommended' ? 'отдых' : restNow.status === 'watch' ? 'следи' : 'норма';
+    const scheduleStatus = trainingScheduleStatus(program);
 
-    setTopbar(formatDate(today, { weekday: 'long', day: 'numeric', month: 'long' }), `День ${index + 1} из ${program.days.length}`);
+    setTopbar(formatDate(today, { weekday: 'long', day: 'numeric', month: 'long' }), `День ${index + 1} из ${program.days.length} · ${scheduleStatus.label}`);
 
     el.main.innerHTML = `
       ${draft ? `
@@ -666,7 +780,7 @@
         <div class="card hero-card smart-start-card sport-premium-hero">
           <div class="smart-start-topline">
             <span class="chip accent">${day.recovery ? 'ВОССТАНОВЛЕНИЕ' : 'УМНЫЙ СТАРТ'}</span>
-            <span class="chip">День ${index + 1} из ${program.days.length}</span>
+            <span class="chip">${escapeHTML(scheduleStatus.label)}</span>
           </div>
           <h2>${escapeHTML(day.name)}</h2>
           <p>${escapeHTML(day.focus || program.description)}</p>
@@ -690,9 +804,10 @@
           ${draft ? `
             <div class="notice"><strong>Сначала разберись с черновиком выше.</strong><br>После этого можно продолжить цикл, повторить прошлую или выбрать другой день.</div>
           ` : `
+            ${scheduleStatus.mode === 'every_other_day' ? `<div class="notice ${scheduleStatus.due ? 'success' : ''} schedule-status-notice"><strong>${scheduleStatus.due ? 'По графику сегодня тренировка.' : 'По графику сегодня отдых.'}</strong><br>${escapeHTML(scheduleStatus.detail)}${scheduleStatus.due ? '' : ' Начать раньше можно — приложение не блокирует тренировку.'}</div>` : ''}
             <button class="button smart-builder-launch full" id="smart-workout-builder" type="button"><span>✨</span><span><strong>Подобрать тренировку</strong><small>По мышцам, истории и восстановлению</small></span><b>›</b></button>
             <div class="button-row smart-actions primary-line">
-              <button class="button primary" id="start-cycle" type="button">Начать тренировку</button>
+              <button class="button primary" id="start-cycle" type="button">${scheduleStatus.mode === 'every_other_day' && !scheduleStatus.due ? 'Начать досрочно' : 'Начать тренировку'}</button>
               <button class="button secondary" id="choose-workout" type="button">Выбрать другую</button>
               <button class="button secondary" id="repeat-last" type="button" ${lastWorkout ? '' : 'disabled'}>Повторить прошлую</button>
               <button class="button ghost" id="start-short" type="button">Нет сил · 15–20 мин</button>
@@ -3619,121 +3734,529 @@
     target.innerHTML = `<div class="compare-grid"><div><img src="${leftUrl}" alt="Слева"><div class="center muted">${formatShortDate(left.date)}</div></div><div><img src="${rightUrl}" alt="Справа"><div class="center muted">${formatShortDate(right.date)}</div></div></div>`;
   }
 
-  function profileCreateFields() {
-    const templates = state.allPrograms.filter((program) => !program.ownerProfileId);
-    const available = templates.length ? templates : state.allPrograms;
-    return `
-      <div class="form-grid profile-create-form">
-        <div class="field"><label>Имя</label><input id="new-profile-name" autocomplete="name" placeholder="Например: Лёха"></div>
+  function defaultProfileBuilderDraft(firstRun = false) {
+    return {
+      firstRun,
+      step: 0,
+      name: '',
+      age: 30,
+      heightCm: 175,
+      weightKg: 75,
+      scheduleMode: 'weekly',
+      daysPerWeek: 4,
+      durationMin: 45,
+      priorityMuscles: [],
+      goal: 'shape',
+      level: 'regular',
+      equipmentIds: ['bodyweight', 'mat', 'chair', 'dumbbells'],
+      constraintAreas: [],
+      customConstraint: '',
+    };
+  }
+
+  function profileBuilderGoal(id) {
+    return profileBuilderGoals.find((item) => item.id === id) || profileBuilderGoals[0];
+  }
+
+  function profileBuilderLevel(id) {
+    return profileBuilderLevels.find((item) => item.id === id) || profileBuilderLevels[0];
+  }
+
+  function profileBuilderMuscleLabel(id) {
+    return muscleGroups.find((item) => item.id === id)?.label || id;
+  }
+
+  function profileBuilderScheduleText(draft) {
+    return draft.scheduleMode === 'every_other_day'
+      ? 'Через день · тренировка и день отдыха по очереди'
+      : `${draft.daysPerWeek} тренировок в неделю`;
+  }
+
+  function profileBuilderEquipmentValues(draft) {
+    const selected = new Set(['bodyweight', ...(draft.equipmentIds || [])]);
+    return profileBuilderEquipment.filter((item) => selected.has(item.id)).map((item) => item.value);
+  }
+
+  function profileBuilderConstraintValues(draft) {
+    const values = (draft.constraintAreas || []).map((id) => {
+      const area = profileBuilderConstraintAreas.find((item) => item.id === id);
+      return area ? `Ограничение: ${area.label}` : '';
+    }).filter(Boolean);
+    if (draft.customConstraint?.trim()) values.push(draft.customConstraint.trim());
+    return values;
+  }
+
+  function profileBuilderHeader(draft) {
+    const titles = [
+      ['Кто будет тренироваться?', 'Основные данные профиля'],
+      ['Как строим расписание?', 'Частота и длительность'],
+      ['Что хочется развивать?', 'Выбери приоритетные мышцы'],
+      ['Опыт и главная цель', 'Это настроит объём и сложность'],
+      ['Какое оборудование доступно?', 'Предлагаться будут только выполнимые упражнения'],
+      ['Есть ограничения?', 'Опасные варианты исключим из программы'],
+      ['Готовая программа', 'Проверь план перед созданием профиля'],
+    ];
+    const [title, subtitle] = titles[draft.step] || titles[0];
+    return { title, subtitle };
+  }
+
+  function profileBuilderProgress(draft) {
+    return `<div class="profile-builder-progress" aria-label="Шаг ${draft.step + 1} из 7"><span style="width:${Math.round(((draft.step + 1) / 7) * 100)}%"></span></div>`;
+  }
+
+  function profileBuilderOption({ value, active, label, note = '', icon = '' }, className = '') {
+    return `<button class="profile-builder-option ${className} ${active ? 'active' : ''}" type="button" data-value="${escapeAttr(value)}">${icon ? `<span>${icon}</span>` : ''}<strong>${escapeHTML(label)}</strong>${note ? `<small>${escapeHTML(note)}</small>` : ''}</button>`;
+  }
+
+  function renderProfileBuilderStep(draft) {
+    if (draft.step === 0) {
+      return `<div class="form-grid profile-builder-personal">
+        <div class="field"><label>Имя</label><input id="builder-name" autocomplete="name" placeholder="Например: Лёха" value="${escapeAttr(draft.name)}"></div>
         <div class="inline-fields three">
-          <div class="field"><label>Возраст</label><input id="new-profile-age" type="number" min="14" max="100" value="30"></div>
-          <div class="field"><label>Рост, см</label><input id="new-profile-height" type="number" min="120" max="230" value="175"></div>
-          <div class="field"><label>Вес, кг</label><input id="new-profile-weight" type="number" min="35" max="250" step="0.1" value="75"></div>
+          <div class="field"><label>Возраст</label><input id="builder-age" type="number" min="14" max="100" value="${draft.age}"></div>
+          <div class="field"><label>Рост, см</label><input id="builder-height" type="number" min="120" max="230" value="${draft.heightCm}"></div>
+          <div class="field"><label>Вес, кг</label><input id="builder-weight" type="number" min="35" max="250" step="0.1" value="${draft.weightKg}"></div>
         </div>
-        <div class="field"><label>Главная цель</label><input id="new-profile-goal" placeholder="Подтянуть тело, набрать силу, убрать живот…"></div>
-        <div class="field"><label>Доступный инвентарь</label><textarea id="new-profile-equipment" placeholder="Гантели, штанга, коврик, степпер…"></textarea></div>
-        <div class="field"><label>Стартовая программа</label><select id="new-profile-program">${available.map((program) => `<option value="${escapeAttr(program.id)}">${escapeHTML(program.name)}</option>`).join('')}<option value="individual">Индивидуальная</option></select><div class="help">Индивидуальная программа создаётся пустой: дни и упражнения добавишь под себя в разделе «План».</div></div>
+        <div class="notice"><strong>Без регистрации.</strong><br>Профиль, программа, история и замеры останутся только на этом устройстве.</div>
       </div>`;
+    }
+    if (draft.step === 1) {
+      return `<div class="profile-builder-stack">
+        <div class="profile-builder-question"><strong>Режим тренировок</strong><span>Можно изменить план вручную после создания</span></div>
+        <div class="profile-builder-grid two" data-builder-group="scheduleMode">
+          ${profileBuilderOption({ value: 'weekly', active: draft.scheduleMode === 'weekly', label: 'По дням в неделю', note: 'Выбери от 2 до 6 тренировок', icon: '7' })}
+          ${profileBuilderOption({ value: 'every_other_day', active: draft.scheduleMode === 'every_other_day', label: 'Через день', note: 'Тренировка → отдых → тренировка', icon: '↔' })}
+        </div>
+        ${draft.scheduleMode === 'weekly' ? `<div class="profile-builder-question"><strong>Сколько тренировок в неделю</strong><span>Регулярность важнее максимума</span></div>
+          <div class="profile-builder-grid five compact" data-builder-group="daysPerWeek">
+            ${[2,3,4,5,6].map((value) => profileBuilderOption({ value, active: draft.daysPerWeek === value, label: String(value) })).join('')}
+          </div>` : `<div class="notice success"><strong>Плавающий график.</strong><br>В одной неделе получится 3 тренировки, в другой — 4. Пропуск не ломает цикл.</div>`}
+        <div class="profile-builder-question"><strong>Сколько времени на одну тренировку</strong><span>Примерная длительность</span></div>
+        <div class="profile-builder-grid four compact" data-builder-group="durationMin">
+          ${[20,30,45,60].map((value) => profileBuilderOption({ value, active: draft.durationMin === value, label: `${value} мин` })).join('')}
+        </div>
+      </div>`;
+    }
+    if (draft.step === 2) {
+      const balanced = !(draft.priorityMuscles || []).length;
+      return `<div class="profile-builder-stack">
+        <div class="profile-builder-grid two muscle-grid" data-builder-group="muscles">
+          ${profileBuilderOption({ value: 'balanced', active: balanced, label: 'Всё тело равномерно', note: 'Без отдельного приоритета', icon: '◎' }, 'wide')}
+          ${muscleGroups.map((group) => profileBuilderOption({ value: group.id, active: draft.priorityMuscles.includes(group.id), label: group.label, note: group.hint, icon: '•' })).join('')}
+        </div>
+        <div class="help">Можно выбрать несколько групп. Остальные мышцы всё равно останутся в программе для баланса.</div>
+      </div>`;
+    }
+    if (draft.step === 3) {
+      return `<div class="profile-builder-stack">
+        <div class="profile-builder-question"><strong>Уровень подготовки</strong><span>Определи честно — веса потом подстроятся</span></div>
+        <div class="profile-builder-grid three" data-builder-group="level">
+          ${profileBuilderLevels.map((item) => profileBuilderOption({ value: item.id, active: draft.level === item.id, label: item.label, note: item.note })).join('')}
+        </div>
+        <div class="profile-builder-question"><strong>Главная цель</strong><span>Выбери одну основную</span></div>
+        <div class="profile-builder-grid two" data-builder-group="goal">
+          ${profileBuilderGoals.map((item) => profileBuilderOption({ value: item.id, active: draft.goal === item.id, label: item.label, note: item.note })).join('')}
+        </div>
+      </div>`;
+    }
+    if (draft.step === 4) {
+      const selected = new Set(draft.equipmentIds || []);
+      return `<div class="profile-builder-stack">
+        <div class="profile-builder-presets">
+          <button class="button secondary" id="builder-equipment-ship" type="button">Выбрать наш зал</button>
+          <button class="button ghost" id="builder-equipment-minimal" type="button">Только без железа</button>
+        </div>
+        <div class="profile-builder-grid two equipment-grid" data-builder-group="equipment">
+          ${profileBuilderEquipment.map((item) => profileBuilderOption({ value: item.id, active: item.always || selected.has(item.id), label: item.label, note: item.always ? 'Всегда доступно' : '' }, item.always ? 'locked' : '')).join('')}
+        </div>
+      </div>`;
+    }
+    if (draft.step === 5) {
+      const none = !(draft.constraintAreas || []).length && !String(draft.customConstraint || '').trim();
+      return `<div class="profile-builder-stack">
+        <div class="profile-builder-grid two constraints-grid" data-builder-group="constraints">
+          ${profileBuilderOption({ value: 'none', active: none, label: 'Нет ограничений', note: 'Можно продолжить без отметок', icon: '✓' }, 'wide')}
+          ${profileBuilderConstraintAreas.map((item) => profileBuilderOption({ value: item.id, active: draft.constraintAreas.includes(item.id), label: item.label })).join('')}
+        </div>
+        <div class="field"><label>Другое — необязательно</label><textarea id="builder-custom-constraint" placeholder="Например: нельзя прыгать, осторожно после операции…">${escapeHTML(draft.customConstraint || '')}</textarea></div>
+        <div class="notice warning"><strong>Это фильтр упражнений, а не медицинский диагноз.</strong><br>При сильной или новой боли тренировку лучше отложить и обратиться к врачу.</div>
+      </div>`;
+    }
+    const preview = buildProfileProgram(draft, 'preview-profile', true);
+    const priorities = draft.priorityMuscles.length ? draft.priorityMuscles.map(profileBuilderMuscleLabel).join(', ') : 'всё тело равномерно';
+    return `<div class="profile-builder-preview">
+      <div class="profile-builder-summary">
+        <div><span>График</span><strong>${escapeHTML(profileBuilderScheduleText(draft))}</strong></div>
+        <div><span>Длительность</span><strong>≈ ${draft.durationMin} мин</strong></div>
+        <div><span>Приоритет</span><strong>${escapeHTML(priorities)}</strong></div>
+        <div><span>Цель</span><strong>${escapeHTML(profileBuilderGoal(draft.goal).label)}</strong></div>
+      </div>
+      <div class="profile-builder-days">
+        ${preview.days.map((day, index) => `<details class="profile-builder-day" ${index === 0 ? 'open' : ''}>
+          <summary><span class="day-badge small-badge">${index + 1}</span><span><strong>${escapeHTML(day.name)}</strong><small>≈ ${day.durationMin} мин · ${day.exercises.length} упражнений</small></span><b>⌄</b></summary>
+          <div>${day.exercises.map((entry, exerciseIndex) => { const exercise = getExercise(entry.exerciseId); return `<p><span>${exerciseIndex + 1}</span><strong>${escapeHTML(exercise?.name || entry.exerciseId)}</strong><small>${escapeHTML(workPrescription(exercise, entry))}</small></p>`; }).join('')}</div>
+        </details>`).join('')}
+      </div>
+      <div class="notice success"><strong>После создания всё редактируется.</strong><br>В разделе «План» можно менять упражнения, подходы, порядок и названия дней.</div>
+    </div>`;
+  }
+
+  function renderProfileBuilder() {
+    const draft = state.profileBuilder || defaultProfileBuilderDraft(!state.profiles.length);
+    state.profileBuilder = draft;
+    const header = profileBuilderHeader(draft);
+    const shell = `
+      <div class="profile-builder-shell">
+        ${profileBuilderProgress(draft)}
+        <div class="profile-builder-heading"><div class="eyebrow">Шаг ${draft.step + 1} из 7</div><h2>${escapeHTML(header.title)}</h2><p>${escapeHTML(header.subtitle)}</p></div>
+        ${renderProfileBuilderStep(draft)}
+        <div class="profile-builder-actions">
+          ${draft.step > 0 ? '<button class="button ghost" id="profile-builder-back" type="button">Назад</button>' : ''}
+          <button class="button primary" id="profile-builder-next" type="button">${draft.step === 6 ? 'Создать профиль и программу' : 'Далее'}</button>
+        </div>
+      </div>`;
+    if (draft.firstRun) {
+      document.querySelector('.bottom-nav').classList.add('hidden');
+      el.quickAdd.classList.add('hidden');
+      el.profileSwitch.classList.add('hidden');
+      setTopbar('Настройка профиля', 'Первый запуск');
+      el.main.innerHTML = `<section class="section onboarding-section"><div class="card profile-builder-card">${shell}</div></section>`;
+    } else {
+      showModal(`<div class="modal-head"><div><div class="eyebrow">Новый профиль</div><h2>Конструктор программы</h2></div><button class="modal-close" data-close>×</button></div>${shell}`);
+    }
+    bindProfileBuilderEvents(draft.firstRun ? document : el.modalRoot);
+  }
+
+  function readProfileBuilderInputs(root) {
+    const draft = state.profileBuilder;
+    if (!draft) return;
+    if (draft.step === 0) {
+      draft.name = root.querySelector('#builder-name')?.value.trim() || '';
+      draft.age = Math.max(14, Math.min(100, Number(root.querySelector('#builder-age')?.value || 30)));
+      draft.heightCm = Math.max(120, Math.min(230, Number(root.querySelector('#builder-height')?.value || 175)));
+      draft.weightKg = Math.max(35, Math.min(250, Number(root.querySelector('#builder-weight')?.value || 75)));
+    }
+    if (draft.step === 5) draft.customConstraint = root.querySelector('#builder-custom-constraint')?.value.trim() || '';
+  }
+
+  function bindProfileBuilderEvents(root) {
+    const draft = state.profileBuilder;
+    if (!draft) return;
+    root.querySelectorAll('[data-builder-group]').forEach((group) => {
+      group.querySelectorAll('.profile-builder-option').forEach((button) => button.addEventListener('click', () => {
+        readProfileBuilderInputs(root);
+        const key = group.dataset.builderGroup;
+        const value = button.dataset.value;
+        if (button.classList.contains('locked')) return;
+        if (key === 'scheduleMode') {
+          draft.scheduleMode = value;
+          renderProfileBuilder();
+          return;
+        }
+        if (key === 'daysPerWeek') draft.daysPerWeek = Number(value);
+        else if (key === 'durationMin') draft.durationMin = Number(value);
+        else if (key === 'level') draft.level = value;
+        else if (key === 'goal') draft.goal = value;
+        else if (key === 'muscles') {
+          if (value === 'balanced') draft.priorityMuscles = [];
+          else {
+            const selected = new Set(draft.priorityMuscles || []);
+            selected.has(value) ? selected.delete(value) : selected.add(value);
+            draft.priorityMuscles = [...selected];
+          }
+        } else if (key === 'equipment') {
+          const selected = new Set(draft.equipmentIds || []);
+          selected.has(value) ? selected.delete(value) : selected.add(value);
+          selected.add('bodyweight');
+          draft.equipmentIds = [...selected];
+        } else if (key === 'constraints') {
+          if (value === 'none') {
+            draft.constraintAreas = [];
+            draft.customConstraint = '';
+          } else {
+            const selected = new Set(draft.constraintAreas || []);
+            selected.has(value) ? selected.delete(value) : selected.add(value);
+            draft.constraintAreas = [...selected];
+          }
+        }
+        renderProfileBuilder();
+      }));
+    });
+    root.querySelector('#builder-equipment-ship')?.addEventListener('click', () => {
+      draft.equipmentIds = profileBuilderEquipment.map((item) => item.id);
+      renderProfileBuilder();
+    });
+    root.querySelector('#builder-equipment-minimal')?.addEventListener('click', () => {
+      draft.equipmentIds = ['bodyweight', 'mat', 'chair'];
+      renderProfileBuilder();
+    });
+    root.querySelector('#profile-builder-back')?.addEventListener('click', () => {
+      readProfileBuilderInputs(root);
+      draft.step = Math.max(0, draft.step - 1);
+      renderProfileBuilder();
+    });
+    root.querySelector('#profile-builder-next')?.addEventListener('click', async () => {
+      readProfileBuilderInputs(root);
+      if (draft.step === 0 && !draft.name) return toast('Введи имя профиля');
+      if (draft.step < 6) {
+        draft.step += 1;
+        renderProfileBuilder();
+        return;
+      }
+      await createProfileFromBuilder(draft);
+    });
+  }
+
+  function profileExerciseAvailable(exercise, equipmentIds) {
+    if (!exercise) return false;
+    const selected = new Set(['bodyweight', ...(equipmentIds || [])]);
+    const text = String(exercise.equipment || '').toLowerCase();
+    if (text.includes('штанга или гантели')) return selected.has('barbell') || selected.has('dumbbells');
+    if (text.includes('гантели или собственный вес')) return true;
+    if (text.includes('стул / собственный вес')) return true;
+    if (text.includes('мультитренаж') && !selected.has('multigym')) return false;
+    if (text.includes('степпер') && !selected.has('stepper')) return false;
+    if (text.includes('ролик') && !selected.has('roller')) return false;
+    if (text.includes('брусья') && !selected.has('dips')) return false;
+    if (text.includes('упоры для отжиманий') && !selected.has('pushup-handles')) return false;
+    if (text.includes('стойки') && !selected.has('rack')) return false;
+    if (text.includes('скамья') && !selected.has('bench')) return false;
+    if (text.includes('штанг') && !selected.has('barbell')) return false;
+    if (text.includes('гантел') && !selected.has('dumbbells')) return false;
+    if (text.includes('коврик') && !selected.has('mat')) return false;
+    if (text.includes('стул') && !(selected.has('chair') || selected.has('bench'))) return false;
+    if (exercise.id === 'barbell-squat' && !(selected.has('barbell') && selected.has('rack'))) return false;
+    return true;
+  }
+
+  function profileExerciseAllowed(exercise, draft) {
+    if (!profileExerciseAvailable(exercise, draft.equipmentIds)) return false;
+    if ((draft.level === 'beginner' || draft.goal === 'return') && profileBuilderAdvancedExerciseIds.has(exercise.id)) return false;
+    if ((draft.constraintAreas || []).some((areaId) => exerciseMatchesPainRule(exercise, painRiskRules[areaId]))) return false;
+    return true;
+  }
+
+  function profileProgramBlueprints(draft) {
+    const count = draft.scheduleMode === 'every_other_day' ? 4 : Math.max(2, Math.min(6, Number(draft.daysPerWeek || 4)));
+    const presets = {
+      2: [
+        { name: 'Всё тело A', groups: ['legs', 'chest', 'back', 'abs'] },
+        { name: 'Всё тело B', groups: ['glutes', 'back', 'shoulders', 'abs'] },
+      ],
+      3: [
+        { name: 'Верх тела', groups: ['chest', 'back', 'shoulders', 'triceps'] },
+        { name: 'Ноги и ягодицы', groups: ['legs', 'glutes', 'abs'] },
+        { name: 'Всё тело + приоритет', groups: ['back', 'chest', 'legs', 'abs', 'biceps'] },
+      ],
+      4: [
+        { name: 'Верх тела A', groups: ['chest', 'back', 'shoulders', 'triceps'] },
+        { name: 'Низ тела A', groups: ['legs', 'glutes', 'abs'] },
+        { name: 'Верх тела B', groups: ['back', 'chest', 'shoulders', 'biceps'] },
+        { name: 'Низ тела B + кор', groups: ['glutes', 'legs', 'abs'] },
+      ],
+      5: [
+        { name: 'Грудь, плечи + трицепс', groups: ['chest', 'shoulders', 'triceps'] },
+        { name: 'Спина + бицепс', groups: ['back', 'biceps', 'shoulders'] },
+        { name: 'Ноги', groups: ['legs', 'glutes', 'abs'] },
+        { name: 'Верх тела + приоритет', groups: ['chest', 'back', 'shoulders', 'biceps', 'triceps'] },
+        { name: 'Ягодицы + кор', groups: ['glutes', 'legs', 'abs'] },
+      ],
+      6: [
+        { name: 'Жимовой верх A', groups: ['chest', 'shoulders', 'triceps'] },
+        { name: 'Тяговый верх A', groups: ['back', 'biceps', 'shoulders'] },
+        { name: 'Ноги A', groups: ['legs', 'glutes', 'abs'] },
+        { name: 'Жимовой верх B', groups: ['chest', 'shoulders', 'triceps'] },
+        { name: 'Тяговый верх B', groups: ['back', 'biceps', 'shoulders'] },
+        { name: 'Ноги B + кор', groups: ['glutes', 'legs', 'abs'] },
+      ],
+    };
+    const blueprints = clone(presets[count]);
+    const priorities = draft.priorityMuscles || [];
+    const upperGroups = new Set(['chest', 'back', 'shoulders', 'biceps', 'triceps']);
+    const lowerGroups = new Set(['legs', 'glutes']);
+    const desiredPriorityFrequency = count >= 4 ? 2 : count === 2 ? 2 : 1;
+    for (const priority of priorities) {
+      let currentFrequency = blueprints.filter((day) => day.groups.includes(priority)).length;
+      while (currentFrequency < desiredPriorityFrequency) {
+        const compatible = blueprints.filter((day) => {
+          if (day.groups.includes(priority)) return false;
+          if (upperGroups.has(priority)) return day.groups.some((group) => upperGroups.has(group));
+          if (lowerGroups.has(priority)) return day.groups.some((group) => lowerGroups.has(group));
+          return true;
+        });
+        const target = (compatible.length ? compatible : blueprints.filter((day) => !day.groups.includes(priority)))
+          .slice()
+          .sort((a, b) => a.groups.length - b.groups.length)[0];
+        if (!target) break;
+        target.groups.unshift(priority);
+        currentFrequency += 1;
+      }
+    }
+    return blueprints;
+  }
+
+  function profileProgramExerciseEntry(exercise, draft) {
+    const entry = { exerciseId: exercise.id };
+    const unit = exercise.defaults?.unit || 'reps';
+    const compound = profileBuilderCompoundIds.has(exercise.id);
+    let sets = draft.level === 'beginner' || draft.goal === 'return' ? 2 : draft.level === 'experienced' ? (compound ? 4 : 3) : 3;
+    if (draft.durationMin <= 30) sets = Math.min(sets, 3);
+    entry.sets = sets;
+    if (unit === 'reps') {
+      if (draft.goal === 'strength' && compound) {
+        entry.repsMin = 5;
+        entry.repsMax = 8;
+        entry.restSec = 120;
+      } else if (draft.goal === 'weight' || draft.goal === 'shape') {
+        entry.repsMin = Math.max(8, Number(exercise.defaults.repsMin || 8));
+        entry.repsMax = Math.max(entry.repsMin + 2, Math.min(15, Number(exercise.defaults.repsMax || 12)));
+        entry.restSec = Math.min(75, Number(exercise.defaults.restSec || 60));
+      } else if (draft.goal === 'return') {
+        entry.repsMin = 8;
+        entry.repsMax = 12;
+        entry.restSec = Math.max(60, Number(exercise.defaults.restSec || 60));
+      }
+    }
+    if (unit === 'seconds' && draft.level === 'beginner') entry.durationSec = Math.max(20, Math.round(Number(exercise.defaults.durationSec || 30) * 0.75));
+    return entry;
+  }
+
+  function profileProgramCandidate(groupId, draft, used, selected, dayIndex, round) {
+    const pool = smartWorkoutExercisePools[groupId] || [];
+    const candidates = pool.map((id) => getExercise(id)).filter((exercise) => exercise && !selected.has(exercise.id) && profileExerciseAllowed(exercise, draft));
+    candidates.sort((a, b) => {
+      const usageDiff = (used.get(a.id) || 0) - (used.get(b.id) || 0);
+      if (usageDiff) return usageDiff;
+      const compoundDiff = Number(profileBuilderCompoundIds.has(b.id)) - Number(profileBuilderCompoundIds.has(a.id));
+      if (round === 0 && compoundDiff) return compoundDiff;
+      return (smartStringScore(`${a.id}:${dayIndex}:${round}`) % 101) - (smartStringScore(`${b.id}:${dayIndex}:${round}`) % 101);
+    });
+    return candidates[0] || null;
+  }
+
+  function buildProfileProgram(draft, profileId, preview = false) {
+    const createdAt = new Date().toISOString();
+    const blueprints = profileProgramBlueprints(draft);
+    const used = new Map();
+    const prioritySet = new Set(draft.priorityMuscles || []);
+    const targetCount = draft.durationMin <= 20 ? 3 : draft.durationMin <= 30 ? 4 : draft.durationMin <= 45 ? 5 : 6;
+    const days = blueprints.map((blueprint, dayIndex) => {
+      const groups = [...new Set([...blueprint.groups].sort((a, b) => Number(prioritySet.has(b)) - Number(prioritySet.has(a))))];
+      const selected = new Set();
+      const work = [];
+      for (let round = 0; work.length < targetCount && round < 4; round += 1) {
+        for (const groupId of groups) {
+          if (work.length >= targetCount) break;
+          const exercise = profileProgramCandidate(groupId, draft, used, selected, dayIndex, round);
+          if (!exercise) continue;
+          selected.add(exercise.id);
+          used.set(exercise.id, (used.get(exercise.id) || 0) + 1);
+          work.push(profileProgramExerciseEntry(exercise, draft));
+        }
+      }
+      if (work.length < targetCount) {
+        for (const groupId of ['chest', 'back', 'legs', 'glutes', 'shoulders', 'abs', 'biceps', 'triceps']) {
+          if (work.length >= targetCount) break;
+          const exercise = profileProgramCandidate(groupId, draft, used, selected, dayIndex, 5);
+          if (!exercise) continue;
+          selected.add(exercise.id);
+          used.set(exercise.id, (used.get(exercise.id) || 0) + 1);
+          work.push(profileProgramExerciseEntry(exercise, draft));
+        }
+      }
+      if ((draft.goal === 'weight' || draft.goal === 'shape') && draft.durationMin >= 45 && profileExerciseAllowed(getExercise('stepper-short'), draft) && !selected.has('stepper-short')) {
+        work.push({ exerciseId: 'stepper-short', durationMin: draft.durationMin >= 60 ? 10 : 6 });
+      }
+      const warmupMinutes = draft.durationMin <= 20 ? 3 : draft.durationMin <= 30 ? 4 : draft.durationMin >= 60 ? 7 : 5;
+      const exercises = [{ exerciseId: 'warmup-joints', durationMin: warmupMinutes }, ...work];
+      const focusLabels = groups.slice(0, 4).map(profileBuilderMuscleLabel);
+      return {
+        id: preview ? `preview-day-${dayIndex + 1}` : uid('day'),
+        name: blueprint.name,
+        durationMin: draft.durationMin,
+        focus: focusLabels.join(', '),
+        exercises,
+        short: exercises.slice(0, Math.min(5, exercises.length)).map((entry) => entry.exerciseId),
+      };
+    });
+    const scheduleText = profileBuilderScheduleText(draft);
+    return {
+      id: preview ? 'preview-program' : uid(`program-${profileId}`),
+      name: 'Моя стартовая программа',
+      description: `${scheduleText} · около ${draft.durationMin} мин · цель: ${profileBuilderGoal(draft.goal).label.toLowerCase()}.`,
+      ownerProfileId: profileId,
+      templateId: 'generated-profile-program',
+      generatedBy: 'profile-builder-v1',
+      scheduleMode: draft.scheduleMode,
+      daysPerWeek: draft.scheduleMode === 'weekly' ? draft.daysPerWeek : null,
+      durationMin: draft.durationMin,
+      priorityMuscles: [...(draft.priorityMuscles || [])],
+      trainingGoal: draft.goal,
+      trainingLevel: draft.level,
+      createdAt,
+      updatedAt: createdAt,
+      days,
+    };
   }
 
   function showProfileOnboarding() {
-    document.querySelector('.bottom-nav').classList.add('hidden');
-    el.quickAdd.classList.add('hidden');
-    el.profileSwitch.classList.add('hidden');
-    setTopbar('Создай профиль', 'Первый запуск');
-    el.main.innerHTML = `
-      <section class="section onboarding-section">
-        <div class="card hero-card">
-          <span class="chip accent">ЛИЧНЫЕ ДАННЫЕ</span>
-          <h2>Кто будет тренироваться?</h2>
-          <p>У каждого профиля будут отдельные тренировки, рабочие веса, замеры, фотографии и настройки.</p>
-        </div>
-      </section>
-      <section class="section"><div class="card">${profileCreateFields()}<button class="button primary full" id="create-first-profile" style="margin-top:14px">Создать профиль</button></div></section>
-      <section class="section"><div class="notice"><strong>Без регистрации.</strong> Данные остаются только на этом устройстве. На другом телефоне человек создаст собственный профиль после открытия ссылки.</div></section>`;
-    document.getElementById('create-first-profile').addEventListener('click', () => createProfileFromForm(document));
+    state.profileBuilder = defaultProfileBuilderDraft(true);
+    renderProfileBuilder();
   }
 
   function showCreateProfileModal() {
-    showModal(`
-      <div class="modal-head"><h2>Новый профиль</h2><button class="modal-close" data-close>×</button></div>
-      ${profileCreateFields()}
-      <button class="button primary full" id="create-profile" style="margin-top:14px">Создать</button>
-      <div class="help" style="margin-top:10px">История, замеры, фотографии и рабочие веса нового профиля будут полностью отдельными.</div>
-    `);
-    document.getElementById('create-profile').addEventListener('click', () => createProfileFromForm(el.modalRoot));
+    state.profileBuilder = defaultProfileBuilderDraft(false);
+    renderProfileBuilder();
   }
 
-  async function createProfileFromForm(root) {
-    const name = root.querySelector('#new-profile-name')?.value.trim();
-    if (!name) return toast('Введи имя профиля');
-    const templateId = root.querySelector('#new-profile-program')?.value;
-    const isIndividualProgram = templateId === 'individual';
-    const template = isIndividualProgram
-      ? null
-      : (state.allPrograms.find((program) => program.id === templateId) || state.allPrograms[0]);
-    if (!isIndividualProgram && !template) return toast('Не найдена стартовая программа');
-
+  async function createProfileFromBuilder(draft) {
+    if (!draft?.name?.trim()) return toast('Введи имя профиля');
     const profileId = uid('profile');
-    const goal = root.querySelector('#new-profile-goal')?.value.trim();
-    const equipmentText = root.querySelector('#new-profile-equipment')?.value.trim() || '';
+    const personalProgram = buildProfileProgram(draft, profileId, false);
+    if (!personalProgram.days.length || personalProgram.days.some((day) => day.exercises.length < 2)) return toast('Не удалось собрать программу. Проверь оборудование и ограничения');
+    const goal = profileBuilderGoal(draft.goal);
+    const priorities = draft.priorityMuscles.length ? draft.priorityMuscles.map(profileBuilderMuscleLabel) : ['Всё тело равномерно'];
     const profile = {
       id: profileId,
-      name,
-      age: Number(root.querySelector('#new-profile-age')?.value || 30),
-      heightCm: Number(root.querySelector('#new-profile-height')?.value || 175),
-      currentWeightKg: Number(root.querySelector('#new-profile-weight')?.value || 75),
-      goals: goal ? [goal] : ['Стать сильнее и улучшить форму'],
-      equipment: equipmentText ? equipmentText.split(/[\n,]+/).map((item) => item.trim()).filter(Boolean) : [],
-      constraints: [],
+      name: draft.name.trim(),
+      age: Number(draft.age || 30),
+      heightCm: Number(draft.heightCm || 175),
+      currentWeightKg: Number(draft.weightKg || 75),
+      goals: [goal.label, ...priorities.map((label) => `Приоритет: ${label}`)],
+      equipment: profileBuilderEquipmentValues(draft),
+      constraints: profileBuilderConstraintValues(draft),
       progressNote: '',
+      trainingPreferences: {
+        scheduleMode: draft.scheduleMode,
+        daysPerWeek: draft.scheduleMode === 'weekly' ? draft.daysPerWeek : null,
+        durationMin: draft.durationMin,
+        priorityMuscles: [...draft.priorityMuscles],
+        goal: draft.goal,
+        level: draft.level,
+        equipmentIds: [...draft.equipmentIds],
+        constraintAreas: [...draft.constraintAreas],
+      },
     };
-
-    let personalProgram;
-    if (isIndividualProgram) {
-      const createdAt = new Date().toISOString();
-      personalProgram = {
-        id: uid(`program-${profileId}`),
-        name: 'Индивидуальная программа',
-        description: 'Собери дни, упражнения, подходы и нагрузку полностью под себя.',
-        ownerProfileId: profileId,
-        templateId: 'individual',
-        createdAt,
-        updatedAt: createdAt,
-        days: [{
-          id: uid('day'),
-          name: 'День 1',
-          durationMin: 45,
-          focus: '',
-          exercises: [],
-          short: [],
-        }],
-      };
-      await DB.put('programs', personalProgram);
-      state.allPrograms.push(personalProgram);
-    } else {
-      personalProgram = await createPersonalProgramFromTemplate(template, profileId);
-    }
+    await DB.put('programs', personalProgram);
     const settings = {
       ...clone(window.NIKITA_SEED.settings),
       activeProgramId: personalProgram.id,
       currentDayIndex: 0,
+      scheduleMode: draft.scheduleMode,
+      daysPerWeek: draft.scheduleMode === 'weekly' ? draft.daysPerWeek : null,
+      workoutDurationMin: draft.durationMin,
+      priorityMuscles: [...draft.priorityMuscles],
+      trainingGoal: draft.goal,
+      trainingLevel: draft.level,
       lastBackupAt: null,
     };
     await DB.createProfile(profile, clone(window.NIKITA_SEED.nutrition), settings);
     await DB.put('measurements', {
-      id: uid('measurement'),
-      profileId,
-      date: todayISO(),
-      weightKg: profile.currentWeightKg,
-      waistCm: null,
-      abdomenCm: null,
-      chestCm: null,
-      hipsCm: null,
-      armCm: null,
+      id: uid('measurement'), profileId, date: todayISO(), weightKg: profile.currentWeightKg,
+      waistCm: null, abdomenCm: null, chestCm: null, hipsCm: null, armCm: null,
       note: 'Стартовый вес при создании профиля.',
     });
-
+    state.profileBuilder = null;
     clearInterval(state.workoutClockInterval);
     state.currentWorkout = null;
     closeModal();
@@ -3742,10 +4265,8 @@
     document.querySelector('.bottom-nav').classList.remove('hidden');
     el.quickAdd.classList.remove('hidden');
     el.profileSwitch.classList.remove('hidden');
-    toast(isIndividualProgram
-      ? `Профиль «${name}» создан — составь программу под себя`
-      : `Профиль «${name}» создан`);
-    navigate(isIndividualProgram ? 'plan' : 'home');
+    toast(`Профиль «${profile.name}» и программа созданы`);
+    navigate('home');
   }
 
   function showProfileSwitcher() {
@@ -4489,6 +5010,8 @@
         <div class="inline-fields three"><div class="field"><label>Возраст</label><input id="profile-age" type="number" value="${state.profile.age || ''}"></div><div class="field"><label>Рост, см</label><input id="profile-height" type="number" value="${state.profile.heightCm || ''}"></div><div class="field"><label>Вес, кг</label><input id="profile-weight" type="number" step="0.1" value="${state.profile.currentWeightKg || ''}"></div></div>
         <div class="field"><label>Цели — по одной на строке</label><textarea id="profile-goals">${escapeHTML((state.profile.goals || []).join('\n'))}</textarea></div>
         <div class="field"><label>Инвентарь — по одному на строке</label><textarea id="profile-equipment">${escapeHTML((state.profile.equipment || []).join('\n'))}</textarea></div>
+        <div class="field"><label>Ограничения — по одному на строке</label><textarea id="profile-constraints">${escapeHTML((state.profile.constraints || []).join('\n'))}</textarea></div>
+        <div class="notice"><strong>Текущий режим:</strong> ${escapeHTML(profileBuilderScheduleText({ scheduleMode: state.profile.trainingPreferences?.scheduleMode || state.settings.scheduleMode || 'weekly', daysPerWeek: state.profile.trainingPreferences?.daysPerWeek || state.settings.daysPerWeek || 4 }))}.<br>Упражнения и дни по-прежнему редактируются в разделе «План».</div>
         <div class="field"><label>Заметка о прогрессе</label><textarea id="profile-progress">${escapeHTML(state.profile.progressNote || '')}</textarea></div>
       </div>
       <button class="button primary full" id="save-profile" style="margin-top:14px">Сохранить</button>
@@ -4500,6 +5023,7 @@
       state.profile.currentWeightKg=Number(document.getElementById('profile-weight').value||0);
       state.profile.goals=document.getElementById('profile-goals').value.split('\n').map((item)=>item.trim()).filter(Boolean);
       state.profile.equipment=document.getElementById('profile-equipment').value.split('\n').map((item)=>item.trim()).filter(Boolean);
+      state.profile.constraints=document.getElementById('profile-constraints').value.split('\n').map((item)=>item.trim()).filter(Boolean);
       state.profile.progressNote=document.getElementById('profile-progress').value.trim();
       state.profile.updatedAt=new Date().toISOString();
       await DB.put('profile',state.profile);
