@@ -2803,3 +2803,19 @@ button:disabled {
   font-size: 0.85rem;
   line-height: 1.35;
 }
+
+/* v1.14.2 — нижняя навигация закреплена к окну PWA на iPhone */
+.bottom-nav {
+  position: fixed !important;
+  inset-inline: 0;
+  bottom: 0;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  transform: translate3d(0, 0, 0);
+  -webkit-transform: translate3d(0, 0, 0);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background: rgba(12, 15, 18, .985);
+  isolation: isolate;
+}
