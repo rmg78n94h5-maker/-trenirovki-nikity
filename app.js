@@ -2000,21 +2000,66 @@
     return (workout?.exercises || []).filter((result) => workoutExerciseCompleted(result)).length;
   }
 
-  function renderWorkoutJourney(workout, focusIndex) {
+  function renderWorkoutFocusSummary(workout, focusIndex) {
     const total = workout.exercises.length;
     const completed = workoutCompletedExerciseCount(workout);
     const pct = workoutCompletion(workout);
     const remaining = workoutEstimatedRemainingMinutes(workout);
     const currentOrdinal = focusIndex >= 0 ? focusIndex + 1 : total;
+    const focusResult = focusIndex >= 0 ? workout.exercises[focusIndex] : null;
+    const focusExercise = focusResult ? getExercise(focusResult.exerciseId) : null;
+    const activeSetIndex = focusResult ? workoutActiveSetIndex(focusResult) : -1;
+    const totalSets = focusResult?.sets?.length || 0;
+    const currentSetLabel = focusResult
+      ? activeSetIndex >= 0
+        ? `Подход ${activeSetIndex + 1} из ${totalSets}`
+        : totalSets
+          ? 'Все подходы готовы'
+          : 'Подходов нет'
+      : 'Тренировка завершена';
+    const meta = [focusExercise?.group || '', focusExercise?.equipment || '', focusResult ? `отдых ${focusResult.defaults.restSec || 0} сек` : '']
+      .filter(Boolean)
+      .join(' · ');
+    const title = focusResult ? focusResult.name : 'Тренировка завершена';
     const stage = pct >= 84 ? 2 : pct >= 28 ? 1 : 0;
     const stages = ['Разминка', 'Основная', 'Финиш'];
     return `
-      <div class="workout-journey" aria-label="Этап тренировки">
-        <div class="workout-progress-ring" id="workout-progress-ring" style="--workout-progress:${pct * 3.6}deg"><strong id="workout-progress-ring-text">${pct}%</strong><span>${completed}/${total}</span></div>
-        <div class="workout-journey-copy">
-          <div class="workout-journey-line"><strong id="workout-progress-count">Упражнение ${currentOrdinal} из ${total}</strong><span id="workout-remaining-time">≈ ${remaining} мин осталось</span></div>
-          <div class="workout-stage-track">${stages.map((label, index) => `<span class="${index < stage ? 'done' : index === stage ? 'current' : ''}">${label}</span>`).join('')}</div>
+      <div class="workout-focus-summary ${pct >= 100 ? 'complete' : ''}" id="workout-live-banner" role="group" aria-label="Время тренировки 00:00, выполнено ${pct} процентов">
+        <div class="workout-focus-hero">
+          <div class="workout-focus-copy">
+            <span class="workout-focus-kicker">${focusResult ? 'Сейчас в работе' : 'Финиш'}</span>
+            <h2 id="workout-focus-title">${escapeHTML(title)}</h2>
+            <div class="workout-focus-sub">
+              <span>${escapeHTML(currentSetLabel)}</span>
+              ${meta ? `<span>${escapeHTML(meta)}</span>` : ''}
+            </div>
+          </div>
+          <div class="workout-progress-ring" id="workout-progress-ring" style="--workout-progress:${pct * 3.6}deg"><strong id="workout-progress-ring-text">${pct}%</strong><span>${completed}/${total}</span></div>
         </div>
+        <div class="workout-focus-stats">
+          <div class="workout-focus-stat">
+            <span>Тренировка</span>
+            <strong class="workout-clock" id="workout-clock">00:00</strong>
+            <small>с момента старта</small>
+          </div>
+          <div class="workout-focus-stat accent">
+            <span>Выполнено</span>
+            <strong id="workout-progress-text">${pct}%</strong>
+            <small>${completed} из ${total} упражнений</small>
+          </div>
+          <div class="workout-focus-stat">
+            <span>В списке</span>
+            <strong id="workout-progress-count">Упражнение ${currentOrdinal} из ${total}</strong>
+            <small>${focusResult ? 'текущее упражнение' : 'всё закрыто'}</small>
+          </div>
+          <div class="workout-focus-stat">
+            <span>Осталось</span>
+            <strong id="workout-remaining-time">≈ ${remaining} мин</strong>
+            <small>по текущему темпу</small>
+          </div>
+        </div>
+        <div class="progress-bar sport-workout-progress" aria-hidden="true"><span id="workout-progress-bar" style="width:${pct}%"></span></div>
+        <div class="workout-stage-track">${stages.map((label, index) => `<span class="${index < stage ? 'done' : index === stage ? 'current' : ''}">${label}</span>`).join('')}</div>
       </div>
     `;
   }
@@ -2028,11 +2073,27 @@
 
   function renderWorkoutDock(workout, focusIndex) {
     const focusResult = focusIndex >= 0 ? workout.exercises[focusIndex] : null;
+    const focusExercise = focusResult ? getExercise(focusResult.exerciseId) : null;
     const setIndex = focusResult ? workoutActiveSetIndex(focusResult) : -1;
     const canComplete = focusResult && setIndex >= 0;
     const primary = canComplete ? `Подход ${setIndex + 1} готов` : 'Все подходы готовы';
+    const status = focusResult
+      ? setIndex >= 0
+        ? `Подход ${setIndex + 1} из ${focusResult.sets.length}`
+        : 'Упражнение закрыто'
+      : 'Тренировка завершена';
     return `
       <div class="workout-control-dock" role="group" aria-label="Управление тренировкой">
+        <div class="workout-dock-summary">
+          <div class="workout-dock-summary-copy">
+            <span>Сейчас</span>
+            <strong>${escapeHTML(focusResult?.name || 'Тренировка завершена')}</strong>
+          </div>
+          <div class="workout-dock-summary-meta">
+            <span class="workout-dock-chip">${escapeHTML(status)}</span>
+            ${focusExercise?.group ? `<span class="workout-dock-chip muted">${escapeHTML(focusExercise.group)}</span>` : ''}
+          </div>
+        </div>
         <div class="workout-control-main">
           <button class="workout-nav-button" id="workout-dock-prev" type="button" aria-label="Предыдущее упражнение">←</button>
           <button class="button primary workout-dock-complete" id="workout-dock-complete" type="button" data-exercise="${focusIndex}" data-set="${setIndex}" ${canComplete ? '' : 'disabled'}>${escapeHTML(primary)} ✓</button>
@@ -2064,19 +2125,7 @@
     el.main.innerHTML = `
       <div class="workout-screen sport-workout-screen ${workoutFocusEnabled() ? 'focus-mode' : ''}">
       <div class="workout-header sport-workout-header">
-        <div class="workout-live-banner" id="workout-live-banner" role="group" aria-label="Время тренировки 00:00, выполнено 0 процентов">
-          <div class="workout-live-metric workout-live-time">
-            <span>Тренировка</span>
-            <strong class="workout-clock" id="workout-clock">00:00</strong>
-          </div>
-          <span class="workout-live-separator" aria-hidden="true"></span>
-          <div class="workout-live-metric workout-live-completion">
-            <span>Выполнено</span>
-            <strong id="workout-progress-text">0%</strong>
-          </div>
-          <div class="progress-bar sport-workout-progress" aria-hidden="true"><span id="workout-progress-bar" style="width:0%"></span></div>
-        </div>
-        ${renderWorkoutJourney(workout, focusIndex)}
+        ${renderWorkoutFocusSummary(workout, focusIndex)}
       </div>
 
       ${renderHiddenCompletedBar(workout)}
