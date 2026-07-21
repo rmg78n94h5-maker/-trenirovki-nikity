@@ -100,6 +100,10 @@
 
   let timerAudioContext = null;
   let timerAudioPrimed = false;
+  const workoutExerciseUi = {
+    expandedCompleted: new Set(),
+    justCompletedIndex: null,
+  };
 
   const difficultyOptions = [
     ['easy', 'Легко'],
@@ -1990,41 +1994,88 @@
     const previous = result.previous ? `<span class="chip">Прошлый: ${escapeHTML(result.previous)}</span>` : `<span class="chip">Первое выполнение</span>`;
     const prefilled = result.prefilledFromLast ? `<span class="chip success">Значения подставлены из прошлого раза</span>` : '';
     const suggestion = result.suggestion?.text ? `<span class="chip ${result.suggestion.kind === 'increase' ? 'success' : result.suggestion.kind === 'reduce' ? 'warning' : ''}">${escapeHTML(result.suggestion.text)}</span>` : '';
+    const completed = workoutExerciseCompleted(result);
+    const uiKey = workoutExerciseUiKey(exerciseIndex);
+    const justCompleted = completed && workoutExerciseUi.justCompletedIndex === exerciseIndex;
+    const expanded = completed && workoutExerciseUi.expandedCompleted.has(uiKey);
+    const collapsed = completed && !expanded && !justCompleted;
+    const completedClass = completed ? ` exercise-complete${collapsed ? ' is-collapsed' : ''}${justCompleted ? ' just-completed' : ''}` : '';
     return `
-      <article class="workout-exercise sport-workout-exercise ${result.skipped ? 'muted' : ''} ${painRiskClass(result.painRisk)}" data-exercise-index="${exerciseIndex}">
-        <div class="workout-exercise-head sport-workout-exercise-head">
-          <div class="sport-exercise-kicker"><span>${exerciseIndex + 1} · ${escapeHTML(exercise?.group || '')}</span><strong>${escapeHTML(activeLabel)}</strong></div>
-          <h3>${escapeHTML(result.name)}</h3>
-          <div class="exercise-meta">${escapeHTML(exercise?.equipment || '')} · отдых ${result.defaults.restSec || 0} сек</div>
-          <div class="sport-set-trail" aria-label="Прогресс подходов">
-            ${renderWorkoutSetTrail(result, activeSetIndex)}
+      <article class="workout-exercise sport-workout-exercise ${result.skipped ? 'muted' : ''} ${painRiskClass(result.painRisk)}${completedClass}" data-exercise-index="${exerciseIndex}">
+        ${completed ? `
+          <button class="completed-exercise-summary toggle-completed-exercise" type="button" data-index="${exerciseIndex}" aria-expanded="${collapsed ? 'false' : 'true'}" aria-label="${collapsed ? 'Развернуть' : 'Свернуть'} завершённое упражнение ${escapeAttr(result.name)}">
+            <span class="completed-exercise-check" aria-hidden="true">✓</span>
+            <span class="completed-exercise-copy">
+              <strong>${escapeHTML(result.name)}</strong>
+              <small>${escapeHTML(workoutExerciseCompactSummary(result))}</small>
+            </span>
+            <span class="completed-exercise-chevron" aria-hidden="true">⌄</span>
+          </button>
+        ` : ''}
+        <div class="completed-exercise-body">
+          <div class="workout-exercise-head sport-workout-exercise-head">
+            <div class="sport-exercise-kicker"><span>${exerciseIndex + 1} · ${escapeHTML(exercise?.group || '')}</span><strong>${escapeHTML(activeLabel)}</strong></div>
+            <h3>${escapeHTML(result.name)}</h3>
+            <div class="exercise-meta">${escapeHTML(exercise?.equipment || '')} · отдых ${result.defaults.restSec || 0} сек</div>
+            <div class="sport-set-trail" aria-label="Прогресс подходов">
+              ${renderWorkoutSetTrail(result, activeSetIndex)}
+            </div>
+            <div class="sport-exercise-progress"><span>Подходы</span><strong>${completedCount}/${totalSets}</strong></div>
+            <div class="hero-meta">${previous}${prefilled}${suggestion}</div>
+            ${renderPainRiskNotice(result.painRisk, exerciseIndex)}
+            ${exercise?.safety ? `<div class="notice warning" style="margin-top:10px">${escapeHTML(exercise.safety)}</div>` : ''}
+            <details class="exercise-guide sport-exercise-guide">
+              <summary><span>ⓘ Техника и подсказки</span><span class="exercise-chevron" aria-hidden="true">⌄</span></summary>
+              ${renderGuideBody(result.exerciseId)}
+            </details>
+            <div class="exercise-tools sport-exercise-tools">
+              <button class="button secondary small replace-exercise" data-index="${exerciseIndex}" type="button">Заменить</button>
+              <button class="button ghost small skip-exercise" data-index="${exerciseIndex}" type="button">${result.skipped ? 'Вернуть' : 'Пропустить'}</button>
+              <button class="button ghost small comment-exercise" data-index="${exerciseIndex}" type="button">Комментарий</button>
+              <button class="button ghost small pain-exercise" data-index="${exerciseIndex}" type="button">⚠️ Боль</button>
+            </div>
+            ${result.painEvents?.length ? `<div class="help" style="margin-top:9px">⚠️ Боль отмечена: ${result.painEvents.map((event) => `${escapeHTML(event.areaLabel)} ${event.score}/10`).join(' · ')}</div>` : ''}
+            ${result.comment ? `<div class="help" style="margin-top:9px">“${escapeHTML(result.comment)}”</div>` : ''}
           </div>
-          <div class="sport-exercise-progress"><span>Подходы</span><strong>${completedCount}/${totalSets}</strong></div>
-          <div class="hero-meta">${previous}${prefilled}${suggestion}</div>
-          ${renderPainRiskNotice(result.painRisk, exerciseIndex)}
-          ${exercise?.safety ? `<div class="notice warning" style="margin-top:10px">${escapeHTML(exercise.safety)}</div>` : ''}
-          <details class="exercise-guide sport-exercise-guide">
-            <summary><span>ⓘ Техника и подсказки</span><span class="exercise-chevron" aria-hidden="true">⌄</span></summary>
-            ${renderGuideBody(result.exerciseId)}
-          </details>
-          <div class="exercise-tools sport-exercise-tools">
-            <button class="button secondary small replace-exercise" data-index="${exerciseIndex}" type="button">Заменить</button>
-            <button class="button ghost small skip-exercise" data-index="${exerciseIndex}" type="button">${result.skipped ? 'Вернуть' : 'Пропустить'}</button>
-            <button class="button ghost small comment-exercise" data-index="${exerciseIndex}" type="button">Комментарий</button>
-            <button class="button ghost small pain-exercise" data-index="${exerciseIndex}" type="button">⚠️ Боль</button>
+          <div class="set-list sport-set-list" aria-label="Подходы упражнения ${escapeHTML(result.name)}">
+            ${result.sets.map((set, setIndex) => renderWorkoutSet(result, set, setIndex, activeSetIndex)).join('')}
           </div>
-          ${result.painEvents?.length ? `<div class="help" style="margin-top:9px">⚠️ Боль отмечена: ${result.painEvents.map((event) => `${escapeHTML(event.areaLabel)} ${event.score}/10`).join(' · ')}</div>` : ''}
-          ${result.comment ? `<div class="help" style="margin-top:9px">“${escapeHTML(result.comment)}”</div>` : ''}
-        </div>
-        <div class="set-list sport-set-list" aria-label="Подходы упражнения ${escapeHTML(result.name)}">
-          ${result.sets.map((set, setIndex) => renderWorkoutSet(result, set, setIndex, activeSetIndex)).join('')}
-        </div>
-        <div class="button-row" style="padding:0 14px 14px">
-          <button class="button secondary small add-set" data-index="${exerciseIndex}" type="button" ${result.skipped ? 'disabled' : ''}>＋ Добавить подход</button>
-          ${result.sets.length > 1 ? `<button class="button ghost small remove-set" data-index="${exerciseIndex}" type="button" ${result.skipped ? 'disabled' : ''}>− Убрать последний</button>` : ''}
+          <div class="button-row" style="padding:0 14px 14px">
+            <button class="button secondary small add-set" data-index="${exerciseIndex}" type="button" ${result.skipped ? 'disabled' : ''}>＋ Добавить подход</button>
+            ${result.sets.length > 1 ? `<button class="button ghost small remove-set" data-index="${exerciseIndex}" type="button" ${result.skipped ? 'disabled' : ''}>− Убрать последний</button>` : ''}
+          </div>
         </div>
       </article>
     `;
+  }
+
+  function workoutExerciseUiKey(exerciseIndex) {
+    return `${state.currentWorkout?.id || 'workout'}:${exerciseIndex}`;
+  }
+
+  function workoutExerciseCompleted(result) {
+    return Boolean(result && !result.skipped && result.sets?.length && result.sets.every((set) => set.completed));
+  }
+
+  function workoutExerciseCompactSummary(result) {
+    const completed = result.sets.filter((set) => set.completed);
+    const count = completed.length;
+    const setWord = count % 10 === 1 && count % 100 !== 11 ? 'подход' : [2, 3, 4].includes(count % 10) && ![12, 13, 14].includes(count % 100) ? 'подхода' : 'подходов';
+    const pieces = [`${count} ${setWord}`];
+    if (result.defaults.unit === 'reps') {
+      const maxWeight = Math.max(0, ...completed.map((set) => Number(set.weightKg) || 0));
+      const totalReps = completed.reduce((sum, set) => sum + (Number(set.reps) || 0), 0);
+      if (maxWeight > 0) pieces.push(`до ${formatWorkoutSetNumber(maxWeight)} кг`);
+      if (totalReps > 0) pieces.push(`${totalReps} повт.`);
+    } else if (result.defaults.unit === 'minutes') {
+      const minutes = completed.reduce((sum, set) => sum + (Number(set.durationMin) || 0), 0);
+      if (minutes > 0) pieces.push(`${formatWorkoutSetNumber(minutes)} мин`);
+    } else {
+      const seconds = completed.reduce((sum, set) => sum + (Number(set.durationSec) || 0), 0);
+      if (seconds >= 60) pieces.push(`${Math.floor(seconds / 60)} мин ${seconds % 60 ? `${seconds % 60} сек` : ''}`.trim());
+      else if (seconds > 0) pieces.push(`${seconds} сек`);
+    }
+    return pieces.join(' · ');
   }
 
   function workoutActiveSetIndex(result) {
@@ -2169,12 +2220,114 @@
     document.getElementById('open-iron-calculator-workout')?.addEventListener('click', () => showIronCalculatorModal(currentWorkoutTargetWeight()));
     el.main.querySelectorAll('.add-set').forEach((button) => button.addEventListener('click', () => addWorkoutSet(Number(button.dataset.index))));
     el.main.querySelectorAll('.remove-set').forEach((button) => button.addEventListener('click', () => removeLastWorkoutSet(Number(button.dataset.index))));
+    el.main.querySelectorAll('.toggle-completed-exercise').forEach((button) => button.addEventListener('click', () => {
+      const exerciseIndex = Number(button.dataset.index);
+      const card = button.closest('.workout-exercise');
+      if (!card) return;
+      const key = workoutExerciseUiKey(exerciseIndex);
+      const shouldExpand = card.classList.contains('is-collapsed');
+      if (shouldExpand) workoutExerciseUi.expandedCompleted.add(key);
+      else workoutExerciseUi.expandedCompleted.delete(key);
+      setCompletedExerciseCollapsed(card, !shouldExpand);
+    }));
+    setupCompletedExerciseCards();
     document.getElementById('workout-comment').addEventListener('input', (event) => {
       state.currentWorkout.comment = event.target.value;
       debounceDraftSave();
     });
     document.getElementById('cancel-workout').addEventListener('click', showWorkoutCloseModal);
     document.getElementById('finish-workout').addEventListener('click', showFinishWorkoutModal);
+  }
+
+  function setupCompletedExerciseCards() {
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    el.main.querySelectorAll('.workout-exercise.exercise-complete').forEach((card) => {
+      const body = card.querySelector('.completed-exercise-body');
+      if (!body) return;
+      body.style.maxHeight = card.classList.contains('is-collapsed') ? '0px' : 'none';
+    });
+
+    const justCompletedIndex = workoutExerciseUi.justCompletedIndex;
+    if (!Number.isInteger(justCompletedIndex)) return;
+    workoutExerciseUi.justCompletedIndex = null;
+    const card = el.main.querySelector(`.workout-exercise[data-exercise-index="${justCompletedIndex}"]`);
+    if (!card) return;
+    const body = card.querySelector('.completed-exercise-body');
+    if (body) body.style.maxHeight = `${body.scrollHeight}px`;
+    if (state.settings.vibrationEnabled && navigator.vibrate) navigator.vibrate([18, 28, 18]);
+
+    if (reduceMotion) {
+      card.classList.remove('just-completed');
+      setCompletedExerciseCollapsed(card, true, { animate: false });
+      scrollToNextWorkoutExercise(justCompletedIndex, false);
+      return;
+    }
+
+    card.classList.add('exercise-celebrate');
+    window.setTimeout(() => {
+      card.classList.remove('just-completed');
+      setCompletedExerciseCollapsed(card, true);
+    }, 420);
+    window.setTimeout(() => {
+      card.classList.remove('exercise-celebrate');
+      scrollToNextWorkoutExercise(justCompletedIndex, true);
+    }, 930);
+  }
+
+  function setCompletedExerciseCollapsed(card, collapsed, { animate = true } = {}) {
+    const body = card.querySelector('.completed-exercise-body');
+    const toggle = card.querySelector('.toggle-completed-exercise');
+    if (!body) return;
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (toggle) {
+      toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+      const name = state.currentWorkout?.exercises?.[Number(card.dataset.exerciseIndex)]?.name || 'упражнение';
+      toggle.setAttribute('aria-label', `${collapsed ? 'Развернуть' : 'Свернуть'} завершённое упражнение ${name}`);
+    }
+
+    if (!animate || reduceMotion) {
+      card.classList.toggle('is-collapsed', collapsed);
+      body.style.maxHeight = collapsed ? '0px' : 'none';
+      return;
+    }
+
+    if (collapsed) {
+      body.style.maxHeight = `${body.scrollHeight}px`;
+      void body.offsetHeight;
+      card.classList.add('is-collapsed');
+      body.style.maxHeight = '0px';
+      return;
+    }
+
+    card.classList.remove('is-collapsed');
+    body.style.maxHeight = '0px';
+    void body.offsetHeight;
+    body.style.maxHeight = `${body.scrollHeight}px`;
+    const finishExpand = (event) => {
+      if (event.target !== body || event.propertyName !== 'max-height') return;
+      body.removeEventListener('transitionend', finishExpand);
+      if (!card.classList.contains('is-collapsed')) body.style.maxHeight = 'none';
+    };
+    body.addEventListener('transitionend', finishExpand);
+  }
+
+  function nextIncompleteWorkoutExerciseIndex(fromIndex) {
+    const exercises = state.currentWorkout?.exercises || [];
+    const after = exercises.findIndex((result, index) => index > fromIndex && !result.skipped && !workoutExerciseCompleted(result));
+    if (after >= 0) return after;
+    return exercises.findIndex((result, index) => index !== fromIndex && !result.skipped && !workoutExerciseCompleted(result));
+  }
+
+  function scrollToNextWorkoutExercise(fromIndex, smooth = true) {
+    const nextIndex = nextIncompleteWorkoutExerciseIndex(fromIndex);
+    if (nextIndex < 0) return;
+    const target = el.main.querySelector(`.workout-exercise[data-exercise-index="${nextIndex}"]`);
+    if (!target) return;
+    const rect = target.getBoundingClientRect();
+    const safeTop = 118;
+    const safeBottom = window.innerHeight - 112;
+    if (rect.top >= safeTop && rect.bottom <= safeBottom) return;
+    target.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'center' });
   }
 
   function updateSet(exerciseIndex, setIndex, field, value) {
@@ -2288,10 +2441,37 @@
   async function toggleSetComplete(exerciseIndex, setIndex) {
     const result = state.currentWorkout.exercises[exerciseIndex];
     const set = result.sets[setIndex];
+    const wasCompleted = set.completed;
     set.completed = !set.completed;
+    const exerciseJustCompleted = !wasCompleted && workoutExerciseCompleted(result);
+    const uiKey = workoutExerciseUiKey(exerciseIndex);
+
+    if (exerciseJustCompleted) {
+      workoutExerciseUi.expandedCompleted.delete(uiKey);
+      workoutExerciseUi.justCompletedIndex = exerciseIndex;
+    } else if (!set.completed) {
+      workoutExerciseUi.expandedCompleted.delete(uiKey);
+      workoutExerciseUi.justCompletedIndex = null;
+    }
+
     await saveDraftWorkout();
     renderWorkout();
-    if (set.completed && result.defaults.restSec > 0) {
+
+    if (!set.completed) return;
+    if (exerciseJustCompleted) {
+      const nextExerciseIndex = nextIncompleteWorkoutExerciseIndex(exerciseIndex);
+      if (nextExerciseIndex < 0) {
+        toast('Все упражнения выполнены — можно завершать тренировку');
+        return;
+      }
+      if (result.defaults.restSec > 0) {
+        const nextResult = state.currentWorkout.exercises[nextExerciseIndex];
+        window.setTimeout(() => startRestTimer(result.defaults.restSec, `${nextResult.name} · следующий блок`), 950);
+      }
+      return;
+    }
+
+    if (result.defaults.restSec > 0) {
       const next = result.sets[setIndex + 1] ? `${result.name} · подход ${setIndex + 2}` : 'Переход к следующему упражнению';
       startRestTimer(result.defaults.restSec, next);
     }
