@@ -11,7 +11,7 @@
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
   <link rel="icon" href="./icons/icon-192.png" />
-  <link rel="stylesheet" href="./styles.css?v=1.15.1" />
+  <link rel="stylesheet" href="./styles.css?v=1.16.0" />
   <title>Тренировки</title>
 </head>
 <body>
@@ -55,23 +55,24 @@
   <div id="toast" class="toast" role="status" hidden></div>
 
   <div id="rest-timer" class="timer-overlay" hidden>
-    <div class="timer-card">
-      <div class="eyebrow">Отдых</div>
-      <div id="timer-value" class="timer-value">01:00</div>
-      <div id="timer-next" class="muted center">Следующий подход</div>
-      <div class="timer-actions">
-        <button class="button secondary" id="timer-minus" type="button">−15 сек</button>
-        <button class="button secondary" id="timer-plus" type="button">+15 сек</button>
+    <div class="timer-card" role="timer" aria-live="polite">
+      <div class="timer-compact-copy">
+        <div class="eyebrow">Отдых · <span id="timer-next">Следующий подход</span></div>
+        <div id="timer-value" class="timer-value">01:00</div>
       </div>
-      <button class="button primary full" id="timer-skip" type="button">Продолжить</button>
+      <div class="timer-actions">
+        <button class="timer-mini-button" id="timer-minus" type="button">−15</button>
+        <button class="timer-mini-button" id="timer-plus" type="button">+15</button>
+        <button class="button primary timer-continue" id="timer-skip" type="button">Готов</button>
+      </div>
     </div>
   </div>
 
-  <script src="./version.js?v=1.15.1"></script>
-  <script src="./seed.js?v=1.15.1"></script>
-  <script src="./db.js?v=1.15.1"></script>
-  <script src="./exercise-guides.js?v=1.15.1"></script>
-  <script src="./offline-guide.js?v=1.15.1"></script>
-  <script src="./app.js?v=1.15.1"></script>
+  <script src="./version.js?v=1.16.0"></script>
+  <script src="./seed.js?v=1.16.0"></script>
+  <script src="./db.js?v=1.16.0"></script>
+  <script src="./exercise-guides.js?v=1.16.0"></script>
+  <script src="./offline-guide.js?v=1.16.0"></script>
+  <script src="./app.js?v=1.16.0"></script>
 </body>
 </html>

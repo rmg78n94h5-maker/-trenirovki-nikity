@@ -102,7 +102,10 @@
   let timerAudioPrimed = false;
   const workoutExerciseUi = {
     expandedCompleted: new Set(),
+    expandedQueued: new Set(),
     justCompletedIndex: null,
+    focusedIndex: null,
+    showHiddenCompleted: false,
   };
 
   const difficultyOptions = [
@@ -110,6 +113,14 @@
     ['normal', 'Нормально'],
     ['hard', 'Тяжело'],
     ['failure', 'До отказа'],
+  ];
+
+  const exerciseFeedbackOptions = [
+    ['easy', 'Легко'],
+    ['normal', 'Нормально'],
+    ['hard', 'Тяжело'],
+    ['failure', 'До отказа'],
+    ['discomfort', 'Дискомфорт'],
   ];
 
 
@@ -1891,6 +1902,13 @@
         replacementOf: null,
         comment: '',
         previous: last ? summarizePrevious(last) : null,
+        previousSets: completedSets(last).map((set) => ({
+          weightKg: set.weightKg ?? '',
+          reps: set.reps ?? '',
+          durationSec: set.durationSec ?? null,
+          durationMin: set.durationMin ?? null,
+          difficulty: set.difficulty || 'normal',
+        })),
         prefilledFromLast: completedSets(last).length > 0,
         suggestion,
         painRisk,
@@ -1906,6 +1924,10 @@
     }
 
     const suffix = shortMode ? 'короткая' : startMode === 'repeat' ? 'повтор' : startMode === 'selected' ? 'выбрана вручную' : '';
+    workoutExerciseUi.focusedIndex = 0;
+    workoutExerciseUi.expandedQueued.clear();
+    workoutExerciseUi.expandedCompleted.clear();
+    workoutExerciseUi.showHiddenCompleted = false;
     state.currentWorkout = {
       id: uid('workout'),
       profileId: state.activeProfileId,
@@ -1938,15 +1960,109 @@
     navigate('workout');
   }
 
+  function workoutFocusEnabled() {
+    return state.settings.workoutFocusMode !== false;
+  }
+
+  function workoutCompletedBehavior() {
+    return ['collapse', 'hide', 'keep'].includes(state.settings.workoutCompletedBehavior)
+      ? state.settings.workoutCompletedBehavior
+      : 'collapse';
+  }
+
+  function workoutFocusedExerciseIndex(workout = state.currentWorkout) {
+    if (!workout?.exercises?.length) return -1;
+    const incomplete = workout.exercises
+      .map((result, index) => ({ result, index }))
+      .filter(({ result }) => !result.skipped && !workoutExerciseCompleted(result))
+      .map(({ index }) => index);
+    if (!incomplete.length) return -1;
+    if (Number.isInteger(workoutExerciseUi.focusedIndex) && incomplete.includes(workoutExerciseUi.focusedIndex)) {
+      return workoutExerciseUi.focusedIndex;
+    }
+    workoutExerciseUi.focusedIndex = incomplete[0];
+    return incomplete[0];
+  }
+
+  function workoutEstimatedRemainingMinutes(workout = state.currentWorkout) {
+    if (!workout) return 0;
+    let seconds = 0;
+    workout.exercises.forEach((result) => {
+      if (result.skipped || workoutExerciseCompleted(result)) return;
+      const remainingSets = result.sets.filter((set) => !set.completed).length;
+      seconds += remainingSets * 42;
+      seconds += Math.max(0, remainingSets - 1) * Number(result.defaults.restSec || 0);
+    });
+    return Math.max(1, Math.round(seconds / 60));
+  }
+
+  function workoutCompletedExerciseCount(workout = state.currentWorkout) {
+    return (workout?.exercises || []).filter((result) => workoutExerciseCompleted(result)).length;
+  }
+
+  function renderWorkoutJourney(workout, focusIndex) {
+    const total = workout.exercises.length;
+    const completed = workoutCompletedExerciseCount(workout);
+    const pct = workoutCompletion(workout);
+    const remaining = workoutEstimatedRemainingMinutes(workout);
+    const currentOrdinal = focusIndex >= 0 ? focusIndex + 1 : total;
+    const stage = pct >= 84 ? 2 : pct >= 28 ? 1 : 0;
+    const stages = ['Разминка', 'Основная', 'Финиш'];
+    return `
+      <div class="workout-journey" aria-label="Этап тренировки">
+        <div class="workout-progress-ring" id="workout-progress-ring" style="--workout-progress:${pct * 3.6}deg"><strong id="workout-progress-ring-text">${pct}%</strong><span>${completed}/${total}</span></div>
+        <div class="workout-journey-copy">
+          <div class="workout-journey-line"><strong id="workout-progress-count">Упражнение ${currentOrdinal} из ${total}</strong><span id="workout-remaining-time">≈ ${remaining} мин осталось</span></div>
+          <div class="workout-stage-track">${stages.map((label, index) => `<span class="${index < stage ? 'done' : index === stage ? 'current' : ''}">${label}</span>`).join('')}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderHiddenCompletedBar(workout) {
+    if (workoutCompletedBehavior() !== 'hide') return '';
+    const completed = workoutCompletedExerciseCount(workout);
+    if (!completed) return '';
+    return `<button class="completed-stack-bar" id="toggle-hidden-completed" type="button"><span>✓ Выполнено ${completed}</span><strong>${workoutExerciseUi.showHiddenCompleted ? 'Скрыть' : 'Показать'}</strong></button>`;
+  }
+
+  function renderWorkoutDock(workout, focusIndex) {
+    const focusResult = focusIndex >= 0 ? workout.exercises[focusIndex] : null;
+    const setIndex = focusResult ? workoutActiveSetIndex(focusResult) : -1;
+    const canComplete = focusResult && setIndex >= 0;
+    const primary = canComplete ? `Подход ${setIndex + 1} готов` : 'Все подходы готовы';
+    return `
+      <div class="workout-control-dock" role="group" aria-label="Управление тренировкой">
+        <div class="workout-control-main">
+          <button class="workout-nav-button" id="workout-dock-prev" type="button" aria-label="Предыдущее упражнение">←</button>
+          <button class="button primary workout-dock-complete" id="workout-dock-complete" type="button" data-exercise="${focusIndex}" data-set="${setIndex}" ${canComplete ? '' : 'disabled'}>${escapeHTML(primary)} ✓</button>
+          <button class="workout-nav-button" id="workout-dock-next" type="button" aria-label="Следующее упражнение">→</button>
+        </div>
+        <div class="workout-control-secondary">
+          <button class="button ghost small" id="cancel-workout" type="button">Закрыть</button>
+          <button class="button secondary small" id="quick-add-workout-exercise" type="button">＋ Упражнение</button>
+          <button class="button ghost small" id="finish-workout" type="button">Завершить</button>
+        </div>
+      </div>
+    `;
+  }
+
   function renderWorkout() {
     const workout = state.currentWorkout;
     if (!workout) {
       navigate('home');
       return;
     }
-    setTopbar(workout.dayName, workout.shortMode ? 'Короткая тренировка' : 'Тренировка идёт');
+    const focusIndex = workoutFocusedExerciseIndex(workout);
+    const behavior = workoutCompletedBehavior();
+    setTopbar(workout.dayName, workout.shortMode ? 'Короткая тренировка' : workoutFocusEnabled() ? 'Режим фокуса' : 'Тренировка идёт');
+    const exerciseHtml = workout.exercises.map((result, exerciseIndex) => {
+      const completed = workoutExerciseCompleted(result);
+      const hideCompleted = behavior === 'hide' && completed && !workoutExerciseUi.showHiddenCompleted && workoutExerciseUi.justCompletedIndex !== exerciseIndex;
+      return hideCompleted ? '' : renderWorkoutExercise(result, exerciseIndex, focusIndex);
+    }).join('');
     el.main.innerHTML = `
-      <div class="workout-screen sport-workout-screen">
+      <div class="workout-screen sport-workout-screen ${workoutFocusEnabled() ? 'focus-mode' : ''}">
       <div class="workout-header sport-workout-header">
         <div class="workout-live-banner" id="workout-live-banner" role="group" aria-label="Время тренировки 00:00, выполнено 0 процентов">
           <div class="workout-live-metric workout-live-time">
@@ -1960,22 +2076,22 @@
           </div>
           <div class="progress-bar sport-workout-progress" aria-hidden="true"><span id="workout-progress-bar" style="width:0%"></span></div>
         </div>
+        ${renderWorkoutJourney(workout, focusIndex)}
       </div>
 
-      <button class="button secondary full sport-iron-workout-button" id="open-iron-calculator-workout" type="button">⚖️ Калькулятор железа</button>
-
+      ${renderHiddenCompletedBar(workout)}
       ${renderWorkoutPainBanner(workout)}
       ${renderWorkoutDeloadBanner(workout)}
-      ${workout.exercises.map((result, exerciseIndex) => renderWorkoutExercise(result, exerciseIndex)).join('')}
+      ${exerciseHtml}
 
-      <section class="card">
+      <button class="button secondary full workout-quick-add-large" id="quick-add-workout-exercise-large" type="button">＋ Быстро добавить упражнение</button>
+      <button class="button ghost full sport-iron-workout-button" id="open-iron-calculator-workout" type="button">⚖️ Калькулятор железа</button>
+
+      <section class="card workout-comment-card">
         <div class="field"><label>Комментарий ко всей тренировке</label><textarea id="workout-comment" placeholder="Самочувствие, качка, что изменить…">${escapeHTML(workout.comment || '')}</textarea></div>
       </section>
 
-      <div class="workout-footer">
-        <button class="button ghost" id="cancel-workout">Закрыть</button>
-        <button class="button primary" id="finish-workout">Завершить</button>
-      </div>
+      ${renderWorkoutDock(workout, focusIndex)}
       </div>
     `;
     bindWorkoutEvents();
@@ -1983,31 +2099,53 @@
     state.workoutClockInterval && clearInterval(state.workoutClockInterval);
     state.workoutClockInterval = setInterval(updateWorkoutClock, 1000);
     updateWorkoutProgress();
+    scheduleWorkoutStickyOffsetSync();
   }
 
-  function renderWorkoutExercise(result, exerciseIndex) {
+  function renderQueuedWorkoutExercise(result, exerciseIndex) {
+    const remaining = result.sets.filter((set) => !set.completed).length;
+    const previous = state.settings.workoutShowPrevious !== false && result.previous ? ` · прошлый: ${result.previous}` : '';
+    return `
+      <article class="queued-workout-exercise ${painRiskClass(result.painRisk)}" data-exercise-index="${exerciseIndex}">
+        <button class="queued-exercise-summary focus-workout-exercise" type="button" data-index="${exerciseIndex}">
+          <span class="queued-exercise-number">${exerciseIndex + 1}</span>
+          <span class="queued-exercise-copy"><strong>${escapeHTML(result.name)}</strong><small>${remaining} подхода впереди${escapeHTML(previous)}</small></span>
+          <span class="queued-exercise-arrow">›</span>
+        </button>
+      </article>
+    `;
+  }
+
+  function renderWorkoutExercise(result, exerciseIndex, focusIndex = workoutFocusedExerciseIndex()) {
     const exercise = getExercise(result.exerciseId);
     const activeSetIndex = workoutActiveSetIndex(result);
     const completedCount = result.sets.filter((set) => set.completed).length;
     const totalSets = result.sets.length;
     const activeLabel = activeSetIndex >= 0 ? `Подход ${activeSetIndex + 1} из ${totalSets}` : totalSets ? 'Все подходы выполнены' : 'Подходов нет';
-    const previous = result.previous ? `<span class="chip">Прошлый: ${escapeHTML(result.previous)}</span>` : `<span class="chip">Первое выполнение</span>`;
-    const prefilled = result.prefilledFromLast ? `<span class="chip success">Значения подставлены из прошлого раза</span>` : '';
+    const showPrevious = state.settings.workoutShowPrevious !== false;
+    const previous = showPrevious && result.previous ? `<span class="chip">Прошлый: ${escapeHTML(result.previous)}</span>` : showPrevious ? `<span class="chip">Первое выполнение</span>` : '';
+    const prefilled = showPrevious && result.prefilledFromLast ? `<span class="chip success">Подставлено из прошлого раза</span>` : '';
     const suggestion = result.suggestion?.text ? `<span class="chip ${result.suggestion.kind === 'increase' ? 'success' : result.suggestion.kind === 'reduce' ? 'warning' : ''}">${escapeHTML(result.suggestion.text)}</span>` : '';
     const completed = workoutExerciseCompleted(result);
     const uiKey = workoutExerciseUiKey(exerciseIndex);
     const justCompleted = completed && workoutExerciseUi.justCompletedIndex === exerciseIndex;
-    const expanded = completed && workoutExerciseUi.expandedCompleted.has(uiKey);
-    const collapsed = completed && !expanded && !justCompleted;
+    const behavior = workoutCompletedBehavior();
+    const expanded = completed && (behavior === 'keep' || workoutExerciseUi.expandedCompleted.has(uiKey));
+    const collapsed = completed && behavior !== 'keep' && !expanded && !justCompleted;
+    const queued = workoutFocusEnabled() && !completed && exerciseIndex !== focusIndex && !workoutExerciseUi.expandedQueued.has(uiKey);
+    if (queued) return renderQueuedWorkoutExercise(result, exerciseIndex);
     const completedClass = completed ? ` exercise-complete${collapsed ? ' is-collapsed' : ''}${justCompleted ? ' just-completed' : ''}` : '';
+    const focusClass = exerciseIndex === focusIndex ? ' is-focused' : ' is-preview-open';
+    const feedback = renderExerciseQuickFeedback(result, exerciseIndex);
+    const smartTip = workoutSmartTip(result, exerciseIndex);
     return `
-      <article class="workout-exercise sport-workout-exercise ${result.skipped ? 'muted' : ''} ${painRiskClass(result.painRisk)}${completedClass}" data-exercise-index="${exerciseIndex}">
+      <article class="workout-exercise sport-workout-exercise ${result.skipped ? 'muted' : ''} ${painRiskClass(result.painRisk)}${completedClass}${focusClass}" data-exercise-index="${exerciseIndex}">
         ${completed ? `
           <button class="completed-exercise-summary toggle-completed-exercise" type="button" data-index="${exerciseIndex}" aria-expanded="${collapsed ? 'false' : 'true'}" aria-label="${collapsed ? 'Развернуть' : 'Свернуть'} завершённое упражнение ${escapeAttr(result.name)}">
             <span class="completed-exercise-check" aria-hidden="true">✓</span>
             <span class="completed-exercise-copy">
               <strong>${escapeHTML(result.name)}</strong>
-              <small>${escapeHTML(workoutExerciseCompactSummary(result))}</small>
+              <small>${escapeHTML(workoutExerciseCompactSummary(result))}${result.feedback ? ` · ${escapeHTML(exerciseFeedbackLabel(result.feedback))}` : ''}</small>
             </span>
             <span class="completed-exercise-chevron" aria-hidden="true">⌄</span>
           </button>
@@ -2022,6 +2160,7 @@
             </div>
             <div class="sport-exercise-progress"><span>Подходы</span><strong>${completedCount}/${totalSets}</strong></div>
             <div class="hero-meta">${previous}${prefilled}${suggestion}</div>
+            ${smartTip ? `<div class="workout-smart-tip">✨ ${escapeHTML(smartTip)}</div>` : ''}
             ${renderPainRiskNotice(result.painRisk, exerciseIndex)}
             ${exercise?.safety ? `<div class="notice warning" style="margin-top:10px">${escapeHTML(exercise.safety)}</div>` : ''}
             <details class="exercise-guide sport-exercise-guide">
@@ -2040,10 +2179,12 @@
           <div class="set-list sport-set-list" aria-label="Подходы упражнения ${escapeHTML(result.name)}">
             ${result.sets.map((set, setIndex) => renderWorkoutSet(result, set, setIndex, activeSetIndex)).join('')}
           </div>
-          <div class="button-row" style="padding:0 14px 14px">
+          ${feedback}
+          <div class="button-row exercise-bottom-actions">
             <button class="button secondary small add-set" data-index="${exerciseIndex}" type="button" ${result.skipped ? 'disabled' : ''}>＋ Добавить подход</button>
             ${result.sets.length > 1 ? `<button class="button ghost small remove-set" data-index="${exerciseIndex}" type="button" ${result.skipped ? 'disabled' : ''}>− Убрать последний</button>` : ''}
           </div>
+          ${exerciseIndex === focusIndex && state.settings.workoutSwipeGestures !== false ? '<div class="exercise-swipe-hint">Свайп вправо — завершить · влево — действия</div>' : ''}
         </div>
       </article>
     `;
@@ -2086,10 +2227,10 @@
   function renderWorkoutSetTrail(result, activeSetIndex) {
     if (!result.sets.length) return '<span class="sport-set-chip muted">нет подходов</span>';
     return result.sets.map((set, index) => {
-      const state = set.completed ? 'done' : index === activeSetIndex ? 'current' : 'next';
+      const stateName = set.completed ? `done effort-${set.difficulty || 'normal'}` : index === activeSetIndex ? 'current' : 'next';
       const label = set.completed ? '✓' : index === activeSetIndex ? 'сейчас' : String(set.number);
       const summary = workoutSetSummary(result, set);
-      return `<span class="sport-set-chip ${state}" title="${escapeAttr(summary)}"><b>${escapeHTML(label)}</b><small>${escapeHTML(summary)}</small></span>`;
+      return `<span class="sport-set-chip ${stateName}" title="${escapeAttr(summary)}"><b>${escapeHTML(label)}</b><small>${escapeHTML(summary)}</small></span>`;
     }).join('');
   }
 
@@ -2110,12 +2251,56 @@
     return Number.isInteger(number) ? String(number) : String(roundHalf(number)).replace('.', ',');
   }
 
+  function previousWorkoutSets(result) {
+    if (Array.isArray(result?.previousSets) && result.previousSets.length) return result.previousSets;
+    const last = result?.exerciseId ? findLastExerciseResult(result.exerciseId) : null;
+    return completedSets(last).map((set) => ({ ...set }));
+  }
+
+  function previousWorkoutSet(result, setIndex) {
+    const sets = previousWorkoutSets(result);
+    return sets[setIndex] || sets[sets.length - 1] || null;
+  }
+
+  function workoutSetImprovementHint(result, set, previousSet) {
+    if (!previousSet || result.defaults.unit !== 'reps') return '';
+    const weight = Number(set.weightKg);
+    const reps = Number(set.reps);
+    const previousWeight = Number(previousSet.weightKg);
+    const previousReps = Number(previousSet.reps);
+    if (!Number.isFinite(previousWeight) || !Number.isFinite(previousReps)) return '';
+    if (weight > previousWeight || (weight === previousWeight && reps > previousReps)) return 'Уже выше прошлого результата';
+    if (weight === previousWeight && reps === previousReps) return 'Ещё 1 повтор — новый лучший результат';
+    return `Ориентир: ${formatWorkoutSetNumber(previousWeight)} кг × ${formatWorkoutSetNumber(previousReps)}`;
+  }
+
+  function renderPreviousSetHint(result, set, setIndex, isActive) {
+    if (!isActive || state.settings.workoutShowPrevious === false) return '';
+    const previousSet = previousWorkoutSet(result, setIndex);
+    if (!previousSet) return '<div class="previous-set-ghost"><span>Первое выполнение</span><strong>Создаём отправную точку</strong></div>';
+    const summary = workoutSetSummary(result, previousSet);
+    const hint = workoutSetImprovementHint(result, set, previousSet);
+    return `<div class="previous-set-ghost"><span>В прошлый раз: ${escapeHTML(summary)}</span><strong>${escapeHTML(hint || 'Можно повторить одним нажатием')}</strong><button class="mini-button copy-previous-set" type="button" data-set-index="${setIndex}">Как прошлый раз</button></div>`;
+  }
+
+  function renderQuickSetAdjust(result, setIndex, isActive, disabled) {
+    if (!isActive || result.defaults.unit !== 'reps' || state.settings.workoutLargeControls === false) return '';
+    return `
+      <div class="quick-set-adjust" aria-label="Быстрая корректировка подхода">
+        <span>Вес</span>
+        ${[-2, -1, 1, 2].map((delta) => `<button class="quick-adjust-set" type="button" data-field="weightKg" data-delta="${delta}" data-set-index="${setIndex}" ${disabled}>${delta > 0 ? '+' : ''}${delta}</button>`).join('')}
+        <span>Повторы</span>
+        ${[-1, 1].map((delta) => `<button class="quick-adjust-set" type="button" data-field="reps" data-delta="${delta}" data-set-index="${setIndex}" ${disabled}>${delta > 0 ? '+' : ''}${delta}</button>`).join('')}
+      </div>
+    `;
+  }
+
   function renderWorkoutSet(result, set, setIndex, activeSetIndex = -1) {
     const unit = result.defaults.unit;
     const disabled = result.skipped ? 'disabled' : '';
     const setLabel = `Подход ${set.number}`;
     const isActive = !result.skipped && setIndex === activeSetIndex;
-    const setState = set.completed ? 'done' : isActive ? 'current' : 'queued';
+    const setState = set.completed ? `done effort-${set.difficulty || 'normal'}` : isActive ? 'current' : 'queued';
     const completeButtonText = set.completed ? '✓' : isActive ? 'Завершить подход ✓' : '○';
     const completeButtonClass = isActive && !set.completed ? ' active-finish' : '';
     const controls = unit === 'reps'
@@ -2173,7 +2358,9 @@
             <button class="check-button ${set.completed ? 'done' : ''}${completeButtonClass} complete-set" type="button" aria-label="${set.completed ? 'Снять отметку' : 'Завершить'}, ${setLabel}" ${disabled}>${completeButtonText}</button>
           </div>
         </div>
+        ${renderPreviousSetHint(result, set, setIndex, isActive)}
         ${controls}
+        ${renderQuickSetAdjust(result, setIndex, isActive, disabled)}
       </div>
     `;
   }
@@ -2194,6 +2381,43 @@
     `;
   }
 
+  function exerciseFeedbackLabel(value) {
+    return exerciseFeedbackOptions.find(([id]) => id === value)?.[1] || '';
+  }
+
+  function renderExerciseQuickFeedback(result, exerciseIndex) {
+    if (state.settings.workoutQuickFeedback === false) return '';
+    return `
+      <div class="exercise-quick-feedback">
+        <div><strong>Как прошло?</strong><span>Один тап вместо комментария</span></div>
+        <div class="exercise-feedback-options">
+          ${exerciseFeedbackOptions.map(([value, label]) => `<button class="exercise-feedback ${result.feedback === value ? 'active' : ''}" type="button" data-index="${exerciseIndex}" data-feedback="${value}">${escapeHTML(label)}</button>`).join('')}
+          <button class="exercise-feedback pain-exercise" type="button" data-index="${exerciseIndex}">Боль</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function workoutSmartTip(result, exerciseIndex) {
+    if (result.skipped) return 'Упражнение пропущено — цикл не сломается.';
+    if (workoutExerciseCompleted(result)) {
+      if (result.feedback === 'failure') return 'Было до отказа — в следующий раз вес не повышаем.';
+      if (result.feedback === 'easy') return 'Все готово. В следующий раз можно добавить повтор или немного веса.';
+      return 'Упражнение завершено и сохранено.';
+    }
+    const activeSetIndex = workoutActiveSetIndex(result);
+    const set = result.sets[activeSetIndex];
+    const previousSet = previousWorkoutSet(result, activeSetIndex);
+    if (set && previousSet && result.defaults.unit === 'reps') {
+      const previousDifficulty = previousSet.difficulty || 'normal';
+      if (previousDifficulty === 'easy') return 'Прошлый подход был лёгким — попробуй +1 повтор, не обязательно сразу повышать вес.';
+      if (previousDifficulty === 'failure') return 'В прошлый раз был отказ — оставь вес и сохрани 1–2 повтора в запасе.';
+      return workoutSetImprovementHint(result, set, previousSet);
+    }
+    const remaining = workoutEstimatedRemainingMinutes();
+    return exerciseIndex === workoutFocusedExerciseIndex() ? `Спокойно ведём текущий подход. До конца примерно ${remaining} мин.` : '';
+  }
+
   function bindWorkoutEvents() {
     el.main.querySelectorAll('.workout-exercise').forEach((card) => {
       const exerciseIndex = Number(card.dataset.exerciseIndex);
@@ -2207,15 +2431,36 @@
         });
         row.querySelectorAll('.set-input').forEach((input) => input.addEventListener('focus', () => input.select()));
         row.querySelectorAll('.adjust-set').forEach((button) => bindSetStepper(button, exerciseIndex, setIndex, row));
+        row.querySelectorAll('.quick-adjust-set').forEach((button) => button.addEventListener('click', () => {
+          const field = button.dataset.field;
+          const delta = Number(button.dataset.delta);
+          const input = row.querySelector(`.set-input.${field === 'weightKg' ? 'set-weight' : 'set-reps'}`);
+          adjustSetValue(exerciseIndex, setIndex, field, delta, input);
+        }));
+        row.querySelector('.copy-previous-set')?.addEventListener('click', () => copyPreviousSetValues(exerciseIndex, setIndex, row));
         row.querySelector('.set-difficulty')?.addEventListener('change', (event) => updateSet(exerciseIndex, setIndex, 'difficulty', event.target.value));
         row.querySelector('.complete-set')?.addEventListener('click', () => toggleSetComplete(exerciseIndex, setIndex));
       });
+      if (state.settings.workoutSwipeGestures !== false) bindWorkoutSwipe(card, exerciseIndex);
+    });
+    el.main.querySelectorAll('.queued-workout-exercise').forEach((card) => {
+      const exerciseIndex = Number(card.dataset.exerciseIndex);
+      if (state.settings.workoutSwipeGestures !== false) bindWorkoutSwipe(card, exerciseIndex);
     });
     el.main.querySelectorAll('.replace-exercise').forEach((button) => button.addEventListener('click', () => showReplacementModal(Number(button.dataset.index))));
     el.main.querySelectorAll('.skip-exercise').forEach((button) => button.addEventListener('click', () => toggleSkipExercise(Number(button.dataset.index))));
     el.main.querySelectorAll('.comment-exercise').forEach((button) => button.addEventListener('click', () => showExerciseCommentModal(Number(button.dataset.index))));
     el.main.querySelectorAll('.pain-exercise').forEach((button) => button.addEventListener('click', () => showExercisePainModal(Number(button.dataset.index))));
+    el.main.querySelectorAll('.exercise-feedback').forEach((button) => {
+      if (button.classList.contains('pain-exercise')) return;
+      button.addEventListener('click', () => setExerciseFeedback(Number(button.dataset.index), button.dataset.feedback));
+    });
     el.main.querySelectorAll('.pain-action').forEach((button) => button.addEventListener('click', () => applyPainAction(Number(button.dataset.index), button.dataset.action)));
+    el.main.querySelectorAll('.focus-workout-exercise').forEach((button) => button.addEventListener('click', () => focusWorkoutExercise(Number(button.dataset.index))));
+    document.getElementById('toggle-hidden-completed')?.addEventListener('click', () => {
+      workoutExerciseUi.showHiddenCompleted = !workoutExerciseUi.showHiddenCompleted;
+      renderWorkout();
+    });
     document.getElementById('apply-deload-workout')?.addEventListener('click', applyDeloadToCurrentWorkout);
     document.getElementById('open-iron-calculator-workout')?.addEventListener('click', () => showIronCalculatorModal(currentWorkoutTargetWeight()));
     el.main.querySelectorAll('.add-set').forEach((button) => button.addEventListener('click', () => addWorkoutSet(Number(button.dataset.index))));
@@ -2231,20 +2476,167 @@
       setCompletedExerciseCollapsed(card, !shouldExpand);
     }));
     setupCompletedExerciseCards();
-    document.getElementById('workout-comment').addEventListener('input', (event) => {
+    document.getElementById('workout-comment')?.addEventListener('input', (event) => {
       state.currentWorkout.comment = event.target.value;
       debounceDraftSave();
     });
-    document.getElementById('cancel-workout').addEventListener('click', showWorkoutCloseModal);
-    document.getElementById('finish-workout').addEventListener('click', showFinishWorkoutModal);
+    document.getElementById('cancel-workout')?.addEventListener('click', showWorkoutCloseModal);
+    document.getElementById('finish-workout')?.addEventListener('click', showFinishWorkoutModal);
+    document.getElementById('quick-add-workout-exercise')?.addEventListener('click', showQuickAddWorkoutExercise);
+    document.getElementById('quick-add-workout-exercise-large')?.addEventListener('click', showQuickAddWorkoutExercise);
+    document.getElementById('workout-dock-prev')?.addEventListener('click', () => focusWorkoutRelative(-1));
+    document.getElementById('workout-dock-next')?.addEventListener('click', () => focusWorkoutRelative(1));
+    document.getElementById('workout-dock-complete')?.addEventListener('click', (event) => {
+      const exerciseIndex = Number(event.currentTarget.dataset.exercise);
+      const setIndex = Number(event.currentTarget.dataset.set);
+      if (exerciseIndex >= 0 && setIndex >= 0) toggleSetComplete(exerciseIndex, setIndex);
+    });
+  }
+
+  function copyPreviousSetValues(exerciseIndex, setIndex, row) {
+    const result = state.currentWorkout?.exercises?.[exerciseIndex];
+    const set = result?.sets?.[setIndex];
+    const previous = previousWorkoutSet(result, setIndex);
+    if (!set || !previous) return;
+    ['weightKg', 'reps', 'durationSec', 'durationMin'].forEach((field) => {
+      if (previous[field] !== undefined && previous[field] !== null) set[field] = previous[field];
+    });
+    const weightInput = row.querySelector('.set-weight');
+    const repsInput = row.querySelector('.set-reps');
+    const durationInput = row.querySelector('.set-duration');
+    if (weightInput) weightInput.value = set.weightKg ?? '';
+    if (repsInput) repsInput.value = set.reps ?? '';
+    if (durationInput) durationInput.value = result.defaults.unit === 'minutes' ? set.durationMin ?? '' : set.durationSec ?? '';
+    debounceDraftSave();
+    toast('Подставлено как в прошлый раз');
+  }
+
+  async function setExerciseFeedback(index, feedback) {
+    const result = state.currentWorkout?.exercises?.[index];
+    if (!result) return;
+    result.feedback = result.feedback === feedback ? null : feedback;
+    await saveDraftWorkout();
+    renderWorkout();
+  }
+
+  function focusWorkoutExercise(index, { scroll = true } = {}) {
+    const result = state.currentWorkout?.exercises?.[index];
+    if (!result) return;
+    workoutExerciseUi.focusedIndex = index;
+    workoutExerciseUi.expandedQueued.delete(workoutExerciseUiKey(index));
+    renderWorkout();
+    if (!scroll || state.settings.workoutAutoScroll === false) return;
+    requestAnimationFrame(() => {
+      const target = el.main.querySelector(`[data-exercise-index="${index}"]`);
+      target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  }
+
+  function focusWorkoutRelative(direction) {
+    const exercises = state.currentWorkout?.exercises || [];
+    const available = exercises.map((result, index) => ({ result, index })).filter(({ result }) => !result.skipped && !workoutExerciseCompleted(result)).map(({ index }) => index);
+    if (!available.length) return toast('Все упражнения уже выполнены');
+    const current = workoutFocusedExerciseIndex();
+    const position = Math.max(0, available.indexOf(current));
+    const nextPosition = Math.min(available.length - 1, Math.max(0, position + direction));
+    if (nextPosition === position) return toast(direction < 0 ? 'Это первое незавершённое упражнение' : 'Дальше незавершённых упражнений нет');
+    focusWorkoutExercise(available[nextPosition]);
+  }
+
+  function bindWorkoutSwipe(card, exerciseIndex) {
+    let startX = null;
+    let startY = null;
+    let active = false;
+    card.addEventListener('touchstart', (event) => {
+      if (event.touches.length !== 1 || event.target.closest('button,input,select,textarea,a,summary')) return;
+      startX = event.touches[0].clientX;
+      startY = event.touches[0].clientY;
+      active = true;
+    }, { passive: true });
+    card.addEventListener('touchmove', (event) => {
+      if (!active || event.touches.length !== 1) return;
+      const dx = event.touches[0].clientX - startX;
+      const dy = event.touches[0].clientY - startY;
+      if (Math.abs(dx) > 18 && Math.abs(dx) > Math.abs(dy) * 1.35) {
+        card.style.setProperty('--swipe-shift', `${Math.max(-42, Math.min(42, dx * .28))}px`);
+      }
+    }, { passive: true });
+    card.addEventListener('touchend', (event) => {
+      if (!active || startX === null || startY === null) return;
+      active = false;
+      card.style.removeProperty('--swipe-shift');
+      const touch = event.changedTouches[0];
+      const dx = touch.clientX - startX;
+      const dy = touch.clientY - startY;
+      startX = startY = null;
+      if (Math.abs(dx) < 72 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
+      if (dx > 0) showCompleteExerciseConfirm(exerciseIndex);
+      else showExerciseActionsModal(exerciseIndex);
+    }, { passive: true });
+    card.addEventListener('touchcancel', () => {
+      active = false;
+      startX = startY = null;
+      card.style.removeProperty('--swipe-shift');
+    }, { passive: true });
+  }
+
+  function showCompleteExerciseConfirm(index) {
+    const result = state.currentWorkout?.exercises?.[index];
+    if (!result) return;
+    if (workoutExerciseCompleted(result)) return toast('Упражнение уже выполнено');
+    showModal(`
+      <div class="modal-head"><h2>Завершить упражнение?</h2><button class="modal-close" data-close>×</button></div>
+      <p class="muted">${escapeHTML(result.name)}</p>
+      <div class="notice warning">Все незавершённые подходы будут отмечены выполненными с текущими значениями.</div>
+      <div class="button-row" style="margin-top:14px"><button class="button secondary" data-close type="button">Отмена</button><button class="button primary" id="confirm-complete-exercise" type="button">Да, завершить</button></div>
+    `);
+    document.getElementById('confirm-complete-exercise').addEventListener('click', async () => {
+      closeModal();
+      await completeWorkoutExercise(index);
+    });
+  }
+
+  function showExerciseActionsModal(index) {
+    const result = state.currentWorkout?.exercises?.[index];
+    if (!result) return;
+    showModal(`
+      <div class="modal-head"><h2>Действия</h2><button class="modal-close" data-close>×</button></div>
+      <p class="muted">${escapeHTML(result.name)}</p>
+      <div class="workout-action-sheet">
+        <button class="list-row" id="swipe-replace" type="button"><div><div class="list-row-title">↻ Заменить</div><div class="list-row-sub">Показать лучшие аналоги</div></div><span>›</span></button>
+        <button class="list-row" id="swipe-skip" type="button"><div><div class="list-row-title">${result.skipped ? 'Вернуть в тренировку' : 'Пропустить'}</div><div class="list-row-sub">Цикл и история не сломаются</div></div><span>›</span></button>
+        <button class="list-row" id="swipe-move-down" type="button"><div><div class="list-row-title">↓ Перенести ниже</div><div class="list-row-sub">Поменять местами со следующим</div></div><span>›</span></button>
+        <button class="list-row" id="swipe-add-set" type="button"><div><div class="list-row-title">＋ Добавить подход</div><div class="list-row-sub">С текущими рабочими значениями</div></div><span>›</span></button>
+      </div>
+    `);
+    document.getElementById('swipe-replace').addEventListener('click', () => { closeModal(); showReplacementModal(index); });
+    document.getElementById('swipe-skip').addEventListener('click', async () => { closeModal(); await toggleSkipExercise(index); });
+    document.getElementById('swipe-move-down').addEventListener('click', async () => { closeModal(); await moveWorkoutExerciseDown(index); });
+    document.getElementById('swipe-add-set').addEventListener('click', async () => { closeModal(); await addWorkoutSet(index); });
+  }
+
+  async function moveWorkoutExerciseDown(index) {
+    const exercises = state.currentWorkout?.exercises || [];
+    if (index < 0 || index >= exercises.length - 1) return toast('Упражнение уже последнее');
+    [exercises[index], exercises[index + 1]] = [exercises[index + 1], exercises[index]];
+    workoutExerciseUi.focusedIndex = index + 1;
+    await saveDraftWorkout();
+    renderWorkout();
+    toast('Упражнение перенесено ниже');
   }
 
   function setupCompletedExerciseCards() {
     const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    const behavior = workoutCompletedBehavior();
     el.main.querySelectorAll('.workout-exercise.exercise-complete').forEach((card) => {
       const body = card.querySelector('.completed-exercise-body');
       if (!body) return;
-      body.style.maxHeight = card.classList.contains('is-collapsed') ? '0px' : 'none';
+      if (behavior === 'keep') {
+        card.classList.remove('is-collapsed');
+        body.style.maxHeight = 'none';
+      } else {
+        body.style.maxHeight = card.classList.contains('is-collapsed') ? '0px' : 'none';
+      }
     });
 
     const justCompletedIndex = workoutExerciseUi.justCompletedIndex;
@@ -2256,22 +2648,26 @@
     if (body) body.style.maxHeight = `${body.scrollHeight}px`;
     if (state.settings.vibrationEnabled && navigator.vibrate) navigator.vibrate([18, 28, 18]);
 
+    const shouldCollapse = behavior !== 'keep';
+    const shouldAutoScroll = state.settings.workoutAutoScroll !== false;
     if (reduceMotion) {
       card.classList.remove('just-completed');
-      setCompletedExerciseCollapsed(card, true, { animate: false });
-      scrollToNextWorkoutExercise(justCompletedIndex, false);
+      if (shouldCollapse) setCompletedExerciseCollapsed(card, true, { animate: false });
+      if (shouldAutoScroll) scrollToNextWorkoutExercise(justCompletedIndex, false);
+      if (behavior === 'hide') window.setTimeout(renderWorkout, 80);
       return;
     }
 
     card.classList.add('exercise-celebrate');
     window.setTimeout(() => {
       card.classList.remove('just-completed');
-      setCompletedExerciseCollapsed(card, true);
-    }, 420);
+      if (shouldCollapse) setCompletedExerciseCollapsed(card, true);
+    }, 520);
     window.setTimeout(() => {
       card.classList.remove('exercise-celebrate');
-      scrollToNextWorkoutExercise(justCompletedIndex, true);
-    }, 930);
+      if (shouldAutoScroll) scrollToNextWorkoutExercise(justCompletedIndex, true);
+      if (behavior === 'hide') renderWorkout();
+    }, 1050);
   }
 
   function setCompletedExerciseCollapsed(card, collapsed, { animate = true } = {}) {
@@ -2449,9 +2845,12 @@
     if (exerciseJustCompleted) {
       workoutExerciseUi.expandedCompleted.delete(uiKey);
       workoutExerciseUi.justCompletedIndex = exerciseIndex;
+      const nextIndex = nextIncompleteWorkoutExerciseIndex(exerciseIndex);
+      workoutExerciseUi.focusedIndex = nextIndex >= 0 ? nextIndex : null;
     } else if (!set.completed) {
       workoutExerciseUi.expandedCompleted.delete(uiKey);
       workoutExerciseUi.justCompletedIndex = null;
+      workoutExerciseUi.focusedIndex = exerciseIndex;
     }
 
     await saveDraftWorkout();
@@ -2466,7 +2865,7 @@
       }
       if (result.defaults.restSec > 0) {
         const nextResult = state.currentWorkout.exercises[nextExerciseIndex];
-        window.setTimeout(() => startRestTimer(result.defaults.restSec, `${nextResult.name} · следующий блок`), 950);
+        window.setTimeout(() => startRestTimer(result.defaults.restSec, `${nextResult.name} · следующий блок`), 1120);
       }
       return;
     }
@@ -2474,6 +2873,23 @@
     if (result.defaults.restSec > 0) {
       const next = result.sets[setIndex + 1] ? `${result.name} · подход ${setIndex + 2}` : 'Переход к следующему упражнению';
       startRestTimer(result.defaults.restSec, next);
+    }
+  }
+
+  async function completeWorkoutExercise(index) {
+    const result = state.currentWorkout?.exercises?.[index];
+    if (!result || result.skipped) return;
+    result.sets.forEach((set) => { set.completed = true; });
+    workoutExerciseUi.expandedCompleted.delete(workoutExerciseUiKey(index));
+    workoutExerciseUi.justCompletedIndex = index;
+    const nextIndex = nextIncompleteWorkoutExerciseIndex(index);
+    workoutExerciseUi.focusedIndex = nextIndex >= 0 ? nextIndex : null;
+    await saveDraftWorkout();
+    renderWorkout();
+    if (nextIndex < 0) return toast('Все упражнения выполнены — можно завершать');
+    if (result.defaults.restSec > 0) {
+      const nextResult = state.currentWorkout.exercises[nextIndex];
+      window.setTimeout(() => startRestTimer(result.defaults.restSec, `${nextResult.name} · следующий блок`), 1120);
     }
   }
 
@@ -2485,32 +2901,40 @@
     renderWorkout();
   }
 
+  function replacementReason(currentExercise, candidate, currentResult) {
+    const currentGroups = new Set(getMuscleGroupsForExercise(currentExercise, currentResult));
+    const candidateGroups = getMuscleGroupsForExercise(candidate);
+    const sameGroups = candidateGroups.filter((group) => currentGroups.has(group)).length;
+    const painRisk = analyzeExercisePainRisk(state.currentWorkout?.preWorkoutPain, candidate);
+    if (painRisk?.level === 'high') return 'Похожая нагрузка, но боль всё ещё требует осторожности';
+    if (sameGroups >= 2) return 'Те же основные мышцы';
+    if (/сидя|лёжа|тренажёр|блок/i.test(`${candidate.name} ${candidate.equipment}`)) return 'Устойчивее и проще при качке';
+    if (sameGroups === 1) return 'Сохраняет главный мышечный акцент';
+    return 'Доступно на твоём оборудовании';
+  }
+
   function showReplacementModal(index) {
     const current = state.currentWorkout.exercises[index];
     const exercise = getExercise(current.exerciseId);
     const replacementIds = exercise?.replacements || [];
-    const candidates = replacementIds.map(getExercise).filter(Boolean);
+    const candidates = replacementIds.map(getExercise).filter(Boolean).slice(0, 3);
     showModal(`
-      <div class="modal-head"><h2>Замена упражнения</h2><button class="modal-close" data-close>×</button></div>
-      <div class="notice">Все варианты используют доступное на судне оборудование. При качке выбирай сидя, лёжа или с опорой.</div>
-      <div class="card list-card" style="margin-top:12px">
-        ${candidates.length ? candidates.map((candidate) => `<button class="list-row choose-replacement" data-id="${candidate.id}" style="width:100%;text-align:left;background:transparent;border-left:0;border-right:0;border-top:0;color:inherit">
-          <div class="list-row-main"><div class="list-row-title">${escapeHTML(candidate.name)}</div><div class="list-row-sub">${escapeHTML(candidate.equipment)} · ${escapeHTML(candidate.group)}</div></div><span>›</span>
-        </button>`).join('') : `<div class="empty"><strong>Готовых замен нет</strong>Можно добавить упражнение через редактор программы.</div>`}
+      <div class="modal-head"><h2>Чем заменить?</h2><button class="modal-close" data-close>×</button></div>
+      <p class="muted">${escapeHTML(current.name)}</p>
+      <div class="replacement-best-list">
+        ${candidates.length ? candidates.map((candidate, candidateIndex) => `<button class="replacement-best-card choose-replacement" data-id="${escapeAttr(candidate.id)}" type="button"><span>${candidateIndex + 1}</span><div><strong>${escapeHTML(candidate.name)}</strong><small>${escapeHTML(replacementReason(exercise, candidate, current))} · ${escapeHTML(candidate.equipment)}</small></div><b>›</b></button>`).join('') : `<div class="empty"><strong>Готовых замен нет</strong>Можно выбрать любое упражнение из библиотеки.</div>`}
       </div>
-      <button class="button secondary full" id="choose-any-exercise" style="margin-top:12px">Выбрать из всей библиотеки</button>
+      <button class="button secondary full" id="choose-any-exercise" style="margin-top:12px">Все варианты</button>
     `);
     el.modalRoot.querySelectorAll('.choose-replacement').forEach((button) => button.addEventListener('click', () => replaceWorkoutExercise(index, button.dataset.id)));
     document.getElementById('choose-any-exercise').addEventListener('click', () => showExercisePicker((id) => replaceWorkoutExercise(index, id)));
   }
 
-  async function replaceWorkoutExercise(index, newId) {
-    const old = state.currentWorkout.exercises[index];
-    const exercise = getExercise(newId);
-    if (!exercise) return;
+  function buildWorkoutExerciseResult(exercise, { comment = '', replacementOf = null, painEvents = [] } = {}) {
     const last = findLastExerciseResult(exercise.id);
     const suggestion = progressionSuggestion(exercise, last);
-    const sets = Array.from({ length: Math.min(exercise.defaults.sets, state.currentWorkout.shortMode ? 2 : exercise.defaults.sets) }, (_, i) => ({
+    const targetSets = Math.min(exercise.defaults.sets, state.currentWorkout?.shortMode ? 2 : exercise.defaults.sets);
+    const sets = Array.from({ length: targetSets }, (_, i) => ({
       number: i + 1,
       weightKg: exercise.defaults.unit === 'reps'
         ? previousSetValue(last, i, 'weightKg', exercise.defaults.weightKg ?? suggestion.weightKg ?? '')
@@ -2527,24 +2951,85 @@
       difficulty: 'normal',
       completed: false,
     }));
-    const painRisk = analyzeExercisePainRisk(state.currentWorkout.preWorkoutPain, exercise);
-    state.currentWorkout.exercises[index] = {
+    return {
       exerciseId: exercise.id,
       name: exercise.name,
-      replacementOf: old.replacementOf || old.exerciseId,
+      replacementOf,
       skipped: false,
-      comment: `Замена: ${old.name}`,
+      comment,
       previous: last ? summarizePrevious(last) : null,
+      previousSets: completedSets(last).map((set) => ({
+        weightKg: set.weightKg ?? '', reps: set.reps ?? '', durationSec: set.durationSec ?? null,
+        durationMin: set.durationMin ?? null, difficulty: set.difficulty || 'normal',
+      })),
       prefilledFromLast: completedSets(last).length > 0,
       suggestion,
-      painRisk,
-      painEvents: old.painEvents || [],
+      painRisk: analyzeExercisePainRisk(state.currentWorkout?.preWorkoutPain, exercise),
+      painEvents,
       defaults: { ...exercise.defaults },
       sets,
+      feedback: null,
     };
+  }
+
+  async function replaceWorkoutExercise(index, newId) {
+    const old = state.currentWorkout.exercises[index];
+    const exercise = getExercise(newId);
+    if (!exercise) return;
+    state.currentWorkout.exercises[index] = buildWorkoutExerciseResult(exercise, {
+      comment: `Замена: ${old.name}`,
+      replacementOf: old.replacementOf || old.exerciseId,
+      painEvents: old.painEvents || [],
+    });
+    workoutExerciseUi.focusedIndex = index;
     await saveDraftWorkout();
     closeModal();
     renderWorkout();
+  }
+
+  function recentWorkoutExerciseIds(limit = 6) {
+    const ids = [];
+    for (const workout of state.workouts) {
+      for (const result of workout.exercises || []) {
+        if (!ids.includes(result.exerciseId) && !state.currentWorkout.exercises.some((item) => item.exerciseId === result.exerciseId)) ids.push(result.exerciseId);
+        if (ids.length >= limit) return ids;
+      }
+    }
+    return ids;
+  }
+
+  function showQuickAddWorkoutExercise() {
+    const focusIndex = workoutFocusedExerciseIndex();
+    const focusResult = focusIndex >= 0 ? state.currentWorkout.exercises[focusIndex] : null;
+    const focusExercise = focusResult ? getExercise(focusResult.exerciseId) : null;
+    const focusGroups = new Set(getMuscleGroupsForExercise(focusExercise, focusResult));
+    const excluded = new Set(state.currentWorkout.exercises.map((result) => result.exerciseId));
+    const recent = recentWorkoutExerciseIds(5).map(getExercise).filter(Boolean);
+    const matching = state.exercises.filter((exercise) => !excluded.has(exercise.id) && getMuscleGroupsForExercise(exercise).some((group) => focusGroups.has(group))).slice(0, 5);
+    const options = [...recent, ...matching].filter((exercise, index, array) => array.findIndex((item) => item.id === exercise.id) === index).slice(0, 7);
+    showModal(`
+      <div class="modal-head"><h2>Добавить упражнение</h2><button class="modal-close" data-close>×</button></div>
+      <div class="notice">Сначала — недавние и подходящие текущей мышечной группе.</div>
+      <div class="card list-card" style="margin-top:12px">${options.length ? options.map((exercise) => `<button class="list-row quick-add-workout-choice" data-id="${escapeAttr(exercise.id)}" type="button"><div class="list-row-main"><div class="list-row-title">${escapeHTML(exercise.name)}</div><div class="list-row-sub">${escapeHTML(exercise.group)} · ${escapeHTML(exercise.equipment)}</div></div><span>＋</span></button>`).join('') : '<div class="empty compact-empty"><strong>Подходящих недавних нет</strong>Открой всю библиотеку.</div>'}</div>
+      <button class="button secondary full" id="quick-add-workout-all" style="margin-top:12px">Вся библиотека</button>
+    `);
+    el.modalRoot.querySelectorAll('.quick-add-workout-choice').forEach((button) => button.addEventListener('click', () => addExerciseToCurrentWorkout(button.dataset.id)));
+    document.getElementById('quick-add-workout-all').addEventListener('click', () => showExercisePicker(addExerciseToCurrentWorkout));
+  }
+
+  async function addExerciseToCurrentWorkout(exerciseId) {
+    const exercise = getExercise(exerciseId);
+    if (!exercise) return;
+    if (state.currentWorkout.exercises.some((result) => result.exerciseId === exercise.id)) return toast('Это упражнение уже есть в тренировке');
+    const result = buildWorkoutExerciseResult(exercise, { comment: 'Добавлено во время тренировки' });
+    const focusIndex = workoutFocusedExerciseIndex();
+    const insertAt = focusIndex >= 0 ? focusIndex + 1 : state.currentWorkout.exercises.length;
+    state.currentWorkout.exercises.splice(insertAt, 0, result);
+    workoutExerciseUi.focusedIndex = insertAt;
+    await saveDraftWorkout();
+    closeModal();
+    renderWorkout();
+    toast('Упражнение добавлено');
   }
 
 
@@ -2718,7 +3203,7 @@
     document.getElementById('keep-draft').addEventListener('click', async () => {
       try {
         await flushDraftSave();
-        stopRestTimer(false);
+        stopRestTimer();
         clearInterval(state.workoutClockInterval);
         closeModal();
         toast('Черновик сохранён');
@@ -2730,9 +3215,11 @@
     });
     document.getElementById('discard-workout').addEventListener('click', async () => {
       clearDraftSaveTimer();
-      stopRestTimer(false);
+      stopRestTimer();
       clearInterval(state.workoutClockInterval);
       state.currentWorkout = null;
+      workoutExerciseUi.focusedIndex = null;
+      workoutExerciseUi.expandedQueued.clear();
       await DB.remove('meta', draftWorkoutKey());
       closeModal();
       toast('Черновик удалён');
@@ -2752,6 +3239,40 @@
       <button class="button primary full" id="confirm-finish" style="margin-top:14px">Сохранить результат</button>
     `);
     document.getElementById('confirm-finish').addEventListener('click', finishWorkout);
+  }
+
+  function workoutSummaryAdvice(workout) {
+    const sets = workout.exercises.flatMap((result) => result.sets || []).filter((set) => set.completed);
+    const hard = sets.filter((set) => ['hard', 'failure'].includes(set.difficulty)).length;
+    const failure = sets.filter((set) => set.difficulty === 'failure').length;
+    if (workout.completionPct < 50) return 'Сохранили честный результат. Следующую тренировку не усложняем — сначала восстановление.';
+    if (failure >= 3) return 'Много подходов до отказа. В следующий раз оставь 1–2 повтора в запасе.';
+    if (hard > sets.length * .55) return 'Нагрузка высокая. Вес пока не повышаем, следим за восстановлением.';
+    if (workout.records?.length) return 'Есть прогресс. Повышать всё сразу не нужно — закрепи результат на следующей тренировке.';
+    return 'Хорошая рабочая тренировка. Сохраняем темп и двигаемся без резких скачков нагрузки.';
+  }
+
+  function showWorkoutSummaryModal(workout) {
+    const completedSetsCount = workout.exercises.flatMap((result) => result.sets || []).filter((set) => set.completed).length;
+    const feedbackCount = workout.exercises.filter((result) => result.feedback).length;
+    showModal(`
+      <div class="workout-finish-hero">
+        <div class="workout-finish-check">✓</div>
+        <div class="eyebrow">Тренировка сохранена</div>
+        <h2>${escapeHTML(workout.dayName)}</h2>
+        <p>${escapeHTML(workoutSummaryAdvice(workout))}</p>
+      </div>
+      <div class="workout-finish-stats">
+        <div><strong>${formatDuration(workout.durationSec)}</strong><span>время</span></div>
+        <div><strong>${completedSetsCount}</strong><span>подходов</span></div>
+        <div><strong>${formatWorkoutSetNumber(workout.totalLoadKg || 0)}</strong><span>кг объёма</span></div>
+        <div><strong>${workout.records?.length || 0}</strong><span>рекордов</span></div>
+      </div>
+      <div class="workout-finish-progress"><span style="width:${workout.completionPct}%"></span></div>
+      <div class="help center">Выполнено ${workout.completionPct}% · оценено упражнений: ${feedbackCount}</div>
+      ${workout.records?.length ? `<div class="workout-finish-records"><strong>Новые результаты</strong>${workout.records.slice(0, 4).map((record) => `<span>🏆 ${escapeHTML(record.title || record.text || record.label || 'Личный рекорд')}</span>`).join('')}</div>` : ''}
+      <button class="button primary full" data-close type="button" style="margin-top:16px">Готово</button>
+    `);
   }
 
   async function finishWorkout() {
@@ -2775,13 +3296,16 @@
     await DB.remove('meta', draftWorkoutKey());
     state.workouts.unshift(workout);
     state.currentWorkout = null;
+    workoutExerciseUi.focusedIndex = null;
+    workoutExerciseUi.expandedQueued.clear();
     clearInterval(state.workoutClockInterval);
+    stopRestTimer();
     closeModal();
-    toast(shouldAdvanceCycle ? 'Тренировка сохранена, цикл сдвинут дальше' : 'Тренировка сохранена, цикл не сдвинут');
     navigate('home');
     syncPushAutomationSettings({ silent: true }).catch((error) => console.warn('Push schedule sync after workout failed', error));
-    if (workout.records?.length) window.setTimeout(() => showWorkoutRecordsModal(workout), 120);
+    window.setTimeout(() => showWorkoutSummaryModal(workout), 140);
   }
+
 
   let workoutStickySyncFrame = 0;
 
@@ -2812,8 +3336,19 @@
     const text = document.getElementById('workout-progress-text');
     const bar = document.getElementById('workout-progress-bar');
     const banner = document.getElementById('workout-live-banner');
+    const ring = document.getElementById('workout-progress-ring');
+    const ringText = document.getElementById('workout-progress-ring-text');
+    const count = document.getElementById('workout-progress-count');
+    const remaining = document.getElementById('workout-remaining-time');
     if (text) text.textContent = `${pct}%`;
     if (bar) bar.style.width = `${pct}%`;
+    if (ring) ring.style.setProperty('--workout-progress', `${pct * 3.6}deg`);
+    if (ringText) ringText.textContent = `${pct}%`;
+    if (count) {
+      const focusIndex = workoutFocusedExerciseIndex();
+      count.textContent = `Упражнение ${focusIndex >= 0 ? focusIndex + 1 : state.currentWorkout.exercises.length} из ${state.currentWorkout.exercises.length}`;
+    }
+    if (remaining) remaining.textContent = `≈ ${workoutEstimatedRemainingMinutes()} мин осталось`;
     if (banner) banner.classList.toggle('complete', pct >= 100);
     updateWorkoutLiveBannerLabel();
   }
@@ -4587,7 +5122,7 @@
     if (profileId === state.activeProfileId) return closeModal();
     if (state.currentWorkout) await saveDraftWorkout();
     state.currentWorkout = null;
-    stopRestTimer(false);
+    stopRestTimer();
     clearInterval(state.workoutClockInterval);
     await DB.setActiveProfileId(profileId);
     state.activeProfileId = profileId;
@@ -4702,6 +5237,19 @@
                 <div class="timer-volume-control"><div class="timer-volume-head"><div><div class="list-row-title">Громкость таймера</div><div class="list-row-sub">Уровень сигнала внутри приложения</div></div><strong id="timer-volume-value">${timerVolumePercent()}%</strong></div><input id="timer-volume" type="range" min="0" max="100" step="5" value="${timerVolumePercent()}" ${state.settings.soundEnabled ? '' : 'disabled'} aria-label="Громкость таймера"></div>
                 <label class="list-row"><div><div class="list-row-title">Вибрация</div><div class="list-row-sub">На iPhone Safari может не поддерживаться</div></div><input id="vibration-toggle" type="checkbox" ${state.settings.vibrationEnabled ? 'checked' : ''}></label>
                 <div class="timer-sound-test"><button class="button secondary full" id="test-timer-sound" type="button" ${state.settings.soundEnabled ? '' : 'disabled'}>Проверить звук</button><div class="help" id="timer-sound-status">Проверка также активирует звук для iPhone перед тренировкой.</div></div>
+              </div>
+            </div>
+
+            <div class="more-subsection workout-interface-subsection">
+              <div class="more-subsection-head"><div><span class="eyebrow">Активная тренировка</span><h3>Интерфейс под тебя</h3></div></div>
+              <div class="card list-card workout-interface-settings">
+                <label class="list-row"><div><div class="list-row-title">Режим фокуса</div><div class="list-row-sub">Текущее упражнение крупно, следующие компактно</div></div><input id="workout-focus-toggle" type="checkbox" ${state.settings.workoutFocusMode !== false ? 'checked' : ''}></label>
+                <label class="list-row"><div><div class="list-row-title">Прошлые значения</div><div class="list-row-sub">Показывать результат прошлого раза возле подхода</div></div><input id="workout-previous-toggle" type="checkbox" ${state.settings.workoutShowPrevious !== false ? 'checked' : ''}></label>
+                <label class="list-row"><div><div class="list-row-title">Автопрокрутка</div><div class="list-row-sub">Переходить к следующему упражнению после завершения</div></div><input id="workout-autoscroll-toggle" type="checkbox" ${state.settings.workoutAutoScroll !== false ? 'checked' : ''}></label>
+                <label class="list-row"><div><div class="list-row-title">Свайпы</div><div class="list-row-sub">Вправо — завершить, влево — действия</div></div><input id="workout-swipes-toggle" type="checkbox" ${state.settings.workoutSwipeGestures !== false ? 'checked' : ''}></label>
+                <label class="list-row"><div><div class="list-row-title">Крупные быстрые кнопки</div><div class="list-row-sub">−2 / −1 / +1 / +2 кг и быстрые повторы</div></div><input id="workout-large-controls-toggle" type="checkbox" ${state.settings.workoutLargeControls !== false ? 'checked' : ''}></label>
+                <label class="list-row"><div><div class="list-row-title">Быстрая оценка</div><div class="list-row-sub">Легко, нормально, тяжело, отказ или дискомфорт</div></div><input id="workout-feedback-toggle" type="checkbox" ${state.settings.workoutQuickFeedback !== false ? 'checked' : ''}></label>
+                <label class="list-row workout-completed-setting"><div><div class="list-row-title">После завершения упражнения</div><div class="list-row-sub">Как освобождать список</div></div><select id="workout-completed-behavior" class="set-select"><option value="collapse" ${workoutCompletedBehavior() === 'collapse' ? 'selected' : ''}>Сворачивать</option><option value="hide" ${workoutCompletedBehavior() === 'hide' ? 'selected' : ''}>Скрывать</option><option value="keep" ${workoutCompletedBehavior() === 'keep' ? 'selected' : ''}>Оставлять открытым</option></select></label>
               </div>
             </div>
 
@@ -4820,6 +5368,13 @@
     });
     document.getElementById('test-timer-sound').addEventListener('click', testTimerSound);
     document.getElementById('vibration-toggle').addEventListener('change', (event) => saveToggle('vibrationEnabled', event.target.checked));
+    document.getElementById('workout-focus-toggle').addEventListener('change', (event) => saveToggle('workoutFocusMode', event.target.checked));
+    document.getElementById('workout-previous-toggle').addEventListener('change', (event) => saveToggle('workoutShowPrevious', event.target.checked));
+    document.getElementById('workout-autoscroll-toggle').addEventListener('change', (event) => saveToggle('workoutAutoScroll', event.target.checked));
+    document.getElementById('workout-swipes-toggle').addEventListener('change', (event) => saveToggle('workoutSwipeGestures', event.target.checked));
+    document.getElementById('workout-large-controls-toggle').addEventListener('change', (event) => saveToggle('workoutLargeControls', event.target.checked));
+    document.getElementById('workout-feedback-toggle').addEventListener('change', (event) => saveToggle('workoutQuickFeedback', event.target.checked));
+    document.getElementById('workout-completed-behavior').addEventListener('change', (event) => saveToggle('workoutCompletedBehavior', event.target.value));
     syncTimerSoundControls();
     document.getElementById('open-pain-history').addEventListener('click', showPainHistoryModal);
     document.getElementById('open-pain-cleanup').addEventListener('click', showPainCleanupModal);
@@ -5408,7 +5963,7 @@
       if (!window.confirm(confirmation)) return;
 
       clearDraftSaveTimer();
-      stopRestTimer(false);
+      stopRestTimer();
       clearInterval(state.workoutClockInterval);
       state.currentWorkout = null;
       await DB.importData(backup, 'replace');
@@ -5617,7 +6172,7 @@
     if (!state.currentWorkout) return;
     if (!window.confirm(`Удалить черновик «${state.currentWorkout.dayName}»? Выполненные подходы восстановить не получится.`)) return;
     clearDraftSaveTimer();
-    stopRestTimer(false);
+    stopRestTimer();
     clearInterval(state.workoutClockInterval);
     state.currentWorkout = null;
     await DB.remove('meta', draftWorkoutKey());

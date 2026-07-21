@@ -297,6 +297,13 @@
       countdownSoundEnabled: true,
       timerVolume: 70,
       vibrationEnabled: true,
+      workoutFocusMode: true,
+      workoutShowPrevious: true,
+      workoutAutoScroll: true,
+      workoutSwipeGestures: true,
+      workoutLargeControls: true,
+      workoutQuickFeedback: true,
+      workoutCompletedBehavior: 'collapse',
       theme: 'dark',
       lastBackupAt: null,
       ironCalculator: {
