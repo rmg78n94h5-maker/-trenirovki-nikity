@@ -3651,3 +3651,200 @@ button:disabled {
 }
 
 /* v1.16.1 — панель управления тренировкой закреплена к окну PWA */
+
+
+/* v1.17.1 — компактный фокус и управление подходом прямо в нижней панели */
+.sport-workout-screen {
+  padding-bottom: calc(318px + var(--safe-bottom));
+}
+.workout-focus-summary {
+  gap: 8px;
+  padding: 10px 11px;
+  border-radius: 19px;
+}
+.workout-focus-hero {
+  grid-template-columns: minmax(0,1fr) 54px;
+  gap: 10px;
+}
+.workout-focus-copy { gap: 5px; }
+.workout-focus-kicker { font-size: 10px; }
+.workout-focus-copy h2 {
+  font-size: clamp(20px, 5.3vw, 27px);
+  line-height: 1.04;
+}
+.workout-focus-sub { gap: 5px; }
+.workout-focus-sub span {
+  min-height: 25px;
+  padding: 5px 8px;
+  font-size: 9px;
+}
+.workout-focus-summary .workout-progress-ring {
+  width: 52px;
+  height: 52px;
+}
+.workout-focus-stats.compact {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0,1fr));
+  gap: 6px;
+}
+.workout-focus-stats.compact .workout-focus-stat {
+  min-height: 58px;
+  gap: 4px;
+  padding: 8px 9px;
+  border-radius: 14px;
+}
+.workout-focus-stats.compact .workout-focus-stat span {
+  font-size: 8px;
+}
+.workout-focus-stats.compact .workout-focus-stat strong,
+.workout-focus-stats.compact .workout-focus-stat #workout-remaining-time {
+  font-size: 15px;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+.workout-progress-count-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.workout-focus-summary .workout-stage-track span {
+  min-height: 21px;
+  font-size: 8px;
+}
+
+.workout-control-dock {
+  position: fixed !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100% !important;
+  max-width: 720px;
+  margin: 0 auto !important;
+  padding: 9px 12px calc(9px + var(--safe-bottom));
+  gap: 7px;
+  border-left: 1px solid rgba(199,255,47,.22);
+  border-right: 1px solid rgba(199,255,47,.22);
+  border-top: 1px solid rgba(199,255,47,.26);
+  border-bottom: 0;
+  border-radius: 22px 22px 0 0;
+  transform: none !important;
+  -webkit-transform: none !important;
+  background: #0c0f12;
+  box-shadow: 0 -18px 42px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.055);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.workout-dock-summary {
+  min-height: 34px;
+  padding: 0;
+}
+.workout-dock-summary-copy { gap: 1px; }
+.workout-dock-summary-copy span { font-size: 8px; }
+.workout-dock-summary-copy strong { font-size: 13px; }
+.workout-dock-chip {
+  min-height: 24px;
+  padding: 4px 8px;
+  font-size: 9px;
+  white-space: nowrap;
+}
+.workout-dock-set-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  gap: 7px;
+}
+.workout-dock-set-controls.single {
+  grid-template-columns: minmax(0, 1fr);
+}
+.workout-dock-set-card {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  padding: 7px 8px;
+  border: 1px solid rgba(255,255,255,.075);
+  border-radius: 14px;
+  background: rgba(255,255,255,.035);
+}
+.workout-dock-set-card > span:first-child {
+  color: var(--muted);
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.workout-dock-stepper {
+  display: grid;
+  grid-template-columns: 36px minmax(0,1fr) 36px;
+  align-items: stretch;
+  overflow: hidden;
+  min-height: 42px;
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 12px;
+  background: #14181d;
+}
+.workout-dock-adjust {
+  min-width: 0;
+  border: 0;
+  background: rgba(255,255,255,.035);
+  color: var(--text);
+  font-size: 22px;
+  font-weight: 900;
+}
+.workout-dock-adjust:first-child { border-right: 1px solid rgba(255,255,255,.07); }
+.workout-dock-adjust:last-child { border-left: 1px solid rgba(255,255,255,.07); }
+.workout-dock-input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: center;
+  font-size: 21px;
+  font-weight: 950;
+  font-variant-numeric: tabular-nums;
+  -moz-appearance: textfield;
+}
+.workout-dock-input::-webkit-inner-spin-button,
+.workout-dock-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.workout-control-main {
+  grid-template-columns: 44px minmax(0,1fr) 44px;
+  gap: 7px;
+}
+.workout-nav-button,
+.workout-dock-complete { min-height: 48px; }
+.workout-dock-complete { font-size: 14px; }
+.workout-control-secondary.four {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0,1fr));
+  gap: 5px;
+}
+.workout-control-secondary.four .button {
+  min-height: 33px;
+  padding: 6px 4px;
+  border-radius: 10px;
+  font-size: 9px;
+}
+.timer-overlay {
+  inset: auto 8px calc(286px + var(--safe-bottom));
+}
+.timer-card {
+  min-height: 60px;
+  border-radius: 16px;
+}
+
+@media (max-width: 390px) {
+  .sport-workout-screen { padding-bottom: calc(310px + var(--safe-bottom)); }
+  .workout-focus-copy h2 { font-size: 20px; }
+  .workout-focus-sub span:last-child { max-width: 100%; }
+  .workout-focus-stats.compact .workout-focus-stat { padding: 7px 8px; }
+  .workout-focus-stats.compact .workout-focus-stat strong,
+  .workout-focus-stats.compact .workout-focus-stat #workout-remaining-time { font-size: 13px; }
+  .workout-control-dock { padding-left: 8px; padding-right: 8px; }
+  .workout-dock-stepper { grid-template-columns: 34px minmax(0,1fr) 34px; }
+  .workout-control-secondary.four .button { font-size: 8px; }
+  .timer-overlay { left: 6px; right: 6px; bottom: calc(278px + var(--safe-bottom)); }
+}

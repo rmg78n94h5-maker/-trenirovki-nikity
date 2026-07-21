@@ -2017,9 +2017,7 @@
           ? 'Все подходы готовы'
           : 'Подходов нет'
       : 'Тренировка завершена';
-    const meta = [focusExercise?.group || '', focusExercise?.equipment || '', focusResult ? `отдых ${focusResult.defaults.restSec || 0} сек` : '']
-      .filter(Boolean)
-      .join(' · ');
+    const meta = [focusExercise?.group || '', focusExercise?.equipment || ''].filter(Boolean).join(' · ');
     const title = focusResult ? focusResult.name : 'Тренировка завершена';
     const stage = pct >= 84 ? 2 : pct >= 28 ? 1 : 0;
     const stages = ['Разминка', 'Основная', 'Финиш'];
@@ -2031,32 +2029,17 @@
             <h2 id="workout-focus-title">${escapeHTML(title)}</h2>
             <div class="workout-focus-sub">
               <span>${escapeHTML(currentSetLabel)}</span>
+              <span>${currentOrdinal}/${total}</span>
               ${meta ? `<span>${escapeHTML(meta)}</span>` : ''}
             </div>
           </div>
           <div class="workout-progress-ring" id="workout-progress-ring" style="--workout-progress:${pct * 3.6}deg"><strong id="workout-progress-ring-text">${pct}%</strong><span>${completed}/${total}</span></div>
         </div>
-        <div class="workout-focus-stats">
-          <div class="workout-focus-stat">
-            <span>Тренировка</span>
-            <strong class="workout-clock" id="workout-clock">00:00</strong>
-            <small>с момента старта</small>
-          </div>
-          <div class="workout-focus-stat accent">
-            <span>Выполнено</span>
-            <strong id="workout-progress-text">${pct}%</strong>
-            <small>${completed} из ${total} упражнений</small>
-          </div>
-          <div class="workout-focus-stat">
-            <span>В списке</span>
-            <strong id="workout-progress-count">Упражнение ${currentOrdinal} из ${total}</strong>
-            <small>${focusResult ? 'текущее упражнение' : 'всё закрыто'}</small>
-          </div>
-          <div class="workout-focus-stat">
-            <span>Осталось</span>
-            <strong id="workout-remaining-time">≈ ${remaining} мин</strong>
-            <small>по текущему темпу</small>
-          </div>
+        <div class="workout-focus-stats compact">
+          <div class="workout-focus-stat"><span>Время</span><strong class="workout-clock" id="workout-clock">00:00</strong></div>
+          <div class="workout-focus-stat accent"><span>Готово</span><strong id="workout-progress-text">${pct}%</strong></div>
+          <div class="workout-focus-stat"><span>Осталось</span><strong id="workout-remaining-time">≈ ${remaining} мин</strong></div>
+          <strong id="workout-progress-count" class="workout-progress-count-hidden">Упражнение ${currentOrdinal} из ${total}</strong>
         </div>
         <div class="progress-bar sport-workout-progress" aria-hidden="true"><span id="workout-progress-bar" style="width:${pct}%"></span></div>
         <div class="workout-stage-track">${stages.map((label, index) => `<span class="${index < stage ? 'done' : index === stage ? 'current' : ''}">${label}</span>`).join('')}</div>
@@ -2075,13 +2058,51 @@
     const focusResult = focusIndex >= 0 ? workout.exercises[focusIndex] : null;
     const focusExercise = focusResult ? getExercise(focusResult.exerciseId) : null;
     const setIndex = focusResult ? workoutActiveSetIndex(focusResult) : -1;
-    const canComplete = focusResult && setIndex >= 0;
+    const activeSet = focusResult && setIndex >= 0 ? focusResult.sets[setIndex] : null;
+    const canComplete = Boolean(focusResult && activeSet);
     const primary = canComplete ? `Подход ${setIndex + 1} готов` : 'Все подходы готовы';
     const status = focusResult
       ? setIndex >= 0
         ? `Подход ${setIndex + 1} из ${focusResult.sets.length}`
         : 'Упражнение закрыто'
       : 'Тренировка завершена';
+    let setControls = '';
+    if (activeSet && focusResult.defaults.unit === 'reps') {
+      setControls = `
+        <div class="workout-dock-set-controls" aria-label="Вес и повторы текущего подхода">
+          <label class="workout-dock-set-card">
+            <span>Вес, кг</span>
+            <span class="workout-dock-stepper">
+              <button class="workout-dock-adjust" type="button" data-exercise="${focusIndex}" data-set="${setIndex}" data-field="weightKg" data-delta="-0.5" aria-label="Уменьшить вес">−</button>
+              <input class="workout-dock-input" type="number" inputmode="decimal" min="0" step="0.5" value="${escapeHTML(String(activeSet.weightKg ?? ''))}" data-exercise="${focusIndex}" data-set="${setIndex}" data-field="weightKg" aria-label="Вес текущего подхода">
+              <button class="workout-dock-adjust" type="button" data-exercise="${focusIndex}" data-set="${setIndex}" data-field="weightKg" data-delta="0.5" aria-label="Увеличить вес">＋</button>
+            </span>
+          </label>
+          <label class="workout-dock-set-card">
+            <span>Повторы</span>
+            <span class="workout-dock-stepper">
+              <button class="workout-dock-adjust" type="button" data-exercise="${focusIndex}" data-set="${setIndex}" data-field="reps" data-delta="-1" aria-label="Уменьшить повторы">−</button>
+              <input class="workout-dock-input" type="number" inputmode="numeric" min="0" step="1" value="${escapeHTML(String(activeSet.reps ?? ''))}" data-exercise="${focusIndex}" data-set="${setIndex}" data-field="reps" aria-label="Повторы текущего подхода">
+              <button class="workout-dock-adjust" type="button" data-exercise="${focusIndex}" data-set="${setIndex}" data-field="reps" data-delta="1" aria-label="Увеличить повторы">＋</button>
+            </span>
+          </label>
+        </div>`;
+    } else if (activeSet) {
+      const durationField = focusResult.defaults.unit === 'minutes' ? 'durationMin' : 'durationSec';
+      const durationLabel = focusResult.defaults.unit === 'minutes' ? 'Минуты' : 'Секунды';
+      const durationValue = activeSet[durationField] ?? '';
+      setControls = `
+        <div class="workout-dock-set-controls single" aria-label="Длительность текущего подхода">
+          <label class="workout-dock-set-card">
+            <span>${durationLabel}</span>
+            <span class="workout-dock-stepper">
+              <button class="workout-dock-adjust" type="button" data-exercise="${focusIndex}" data-set="${setIndex}" data-field="${durationField}" data-delta="-1" aria-label="Уменьшить длительность">−</button>
+              <input class="workout-dock-input" type="number" inputmode="numeric" min="1" step="1" value="${escapeHTML(String(durationValue))}" data-exercise="${focusIndex}" data-set="${setIndex}" data-field="${durationField}" aria-label="Длительность текущего подхода">
+              <button class="workout-dock-adjust" type="button" data-exercise="${focusIndex}" data-set="${setIndex}" data-field="${durationField}" data-delta="1" aria-label="Увеличить длительность">＋</button>
+            </span>
+          </label>
+        </div>`;
+    }
     return `
       <div class="workout-control-dock" role="group" aria-label="Управление тренировкой">
         <div class="workout-dock-summary">
@@ -2089,19 +2110,18 @@
             <span>Сейчас</span>
             <strong>${escapeHTML(focusResult?.name || 'Тренировка завершена')}</strong>
           </div>
-          <div class="workout-dock-summary-meta">
-            <span class="workout-dock-chip">${escapeHTML(status)}</span>
-            ${focusExercise?.group ? `<span class="workout-dock-chip muted">${escapeHTML(focusExercise.group)}</span>` : ''}
-          </div>
+          <span class="workout-dock-chip">${escapeHTML(status)}</span>
         </div>
+        ${setControls}
         <div class="workout-control-main">
           <button class="workout-nav-button" id="workout-dock-prev" type="button" aria-label="Предыдущее упражнение">←</button>
           <button class="button primary workout-dock-complete" id="workout-dock-complete" type="button" data-exercise="${focusIndex}" data-set="${setIndex}" ${canComplete ? '' : 'disabled'}>${escapeHTML(primary)} ✓</button>
           <button class="workout-nav-button" id="workout-dock-next" type="button" aria-label="Следующее упражнение">→</button>
         </div>
-        <div class="workout-control-secondary">
+        <div class="workout-control-secondary four">
           <button class="button ghost small" id="cancel-workout" type="button">Закрыть</button>
-          <button class="button secondary small" id="quick-add-workout-exercise" type="button">＋ Упражнение</button>
+          <button class="button secondary small" id="workout-dock-add-set" type="button" data-index="${focusIndex}" ${focusResult ? '' : 'disabled'}>＋ Подход</button>
+          <button class="button secondary small" id="quick-add-workout-exercise" type="button">＋ Упр.</button>
           <button class="button ghost small" id="finish-workout" type="button">Завершить</button>
         </div>
       </div>
@@ -2535,6 +2555,31 @@
     document.getElementById('quick-add-workout-exercise-large')?.addEventListener('click', showQuickAddWorkoutExercise);
     document.getElementById('workout-dock-prev')?.addEventListener('click', () => focusWorkoutRelative(-1));
     document.getElementById('workout-dock-next')?.addEventListener('click', () => focusWorkoutRelative(1));
+    document.getElementById('workout-dock-add-set')?.addEventListener('click', (event) => addWorkoutSet(Number(event.currentTarget.dataset.index)));
+    document.querySelectorAll('.workout-dock-input').forEach((input) => {
+      input.addEventListener('focus', () => input.select());
+      input.addEventListener('input', (event) => {
+        const exerciseIndex = Number(event.currentTarget.dataset.exercise);
+        const setIndex = Number(event.currentTarget.dataset.set);
+        const field = event.currentTarget.dataset.field;
+        const value = numberOrBlank(event.currentTarget.value);
+        updateSet(exerciseIndex, setIndex, field, value);
+        const rowInputClass = field === 'weightKg' ? 'set-weight' : field === 'reps' ? 'set-reps' : 'set-duration';
+        const rowInput = el.main.querySelector(`.workout-exercise[data-exercise-index="${exerciseIndex}"] .set-row[data-set-index="${setIndex}"] .set-input.${rowInputClass}`);
+        if (rowInput && document.activeElement !== rowInput) rowInput.value = event.currentTarget.value;
+      });
+    });
+    document.querySelectorAll('.workout-dock-adjust').forEach((button) => {
+      bindSetStepper(button, Number(button.dataset.exercise), Number(button.dataset.set), {
+        querySelector(selector) {
+          const field = button.dataset.field;
+          if (selector.includes('set-weight') && field !== 'weightKg') return null;
+          if (selector.includes('set-reps') && field !== 'reps') return null;
+          if (selector.includes('set-duration') && !['durationMin', 'durationSec'].includes(field)) return null;
+          return document.querySelector(`.workout-dock-input[data-exercise="${button.dataset.exercise}"][data-set="${button.dataset.set}"][data-field="${field}"]`);
+        },
+      });
+    });
     document.getElementById('workout-dock-complete')?.addEventListener('click', (event) => {
       const exerciseIndex = Number(event.currentTarget.dataset.exercise);
       const setIndex = Number(event.currentTarget.dataset.set);
@@ -2777,6 +2822,8 @@
 
   function updateSet(exerciseIndex, setIndex, field, value) {
     state.currentWorkout.exercises[exerciseIndex].sets[setIndex][field] = value;
+    const dockInput = document.querySelector(`.workout-dock-input[data-exercise="${exerciseIndex}"][data-set="${setIndex}"][data-field="${field}"]`);
+    if (dockInput && document.activeElement !== dockInput) dockInput.value = value ?? '';
     debounceDraftSave();
   }
 
@@ -2833,12 +2880,18 @@
     const next = Math.max(minimum, Number((base + delta).toFixed(decimals)));
 
     set[field] = next;
-    if (input) {
-      input.value = String(next);
-      input.classList.remove('stepper-pulse');
-      void input.offsetWidth;
-      input.classList.add('stepper-pulse');
-    }
+    const inputClass = field === 'weightKg' ? 'set-weight' : field === 'reps' ? 'set-reps' : 'set-duration';
+    const linkedInputs = [
+      input,
+      el.main?.querySelector(`.workout-exercise[data-exercise-index="${exerciseIndex}"] .set-row[data-set-index="${setIndex}"] .set-input.${inputClass}`),
+      document.querySelector(`.workout-dock-input[data-exercise="${exerciseIndex}"][data-set="${setIndex}"][data-field="${field}"]`),
+    ].filter(Boolean);
+    [...new Set(linkedInputs)].forEach((linkedInput) => {
+      linkedInput.value = String(next);
+      linkedInput.classList.remove('stepper-pulse');
+      void linkedInput.offsetWidth;
+      linkedInput.classList.add('stepper-pulse');
+    });
     if (state.settings.vibrationEnabled && navigator.vibrate) navigator.vibrate(8);
     debounceDraftSave();
   }
@@ -3397,7 +3450,7 @@
       const focusIndex = workoutFocusedExerciseIndex();
       count.textContent = `Упражнение ${focusIndex >= 0 ? focusIndex + 1 : state.currentWorkout.exercises.length} из ${state.currentWorkout.exercises.length}`;
     }
-    if (remaining) remaining.textContent = `≈ ${workoutEstimatedRemainingMinutes()} мин осталось`;
+    if (remaining) remaining.textContent = `≈ ${workoutEstimatedRemainingMinutes()} мин`;
     if (banner) banner.classList.toggle('complete', pct >= 100);
     updateWorkoutLiveBannerLabel();
   }
