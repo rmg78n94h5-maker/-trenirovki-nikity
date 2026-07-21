@@ -755,6 +755,42 @@
     };
   }
 
+  const HOME_PANEL_STORAGE_KEY = 'nikita-workouts-home-panels-v1';
+
+  function homePanelStorageId(panelId) {
+    return `${state.activeProfileId || 'default'}:${panelId}`;
+  }
+
+  function readHomePanelState() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(HOME_PANEL_STORAGE_KEY) || '{}');
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function homePanelOpen(panelId, fallback = false) {
+    const saved = readHomePanelState()[homePanelStorageId(panelId)];
+    return typeof saved === 'boolean' ? saved : fallback;
+  }
+
+  function saveHomePanelOpen(panelId, open) {
+    try {
+      const saved = readHomePanelState();
+      saved[homePanelStorageId(panelId)] = Boolean(open);
+      localStorage.setItem(HOME_PANEL_STORAGE_KEY, JSON.stringify(saved));
+    } catch {
+      // Интерфейс продолжит работать даже при недоступном localStorage.
+    }
+  }
+
+  function bindHomePanelState() {
+    el.main.querySelectorAll('details[data-home-panel]').forEach((details) => {
+      details.addEventListener('toggle', () => saveHomePanelOpen(details.dataset.homePanel, details.open));
+    });
+  }
+
   function renderHome() {
     const { program, day, index } = getCurrentDay();
     const today = new Date();
@@ -776,150 +812,180 @@
       fat: state.nutrition.trainingFatG,
       carbs: state.nutrition.trainingCarbsG,
     };
-    const weeklyLoad = weekWorkouts.reduce((s, w) => s + (w.totalLoadKg || 0), 0);
+    const weeklyLoad = weekWorkouts.reduce((sum, workout) => sum + (workout.totalLoadKg || 0), 0);
     const weightSeries = bodyMeasurementSeries('weightKg');
     const weightLast = weightSeries[weightSeries.length - 1] || null;
     const weightPrev = weightSeries[weightSeries.length - 2] || null;
     const weightDiff = weightLast && weightPrev ? weightLast.value - weightPrev.value : null;
     const weightDiffClass = weightDiff === null || Math.abs(weightDiff) < 0.05 ? 'neutral' : weightDiff > 0 ? 'up' : 'down';
     const weightDiffText = weightDiff === null ? 'нет динамики' : `${formatSignedBodyValue(weightDiff)} кг`;
+    const displayedWeight = weightLast?.value ?? latestMeasurement?.weightKg ?? state.profile.currentWeightKg;
     const restNow = smartRestAnalysis({ includeTodayTraining: true });
     const restShort = restNow.status === 'critical' ? 'стоп' : restNow.status === 'recommended' ? 'отдых' : restNow.status === 'watch' ? 'следи' : 'норма';
     const scheduleStatus = trainingScheduleStatus(program);
+    const startPanelOpen = Boolean(draft) || homePanelOpen('start', false);
+    const weekPanelOpen = homePanelOpen('week', false);
+    const dataPanelOpen = homePanelOpen('data', false);
 
     setTopbar(formatDate(today, { weekday: 'long', day: 'numeric', month: 'long' }), `День ${index + 1} из ${program.days.length} · ${scheduleStatus.label}`);
 
     el.main.innerHTML = `
       ${draft ? `
-        <section class="section">
-          <div class="card hero-card smart-start-card draft-card">
-            <span class="chip accent">НЕЗАВЕРШЁННАЯ</span>
+        <section class="section compact-home-section">
+          <div class="card hero-card smart-start-card draft-card compact-draft-card">
+            <div class="smart-start-topline"><span class="chip accent">НЕЗАВЕРШЁННАЯ</span><span class="chip">${workoutCompletion(draft)}%</span></div>
             <h2>${escapeHTML(draft.dayName)}</h2>
-            <p>Черновик сохранён на телефоне. Сначала продолжи его или удали — новая тренировка не перезапишет данные.</p>
-            <div class="hero-meta">
-              <span class="chip">Выполнено ${workoutCompletion(draft)}%</span>
-              <span class="chip">Идёт ${formatDuration(elapsedSeconds(draft.startedAt))}</span>
-            </div>
-            <div class="button-row smart-actions">
-              <button class="button primary" id="resume-draft" type="button">Продолжить черновик</button>
+            <p>Черновик сохранён на телефоне · идёт ${formatDuration(elapsedSeconds(draft.startedAt))}</p>
+            <div class="button-row smart-actions compact-draft-actions">
+              <button class="button primary" id="resume-draft" type="button">Продолжить</button>
               <button class="button danger" id="delete-draft-home" type="button">Удалить</button>
             </div>
           </div>
         </section>
       ` : ''}
-      <section class="section">
-        <div class="card hero-card smart-start-card sport-premium-hero">
-          <div class="smart-start-topline">
-            <span class="chip accent">${day.recovery ? 'ВОССТАНОВЛЕНИЕ' : 'УМНЫЙ СТАРТ'}</span>
-            <span class="chip">${escapeHTML(scheduleStatus.label)}</span>
-          </div>
-          <h2>${escapeHTML(day.name)}</h2>
-          <p>${escapeHTML(day.focus || program.description)}</p>
-          <div class="hero-meta">
-            <span class="chip">◷ ≈ ${day.durationMin} мин</span>
-            <span class="chip">${day.exercises.length} упражнений</span>
-            <span class="chip">Серия: ${streak} дн.</span>
-          </div>
-          <div class="premium-hero-stats" aria-label="Короткая сводка">
-            <div><span>Вес</span><strong>${weightLast ? `${formatBodyValue(weightLast.value)} кг` : `${latestMeasurement?.weightKg ?? state.profile.currentWeightKg} кг`}</strong><small class="${weightDiffClass}">${escapeHTML(weightDiffText)}</small></div>
-            <div><span>Неделя</span><strong>${completedThisWeek} трен.</strong><small>${totalMinutes} мин · ${formatCompactLoad(weeklyLoad)} кг</small></div>
-            <div><span>Отдых</span><strong>${escapeHTML(restShort)}</strong><small>${escapeHTML(restNow.title || restNow.statusLabel || 'восстановление')}</small></div>
-          </div>
-          <div class="exercise-list premium-exercise-preview">
-            ${day.exercises.slice(0, 6).map((entry, i) => renderHomeExercise(entry, i)).join('')}
-            ${day.exercises.length > 6 ? `
-              <div id="home-extra-exercises" hidden>${day.exercises.slice(6).map((entry, i) => renderHomeExercise(entry, i + 6)).join('')}</div>
-              <button class="show-more-exercises" id="toggle-extra-exercises" type="button">Показать ещё ${day.exercises.length - 6}</button>
-            ` : ''}
-          </div>
+
+      <section class="section compact-home-section">
+        <div class="card hero-card smart-start-card sport-premium-hero compact-start-card ${startPanelOpen ? 'expanded' : ''}" id="home-start-card">
+          <button class="home-start-summary" id="toggle-home-start" type="button" aria-expanded="${startPanelOpen}" aria-controls="home-start-details">
+            <span class="home-start-summary-copy">
+              <span class="smart-start-topline">
+                <span class="chip accent">${day.recovery ? 'ВОССТАНОВЛЕНИЕ' : 'УМНЫЙ СТАРТ'}</span>
+                <span class="chip">${escapeHTML(scheduleStatus.label)}</span>
+              </span>
+              <strong class="home-start-title">${escapeHTML(day.name)}</strong>
+              <span class="home-start-meta">≈ ${day.durationMin} мин · ${day.exercises.length} упражнений · серия ${streak} дн.</span>
+            </span>
+            <span class="home-disclosure-chevron" aria-hidden="true">⌄</span>
+          </button>
+
           ${draft ? `
-            <div class="notice"><strong>Сначала разберись с черновиком выше.</strong><br>После этого можно продолжить цикл, повторить прошлую или выбрать другой день.</div>
+            <div class="notice compact-start-notice"><strong>Сначала продолжи или удали черновик выше.</strong></div>
           ` : `
-            ${scheduleStatus.mode === 'every_other_day' ? `<div class="notice ${scheduleStatus.due ? 'success' : ''} schedule-status-notice"><strong>${scheduleStatus.due ? 'По графику сегодня тренировка.' : 'По графику сегодня отдых.'}</strong><br>${escapeHTML(scheduleStatus.detail)}${scheduleStatus.due ? '' : ' Начать раньше можно — приложение не блокирует тренировку.'}</div>` : ''}
-            <button class="button smart-builder-launch full" id="smart-workout-builder" type="button"><span>✨</span><span><strong>Подобрать тренировку</strong><small>По мышцам, истории и восстановлению</small></span><b>›</b></button>
-            <div class="button-row smart-actions primary-line">
-              <button class="button primary" id="start-cycle" type="button">${scheduleStatus.mode === 'every_other_day' && !scheduleStatus.due ? 'Начать досрочно' : 'Начать тренировку'}</button>
-              <button class="button secondary" id="choose-workout" type="button">Выбрать другую</button>
-              <button class="button secondary" id="repeat-last" type="button" ${lastWorkout ? '' : 'disabled'}>Повторить прошлую</button>
-              <button class="button ghost" id="start-short" type="button">Нет сил · 15–20 мин</button>
-            </div>
-            <div class="help smart-start-help">«Повторить прошлую» и «Выбрать другую» не сдвигают основной цикл. Цикл двигается только после кнопки «Продолжить цикл».</div>
+            <button class="button primary full home-main-start" id="start-cycle" type="button">${scheduleStatus.mode === 'every_other_day' && !scheduleStatus.due ? 'Начать досрочно' : 'Начать тренировку'}</button>
           `}
+
+          <div class="home-start-details" id="home-start-details" ${startPanelOpen ? '' : 'hidden'}>
+            <p class="home-start-focus">${escapeHTML(day.focus || program.description)}</p>
+            <div class="premium-hero-stats" aria-label="Короткая сводка">
+              <div><span>Вес</span><strong>${formatBodyValue(displayedWeight)} кг</strong><small class="${weightDiffClass}">${escapeHTML(weightDiffText)}</small></div>
+              <div><span>Неделя</span><strong>${completedThisWeek} трен.</strong><small>${totalMinutes} мин · ${formatCompactLoad(weeklyLoad)} кг</small></div>
+              <div><span>Отдых</span><strong>${escapeHTML(restShort)}</strong><small>${escapeHTML(restNow.title || restNow.statusLabel || 'восстановление')}</small></div>
+            </div>
+            <div class="exercise-list premium-exercise-preview compact-exercise-preview">
+              ${day.exercises.slice(0, 6).map((entry, exerciseIndex) => renderHomeExercise(entry, exerciseIndex)).join('')}
+              ${day.exercises.length > 6 ? `
+                <div id="home-extra-exercises" hidden>${day.exercises.slice(6).map((entry, exerciseIndex) => renderHomeExercise(entry, exerciseIndex + 6)).join('')}</div>
+                <button class="show-more-exercises" id="toggle-extra-exercises" type="button">Показать ещё ${day.exercises.length - 6}</button>
+              ` : ''}
+            </div>
+            ${draft ? `
+              <div class="notice"><strong>Новая тренировка не перезапишет черновик.</strong></div>
+            ` : `
+              ${scheduleStatus.mode === 'every_other_day' ? `<div class="notice ${scheduleStatus.due ? 'success' : ''} schedule-status-notice"><strong>${scheduleStatus.due ? 'По графику сегодня тренировка.' : 'По графику сегодня отдых.'}</strong><br>${escapeHTML(scheduleStatus.detail)}${scheduleStatus.due ? '' : ' Начать раньше можно — приложение не блокирует тренировку.'}</div>` : ''}
+              <button class="button secondary full home-workout-options" id="home-workout-options" type="button">Другой вариант <span aria-hidden="true">›</span></button>
+              <div class="help smart-start-help">Подбор, повтор прошлой, выбор дня и короткая тренировка собраны в одном меню. Основной цикл двигается только после обычного запуска цикла.</div>
+            `}
+          </div>
         </div>
       </section>
 
       ${renderSmartWorkoutSuggestionCard()}
 
-      <section class="section">
-        <div class="section-head"><h2>Эта неделя</h2><button class="link-button" data-go="history">История</button></div>
-        <div class="stats-grid">
-          <div class="stat"><div class="stat-value">${completedThisWeek}</div><div class="stat-label">тренировки</div></div>
-          <div class="stat"><div class="stat-value">${totalMinutes}</div><div class="stat-label">минут</div></div>
-          <div class="stat"><div class="stat-value">${Math.round(avgCompletion(weekWorkouts))}%</div><div class="stat-label">выполнение</div></div>
-          <div class="stat"><div class="stat-value">${formatCompactLoad(weekWorkouts.reduce((s, w) => s + (w.totalLoadKg || 0), 0))}</div><div class="stat-label">нагрузка, кг</div></div>
-        </div>
+      <section class="section compact-home-section">
+        <details class="card home-disclosure" data-home-panel="week" ${weekPanelOpen ? 'open' : ''}>
+          <summary>
+            <span class="home-disclosure-icon">▦</span>
+            <span class="home-disclosure-copy"><strong>Эта неделя</strong><small>${completedThisWeek} трен. · ${totalMinutes} мин · ${Math.round(avgCompletion(weekWorkouts))}%</small></span>
+            <span class="home-disclosure-chevron" aria-hidden="true">⌄</span>
+          </summary>
+          <div class="home-disclosure-body">
+            <div class="stats-grid">
+              <div class="stat"><div class="stat-value">${completedThisWeek}</div><div class="stat-label">тренировки</div></div>
+              <div class="stat"><div class="stat-value">${totalMinutes}</div><div class="stat-label">минут</div></div>
+              <div class="stat"><div class="stat-value">${Math.round(avgCompletion(weekWorkouts))}%</div><div class="stat-label">выполнение</div></div>
+              <div class="stat"><div class="stat-value">${formatCompactLoad(weeklyLoad)}</div><div class="stat-label">нагрузка, кг</div></div>
+            </div>
+            <button class="button ghost small full home-panel-link" data-go="history" type="button">Открыть историю</button>
+          </div>
+        </details>
       </section>
 
       ${renderHomeMuscleLoadCard()}
       ${renderHomeDeloadCard()}
       ${renderHomeRestCard()}
 
-      <section class="section">
-        <div class="section-head"><h2>Текущие данные</h2><button class="link-button" id="add-measurement-home">Добавить</button></div>
-        <div class="card">
-          <div class="stats-grid">
-            <div><div class="stat-value">${latestMeasurement?.weightKg ?? state.profile.currentWeightKg}</div><div class="stat-label">вес, кг</div></div>
-            <div><div class="stat-value">${latestMeasurement?.waistCm ?? '—'}</div><div class="stat-label">талия, см</div></div>
-            <div><div class="stat-value">${latestMeasurement?.abdomenCm ?? '—'}</div><div class="stat-label">живот, см</div></div>
-            <div><div class="stat-value">${latestMeasurement ? formatShortDate(latestMeasurement.date) : '—'}</div><div class="stat-label">последний замер</div></div>
+      <section class="section compact-home-section">
+        <details class="card home-disclosure" data-home-panel="data" ${dataPanelOpen ? 'open' : ''}>
+          <summary>
+            <span class="home-disclosure-icon">↗</span>
+            <span class="home-disclosure-copy"><strong>Данные и история</strong><small>${formatBodyValue(displayedWeight)} кг · ${latestMeasurement ? `замер ${formatShortDate(latestMeasurement.date)}` : 'замеров пока нет'}</small></span>
+            <span class="home-disclosure-chevron" aria-hidden="true">⌄</span>
+          </summary>
+          <div class="home-disclosure-body home-data-stack">
+            <div class="home-data-block">
+              <div class="section-head"><h2>Текущие данные</h2><button class="link-button" id="add-measurement-home" type="button">Добавить</button></div>
+              <div class="stats-grid">
+                <div class="stat"><div class="stat-value">${formatBodyValue(displayedWeight)}</div><div class="stat-label">вес, кг</div></div>
+                <div class="stat"><div class="stat-value">${latestMeasurement?.waistCm ?? '—'}</div><div class="stat-label">талия, см</div></div>
+                <div class="stat"><div class="stat-value">${latestMeasurement?.abdomenCm ?? '—'}</div><div class="stat-label">живот, см</div></div>
+                <div class="stat"><div class="stat-value">${latestMeasurement ? formatShortDate(latestMeasurement.date) : '—'}</div><div class="stat-label">последний замер</div></div>
+              </div>
+            </div>
+            <div class="home-data-block">
+              <div class="section-head"><h2>Питание сегодня</h2><button class="link-button" data-go="more" type="button">Настроить</button></div>
+              <div class="stats-grid">
+                <div class="stat"><div class="stat-value">${nutrition.calories}</div><div class="stat-label">ккал</div></div>
+                <div class="stat"><div class="stat-value">${nutrition.protein}</div><div class="stat-label">белок, г</div></div>
+                <div class="stat"><div class="stat-value">${nutrition.fat}</div><div class="stat-label">жиры, г</div></div>
+                <div class="stat"><div class="stat-value">${nutrition.carbs}</div><div class="stat-label">углеводы, г</div></div>
+              </div>
+              <div class="help home-data-help">${escapeHTML(state.nutrition.note)}</div>
+            </div>
+            <div class="home-data-block">
+              <div class="section-head"><h2>Последняя тренировка</h2></div>
+              ${lastWorkout ? workoutSummaryCard(lastWorkout) : `<div class="empty compact-empty"><strong>История пока пустая</strong>После первой тренировки приложение запомнит веса и начнёт предлагать прогрессию.</div>`}
+            </div>
+            <div class="notice warning home-safety-note"><strong>Судно и безопасность.</strong> При сильной качке замени упражнения стоя с тяжёлым весом на варианты сидя, лёжа или с опорой. При боли — остановись, а не геройствуй.</div>
           </div>
-        </div>
+        </details>
       </section>
-
-      <section class="section">
-        <div class="section-head"><h2>Питание сегодня</h2><button class="link-button" data-go="more">Настроить</button></div>
-        <div class="card">
-          <div class="stats-grid">
-            <div><div class="stat-value">${nutrition.calories}</div><div class="stat-label">ккал</div></div>
-            <div><div class="stat-value">${nutrition.protein}</div><div class="stat-label">белок, г</div></div>
-            <div><div class="stat-value">${nutrition.fat}</div><div class="stat-label">жиры, г</div></div>
-            <div><div class="stat-value">${nutrition.carbs}</div><div class="stat-label">углеводы, г</div></div>
-          </div>
-          <div class="divider"></div>
-          <div class="help">${escapeHTML(state.nutrition.note)}</div>
-        </div>
-      </section>
-
-      <section class="section">
-        <div class="section-head"><h2>Последняя тренировка</h2></div>
-        ${lastWorkout ? workoutSummaryCard(lastWorkout) : `<div class="card empty"><strong>История пока пустая</strong>После первой тренировки приложение запомнит веса и начнёт предлагать прогрессию.</div>`}
-      </section>
-
-      <div class="notice warning"><strong>Судно и безопасность.</strong> При сильной качке замени упражнения стоя с тяжёлым весом на варианты сидя, лёжа или с опорой. При боли в паху, животе, пояснице или суставах — остановись, а не геройствуй.</div>
     `;
 
     document.getElementById('start-cycle')?.addEventListener('click', () => startWorkout({ shortMode: false, startMode: 'cycle', shouldAdvanceCycle: true }));
-    document.getElementById('start-short')?.addEventListener('click', () => startWorkout({ shortMode: true, startMode: 'cycle', shouldAdvanceCycle: true }));
-    document.getElementById('repeat-last')?.addEventListener('click', repeatLastWorkout);
-    document.getElementById('choose-workout')?.addEventListener('click', showChooseWorkoutModal);
-    document.getElementById('smart-workout-builder')?.addEventListener('click', () => showSmartWorkoutBuilderModal());
-    document.getElementById('view-smart-home-suggestion')?.addEventListener('click', () => { state.smartWorkoutProposal = buildSmartWorkoutProposal({ target: 'auto', duration: 45, intensity: 'normal', energy: 'normal' }, 0); showSmartWorkoutPreview(); });
+    document.getElementById('home-workout-options')?.addEventListener('click', showHomeWorkoutOptionsModal);
+    document.getElementById('view-smart-home-suggestion')?.addEventListener('click', () => {
+      state.smartWorkoutProposal = buildSmartWorkoutProposal({ target: 'auto', duration: 45, intensity: 'normal', energy: 'normal' }, 0);
+      showSmartWorkoutPreview();
+    });
     document.getElementById('dismiss-smart-home-suggestion')?.addEventListener('click', dismissSmartHomeSuggestion);
     document.getElementById('resume-draft')?.addEventListener('click', () => navigate('workout'));
     document.getElementById('delete-draft-home')?.addEventListener('click', discardDraftFromHome);
-    document.getElementById('add-measurement-home').addEventListener('click', showMeasurementModal);
+    document.getElementById('add-measurement-home')?.addEventListener('click', showMeasurementModal);
     document.getElementById('open-muscle-progress-home')?.addEventListener('click', () => { state.progressTab = 'muscles'; navigate('progress'); });
     document.getElementById('smart-workout-from-muscles')?.addEventListener('click', () => showSmartWorkoutBuilderModal({ target: 'auto' }));
     document.getElementById('open-deload-progress-home')?.addEventListener('click', () => { state.progressTab = 'recovery'; navigate('progress'); });
     document.getElementById('open-rest-progress-home')?.addEventListener('click', () => { state.progressTab = 'recovery'; navigate('progress'); });
     document.getElementById('log-rest-home')?.addEventListener('click', () => recordRecoveryDay({ source: 'home' }));
     document.getElementById('start-light-home')?.addEventListener('click', () => startWorkout({ shortMode: true, startMode: 'cycle', shouldAdvanceCycle: false, recoveryCheckDone: true }));
+
+    const startToggle = document.getElementById('toggle-home-start');
+    const startDetails = document.getElementById('home-start-details');
+    startToggle?.addEventListener('click', () => {
+      const opening = startDetails.hidden;
+      startDetails.hidden = !opening;
+      startToggle.setAttribute('aria-expanded', String(opening));
+      document.getElementById('home-start-card')?.classList.toggle('expanded', opening);
+      saveHomePanelOpen('start', opening);
+    });
+
     document.getElementById('toggle-extra-exercises')?.addEventListener('click', (event) => {
       const extra = document.getElementById('home-extra-exercises');
       const opening = extra.hidden;
       extra.hidden = !opening;
       event.currentTarget.textContent = opening ? 'Скрыть дополнительные упражнения' : `Показать ещё ${day.exercises.length - 6}`;
     });
+
+    bindHomePanelState();
     bindGoButtons();
     el.main.querySelectorAll('.view-workout').forEach((button) => button.addEventListener('click', () => showWorkoutDetails(button.dataset.id)));
   }
@@ -938,6 +1004,24 @@
     const rawIndex = Number(workout.dayIndex);
     if (Number.isInteger(rawIndex) && rawIndex >= 0 && rawIndex < program.days.length) return rawIndex;
     return -1;
+  }
+
+  function showHomeWorkoutOptionsModal() {
+    const lastWorkout = completedWorkoutList(state.workouts)[0];
+    showModal(`
+      <div class="modal-head"><div><div class="eyebrow">Другой вариант</div><h2>Как тренируемся?</h2></div><button class="modal-close" data-close>×</button></div>
+      <div class="home-options-list">
+        <button class="home-option-card" id="home-option-smart" type="button"><span>✨</span><div><strong>Подобрать автоматически</strong><small>По мышцам, истории и восстановлению</small></div><b>›</b></button>
+        <button class="home-option-card" id="home-option-repeat" type="button" ${lastWorkout ? '' : 'disabled'}><span>↻</span><div><strong>Повторить прошлую</strong><small>${lastWorkout ? escapeHTML(lastWorkout.dayName || 'Последняя тренировка') : 'История пока пустая'}</small></div><b>›</b></button>
+        <button class="home-option-card" id="home-option-choose" type="button"><span>▦</span><div><strong>Выбрать из плана</strong><small>Основной цикл останется на месте</small></div><b>›</b></button>
+        <button class="home-option-card" id="home-option-short" type="button"><span>⚡</span><div><strong>Нет сил · 15–20 минут</strong><small>Короткая тренировка после смены</small></div><b>›</b></button>
+      </div>
+      <div class="notice" style="margin-top:12px"><strong>Без наказаний за перестановку.</strong><br>Повтор и выбор другого дня не сдвигают основной цикл.</div>
+    `);
+    document.getElementById('home-option-smart')?.addEventListener('click', () => { closeModal(); showSmartWorkoutBuilderModal(); });
+    document.getElementById('home-option-repeat')?.addEventListener('click', () => { closeModal(); repeatLastWorkout(); });
+    document.getElementById('home-option-choose')?.addEventListener('click', () => { closeModal(); showChooseWorkoutModal(); });
+    document.getElementById('home-option-short')?.addEventListener('click', () => { closeModal(); startWorkout({ shortMode: true, startMode: 'cycle', shouldAdvanceCycle: true }); });
   }
 
   async function repeatLastWorkout() {
@@ -998,14 +1082,14 @@
       ? rows.slice(0, 2).map((row) => `${row.label}: ${row.statusLabel}, ${smartDaysSinceLabel(row.daysSince)}`).join(' · ')
       : 'Истории пока мало — начнём со спокойного сбалансированного варианта';
     const warning = rows.some((row) => ['high', 'overload'].includes(row.status) || (row.daysSince !== null && row.daysSince <= 1));
-    return `<section class="section smart-home-suggestion-section">
-      <div class="card smart-home-suggestion-card ${warning ? 'watch' : ''}">
-        <div class="smart-home-suggestion-top"><div><div class="eyebrow">Предложение приложения</div><h2>Сегодня: ${escapeHTML(title)}</h2></div><span class="chip ${warning ? 'warning' : 'success'}">≈ 45 мин</span></div>
-        <p>${escapeHTML(detail)}</p>
-        <div class="button-row smart-home-suggestion-actions">
-          <button class="button primary" id="view-smart-home-suggestion" type="button">Посмотреть</button>
-          <button class="button ghost" id="dismiss-smart-home-suggestion" type="button">Не сегодня</button>
-        </div>
+    return `<section class="section smart-home-suggestion-section compact-home-section">
+      <div class="card smart-home-suggestion-card compact ${warning ? 'watch' : ''}">
+        <button class="smart-home-suggestion-main" id="view-smart-home-suggestion" type="button">
+          <span class="smart-home-suggestion-icon">✨</span>
+          <span class="smart-home-suggestion-copy"><span class="eyebrow">Совет тренера</span><strong>${escapeHTML(title)}</strong><small>${escapeHTML(detail)}</small></span>
+          <span class="smart-home-suggestion-side"><span class="chip ${warning ? 'warning' : 'success'}">≈ 45 мин</span><b aria-hidden="true">›</b></span>
+        </button>
+        <button class="smart-home-suggestion-dismiss" id="dismiss-smart-home-suggestion" type="button" aria-label="Скрыть предложение до завтра">×</button>
       </div>
     </section>`;
   }
@@ -3427,66 +3511,52 @@
 
   function renderHomeDeloadCard() {
     const analysis = deloadAnalysis({ days: 14 });
-    const tone = analysis.status === 'recommended' ? 'warning' : analysis.status === 'critical' ? 'danger' : analysis.status === 'watch' ? 'notice' : 'success';
+    const open = homePanelOpen('deload', false);
     if (!analysis.hasData) {
-      return `<section class="section"><div class="card deload-card"><div class="section-head"><h2>Разгрузка</h2><span class="chip">нет данных</span></div><div class="empty compact-empty"><strong>Разгрузка пока не нужна</strong>Сохрани несколько тренировок — приложение начнёт отслеживать усталость, боль и падение результатов.</div></div></section>`;
+      return `<section class="section compact-home-section"><details class="card home-disclosure" data-home-panel="deload" ${open ? 'open' : ''}>
+        <summary><span class="home-disclosure-icon">↘</span><span class="home-disclosure-copy"><strong>Разгрузка</strong><small>Пока недостаточно данных</small></span><span class="chip">нет данных</span><span class="home-disclosure-chevron" aria-hidden="true">⌄</span></summary>
+        <div class="home-disclosure-body"><div class="empty compact-empty"><strong>Разгрузка пока не нужна</strong>Сохрани несколько тренировок — приложение начнёт отслеживать усталость, боль и падение результатов.</div></div>
+      </details></section>`;
     }
     const signalText = analysis.signals.length ? analysis.signals.slice(0, 3).map((signal) => signal.label).join(' · ') : 'критичных признаков нет';
-    return `<section class="section">
-      <div class="card deload-card ${analysis.status}">
-        <div class="section-head"><h2>Разгрузка</h2><span class="chip ${analysis.shouldSuggest ? 'warning' : 'success'}">${escapeHTML(analysis.statusLabel)}</span></div>
-        <p>${escapeHTML(analysis.homeText)}</p>
-        <div class="help">${escapeHTML(signalText)}</div>
-        <div class="button-row" style="margin-top:12px"><button class="button secondary small" id="open-deload-progress-home" type="button">Подробнее</button></div>
-      </div>
-    </section>`;
+    return `<section class="section compact-home-section"><details class="card home-disclosure deload-card ${analysis.status}" data-home-panel="deload" ${open ? 'open' : ''}>
+      <summary><span class="home-disclosure-icon">↘</span><span class="home-disclosure-copy"><strong>Разгрузка</strong><small>${escapeHTML(analysis.homeText)}</small></span><span class="chip ${analysis.shouldSuggest ? 'warning' : 'success'}">${escapeHTML(analysis.statusLabel)}</span><span class="home-disclosure-chevron" aria-hidden="true">⌄</span></summary>
+      <div class="home-disclosure-body"><p>${escapeHTML(analysis.homeText)}</p><div class="help">${escapeHTML(signalText)}</div><button class="button secondary small full home-panel-link" id="open-deload-progress-home" type="button">Подробнее</button></div>
+    </details></section>`;
   }
 
 
   function renderHomeRestCard() {
     const analysis = smartRestAnalysis({ includeTodayTraining: true });
     const statusClass = analysis.status;
+    const open = homePanelOpen('rest', false);
     const calendar = analysis.days.slice(0, 7).reverse().map((day) => `
-      <div class="rest-day ${day.kind}" title="${escapeAttr(day.label)}">
-        <span>${escapeHTML(day.shortLabel)}</span>
-        <strong>${escapeHTML(day.shortDate)}</strong>
-      </div>`).join('');
+      <div class="rest-day ${day.kind}" title="${escapeAttr(day.label)}"><span>${escapeHTML(day.shortLabel)}</span><strong>${escapeHTML(day.shortDate)}</strong></div>`).join('');
     const signals = analysis.signals.length ? analysis.signals.slice(0, 3).map((signal) => signal.title).join(' · ') : analysis.modeNote;
     const todayKind = activityKindForDate(todayISO());
     const todayRestLogged = todayKind === 'recovery';
     const todayHasTraining = todayKind === 'training' || todayKind === 'light';
     const restButtonText = todayRestLogged ? 'Отдых записан' : todayHasTraining ? 'Сегодня была активность' : 'Отдохнуть сегодня';
-    return `<section class="section">
-      <div class="card smart-rest-card ${statusClass}">
-        <div class="section-head"><h2>Умный отдых</h2><span class="chip ${analysis.status === 'ok' ? 'success' : analysis.status === 'watch' ? 'warning' : 'warning'}">${escapeHTML(analysis.statusLabel)}</span></div>
-        <p>${escapeHTML(analysis.homeText)}</p>
-        <div class="rest-week-strip" aria-label="Календарь активности за 7 дней">${calendar}</div>
-        <div class="help">${escapeHTML(signals)}</div>
-        <div class="button-row smart-rest-actions" style="margin-top:12px">
-          <button class="button secondary small" id="open-rest-progress-home" type="button">Подробнее</button>
-          <button class="button ghost small" id="start-light-home" type="button">Лёгкая</button>
-          <button class="button ${analysis.shouldRest ? 'primary' : 'ghost'} small" id="log-rest-home" type="button" ${todayRestLogged || todayHasTraining ? 'disabled' : ''}>${escapeHTML(restButtonText)}</button>
-        </div>
-      </div>
-    </section>`;
+    return `<section class="section compact-home-section"><details class="card home-disclosure smart-rest-card ${statusClass}" data-home-panel="rest" ${open ? 'open' : ''}>
+      <summary><span class="home-disclosure-icon">◷</span><span class="home-disclosure-copy"><strong>Умный отдых</strong><small>${escapeHTML(analysis.homeText)}</small></span><span class="chip ${analysis.status === 'ok' ? 'success' : 'warning'}">${escapeHTML(analysis.statusLabel)}</span><span class="home-disclosure-chevron" aria-hidden="true">⌄</span></summary>
+      <div class="home-disclosure-body"><p>${escapeHTML(analysis.homeText)}</p><div class="rest-week-strip" aria-label="Календарь активности за 7 дней">${calendar}</div><div class="help">${escapeHTML(signals)}</div><div class="button-row smart-rest-actions home-panel-actions"><button class="button secondary small" id="open-rest-progress-home" type="button">Подробнее</button><button class="button ghost small" id="start-light-home" type="button">Лёгкая</button><button class="button ${analysis.shouldRest ? 'primary' : 'ghost'} small" id="log-rest-home" type="button" ${todayRestLogged || todayHasTraining ? 'disabled' : ''}>${escapeHTML(restButtonText)}</button></div></div>
+    </details></section>`;
   }
+
 
   function renderHomeMuscleLoadCard() {
     const summary = muscleLoadSummary(7);
+    const open = homePanelOpen('muscles', false);
     const problemRows = summary.rows.filter((row) => ['overload', 'high', 'low'].includes(row.status)).slice(0, 3);
     const headline = summary.completedWorkouts
       ? `${summary.totalSets} рабочих подходов · ${summary.normalCount} норм · ${summary.warningCount} внимание`
       : 'Появится после сохранённых тренировок';
-    return `
-      <section class="section">
-        <div class="section-head"><h2>Мышцы за 7 дней</h2><button class="link-button" id="open-muscle-progress-home" type="button">Подробнее</button></div>
-        <div class="card muscle-home-card">
-          <div class="muscle-home-top"><strong>${escapeHTML(headline)}</strong><span class="chip ${summary.warningCount ? 'warning' : 'success'}">${summary.warningCount ? 'есть перекосы' : 'ровно'}</span></div>
-          ${summary.completedWorkouts ? `<div class="muscle-mini-grid">${summary.rows.slice(0, 8).map(renderMuscleMiniCell).join('')}</div>${problemRows.length ? `<div class="help" style="margin-top:10px">${escapeHTML(muscleShortAdvice(problemRows))}</div>` : '<div class="help" style="margin-top:10px">Сильных перекосов не видно. Держим курс, капитан.</div>'}` : '<div class="empty compact-empty"><strong>Пока нет данных</strong>Сохрани пару тренировок — приложение посчитает нагрузку по группам.</div>'}
-          <button class="button secondary full smart-muscle-builder" id="smart-workout-from-muscles" type="button">✨ Подобрать по этим данным</button>
-        </div>
-      </section>`;
+    return `<section class="section compact-home-section"><details class="card home-disclosure muscle-home-card" data-home-panel="muscles" ${open ? 'open' : ''}>
+      <summary><span class="home-disclosure-icon">●</span><span class="home-disclosure-copy"><strong>Мышцы за 7 дней</strong><small>${escapeHTML(headline)}</small></span><span class="chip ${summary.warningCount ? 'warning' : 'success'}">${summary.warningCount ? 'есть перекосы' : 'ровно'}</span><span class="home-disclosure-chevron" aria-hidden="true">⌄</span></summary>
+      <div class="home-disclosure-body">${summary.completedWorkouts ? `<div class="muscle-mini-grid">${summary.rows.slice(0, 8).map(renderMuscleMiniCell).join('')}</div>${problemRows.length ? `<div class="help home-panel-help">${escapeHTML(muscleShortAdvice(problemRows))}</div>` : '<div class="help home-panel-help">Сильных перекосов не видно. Держим курс, капитан.</div>'}` : '<div class="empty compact-empty"><strong>Пока нет данных</strong>Сохрани пару тренировок — приложение посчитает нагрузку по группам.</div>'}<div class="home-panel-actions"><button class="button secondary small" id="open-muscle-progress-home" type="button">Подробнее</button><button class="button secondary small" id="smart-workout-from-muscles" type="button">✨ Подобрать</button></div></div>
+    </details></section>`;
   }
+
 
   function renderMuscleMiniCell(row) {
     return `<div class="muscle-mini-cell ${row.status}"><span>${escapeHTML(row.shortLabel)}</span><strong>${row.sets}</strong></div>`;
