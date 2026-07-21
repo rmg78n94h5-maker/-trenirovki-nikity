@@ -3358,19 +3358,24 @@ button:disabled {
 .workout-comment-card { margin-top: 10px; }
 
 .workout-control-dock {
-  position: sticky;
-  bottom: calc(76px + var(--safe-bottom));
-  z-index: 32;
+  position: fixed;
+  left: 50%;
+  bottom: calc(8px + var(--safe-bottom));
+  z-index: 60;
+  width: min(calc(100vw - 32px), 688px);
   display: grid;
   gap: 7px;
-  margin-top: 12px;
+  margin: 0;
   padding: 9px;
   border: 1px solid rgba(199,255,47,.20);
   border-radius: 20px;
-  background: rgba(12,15,18,.94);
+  background: rgba(12,15,18,.97);
   box-shadow: 0 18px 40px rgba(0,0,0,.46), inset 0 1px 0 rgba(255,255,255,.055);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
+  transform: translate3d(-50%, 0, 0);
+  -webkit-transform: translate3d(-50%, 0, 0);
+  isolation: isolate;
 }
 .workout-control-main { display: grid; grid-template-columns: 48px minmax(0,1fr) 48px; gap: 7px; }
 .workout-nav-button {
@@ -3492,3 +3497,5 @@ button:disabled {
   .quick-adjust-set,
   .workout-progress-ring { transition: none !important; }
 }
+
+/* v1.16.1 — панель управления тренировкой закреплена к окну PWA */
