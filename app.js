@@ -31,6 +31,9 @@
     activeProfileId: null,
     profile: null,
     nutrition: null,
+    foodEntries: [],
+    savedFoods: [],
+    nutritionDate: null,
     settings: {},
     allExercises: [],
     allPrograms: [],
@@ -122,6 +125,13 @@
     ['failure', 'До отказа'],
     ['discomfort', 'Дискомфорт'],
   ];
+
+  const nutritionMeals = Object.freeze([
+    { id: 'breakfast', label: 'Завтрак', icon: '○' },
+    { id: 'lunch', label: 'Обед', icon: '◐' },
+    { id: 'dinner', label: 'Ужин', icon: '◒' },
+    { id: 'snack', label: 'Перекусы', icon: '·' },
+  ]);
 
 
   const painAreas = [
@@ -467,6 +477,9 @@
       state.activeProfileId = null;
       state.profile = null;
       state.nutrition = null;
+      state.foodEntries = [];
+      state.savedFoods = [];
+      state.nutritionDate = todayISO();
       state.settings = {};
       state.workouts = [];
       state.measurements = [];
@@ -483,7 +496,7 @@
 
   async function loadActiveProfileData() {
     const profileId = state.activeProfileId;
-    const [profile, nutrition, settings, workouts, measurements, photos, painEntries] = await Promise.all([
+    const [profile, nutrition, settings, workouts, measurements, photos, painEntries, foodEntries, savedFoods] = await Promise.all([
       DB.get('profile', profileId),
       DB.get('nutrition', profileId),
       DB.getSettingsObject(profileId),
@@ -491,6 +504,8 @@
       DB.getAllForProfile('measurements', profileId),
       DB.getAllForProfile('photos', profileId),
       DB.getAllForProfile('painEntries', profileId).catch(() => []),
+      DB.getAllForProfile('foodEntries', profileId).catch(() => []),
+      DB.getAllForProfile('savedFoods', profileId).catch(() => []),
     ]);
     state.profile = profile;
     state.nutrition = nutrition || { id: profileId, ...clone(window.NIKITA_SEED.nutrition) };
@@ -501,6 +516,9 @@
     state.measurements = measurements.sort((a, b) => b.date.localeCompare(a.date));
     state.photos = photos.sort((a, b) => b.date.localeCompare(a.date));
     state.painEntries = painEntries.sort((a, b) => String(b.createdAt || b.date || '').localeCompare(String(a.createdAt || a.date || '')));
+    state.foodEntries = foodEntries.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+    state.savedFoods = savedFoods.sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'ru'));
+    state.nutritionDate = state.nutritionDate || todayISO();
     updateProfileButton();
   }
 
@@ -534,7 +552,11 @@
   }
 
   function navigate(route, updateHash = true) {
-    const allowed = ['home', 'plan', 'history', 'progress', 'more', 'guide', 'workout'];
+    if (route === 'history') {
+      state.progressTab = 'history';
+      route = 'progress';
+    }
+    const allowed = ['home', 'plan', 'nutrition', 'progress', 'more', 'guide', 'workout'];
     state.route = allowed.includes(route) ? route : 'home';
     if (updateHash && location.hash !== `#/${state.route}`) history.pushState(null, '', `#/${state.route}`);
     const activeNavRoute = state.route === 'guide' ? 'more' : state.route;
@@ -552,7 +574,7 @@
     switch (state.route) {
       case 'home': renderHome(); break;
       case 'plan': renderPlan(); break;
-      case 'history': renderHistory(); break;
+      case 'nutrition': renderNutrition(); break;
       case 'progress': renderProgress(); break;
       case 'more': renderMore(); break;
       case 'guide': renderOfflineGuide(); break;
@@ -827,6 +849,9 @@
       fat: state.nutrition.trainingFatG,
       carbs: state.nutrition.trainingCarbsG,
     };
+    const nutritionTodayTotals = nutritionTotals(foodEntriesForDate(todayISO()));
+    const nutritionTodayRemaining = Math.round(Number(nutrition.calories || 0) - nutritionTodayTotals.calories);
+    const nutritionTodayPct = nutritionPercent(nutritionTodayTotals.calories, nutrition.calories);
     const weeklyLoad = weekWorkouts.reduce((sum, workout) => sum + (workout.totalLoadKg || 0), 0);
     const weightSeries = bodyMeasurementSeries('weightKg');
     const weightLast = weightSeries[weightSeries.length - 1] || null;
@@ -946,15 +971,16 @@
                 <div class="stat"><div class="stat-value">${latestMeasurement ? formatShortDate(latestMeasurement.date) : '—'}</div><div class="stat-label">последний замер</div></div>
               </div>
             </div>
-            <div class="home-data-block">
-              <div class="section-head"><h2>Питание сегодня</h2><button class="link-button" data-go="more" type="button">Настроить</button></div>
-              <div class="stats-grid">
-                <div class="stat"><div class="stat-value">${nutrition.calories}</div><div class="stat-label">ккал</div></div>
-                <div class="stat"><div class="stat-value">${nutrition.protein}</div><div class="stat-label">белок, г</div></div>
-                <div class="stat"><div class="stat-value">${nutrition.fat}</div><div class="stat-label">жиры, г</div></div>
-                <div class="stat"><div class="stat-value">${nutrition.carbs}</div><div class="stat-label">углеводы, г</div></div>
+            <div class="home-data-block home-nutrition-diary">
+              <div class="section-head"><h2>Питание сегодня</h2><button class="link-button" id="home-open-nutrition" type="button">Дневник</button></div>
+              <div class="home-nutrition-calories"><strong>${formatFoodNumber(nutritionTodayTotals.calories)} <small>/ ${formatFoodNumber(nutrition.calories)} ккал</small></strong><span class="${nutritionTodayRemaining < 0 ? 'over' : ''}">${nutritionTodayRemaining >= 0 ? `осталось ${formatFoodNumber(nutritionTodayRemaining)}` : `перебор ${formatFoodNumber(Math.abs(nutritionTodayRemaining))}`}</span></div>
+              <div class="nutrition-calorie-progress home"><span style="width:${nutritionTodayPct}%"></span></div>
+              <div class="home-nutrition-macros">
+                <span>Б ${formatFoodNumber(nutritionTodayTotals.proteinG, 1)} / ${formatFoodNumber(nutrition.protein)}</span>
+                <span>Ж ${formatFoodNumber(nutritionTodayTotals.fatG, 1)} / ${formatFoodNumber(nutrition.fat)}</span>
+                <span>У ${formatFoodNumber(nutritionTodayTotals.carbsG, 1)} / ${formatFoodNumber(nutrition.carbs)}</span>
               </div>
-              <div class="help home-data-help">${escapeHTML(state.nutrition.note)}</div>
+              <div class="button-row home-nutrition-actions"><button class="button primary small" id="home-add-food" type="button">＋ Еда</button><button class="button secondary small" id="home-open-nutrition-button" type="button">Открыть дневник</button></div>
             </div>
             <div class="home-data-block">
               <div class="section-head"><h2>Последняя тренировка</h2></div>
@@ -976,6 +1002,9 @@
     document.getElementById('resume-draft')?.addEventListener('click', () => navigate('workout'));
     document.getElementById('delete-draft-home')?.addEventListener('click', discardDraftFromHome);
     document.getElementById('add-measurement-home')?.addEventListener('click', showMeasurementModal);
+    document.getElementById('home-add-food')?.addEventListener('click', () => showFoodEntryModal({ date: todayISO() }));
+    document.getElementById('home-open-nutrition')?.addEventListener('click', () => { state.nutritionDate = todayISO(); navigate('nutrition'); });
+    document.getElementById('home-open-nutrition-button')?.addEventListener('click', () => { state.nutritionDate = todayISO(); navigate('nutrition'); });
     document.getElementById('open-muscle-progress-home')?.addEventListener('click', () => { state.progressTab = 'muscles'; navigate('progress'); });
     document.getElementById('smart-workout-from-muscles')?.addEventListener('click', () => showSmartWorkoutBuilderModal({ target: 'auto' }));
     document.getElementById('open-deload-progress-home')?.addEventListener('click', () => { state.progressTab = 'recovery'; navigate('progress'); });
@@ -1603,7 +1632,7 @@
     toast('День восстановления записан');
     if (state.route === 'home') renderHome();
     else if (state.route === 'progress') renderProgress();
-    else if (state.route === 'history') renderHistory();
+    else if (state.route === 'nutrition') renderNutrition();
   }
 
   function workPrescription(exercise, entry = {}) {
@@ -4024,10 +4053,464 @@
     });
   }
 
-  function renderHistory() {
-    setTopbar('История', 'Тренировки и нагрузка');
-    const filtered = filteredHistory();
+  function nutritionSelectedDate() {
+    return state.nutritionDate || todayISO();
+  }
+
+  function nutritionMeal(mealId) {
+    return nutritionMeals.find((meal) => meal.id === mealId) || nutritionMeals[0];
+  }
+
+  function foodEntriesForDate(date = nutritionSelectedDate()) {
+    return state.foodEntries
+      .filter((entry) => entry.date === date)
+      .sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
+  }
+
+  function foodEntriesForMeal(mealId, date = nutritionSelectedDate()) {
+    return foodEntriesForDate(date).filter((entry) => entry.meal === mealId);
+  }
+
+  function nutritionTotals(entries = []) {
+    return entries.reduce((totals, entry) => ({
+      calories: totals.calories + Number(entry.calories || 0),
+      proteinG: totals.proteinG + Number(entry.proteinG || 0),
+      fatG: totals.fatG + Number(entry.fatG || 0),
+      carbsG: totals.carbsG + Number(entry.carbsG || 0),
+    }), { calories: 0, proteinG: 0, fatG: 0, carbsG: 0 });
+  }
+
+  function nutritionDayType(date = nutritionSelectedDate()) {
+    const explicit = state.settings.nutritionDayTypes?.[date];
+    if (explicit === 'training' || explicit === 'recovery') return explicit;
+    const workout = state.workouts.find((row) => String(row.date || row.startedAt || '').slice(0, 10) === date);
+    if (workout) return isRecoveryWorkout(workout) ? 'recovery' : 'training';
+    if (date === todayISO()) {
+      try {
+        return getCurrentDay().day?.recovery ? 'recovery' : 'training';
+      } catch {
+        return 'recovery';
+      }
+    }
+    return 'recovery';
+  }
+
+  function nutritionTarget(date = nutritionSelectedDate()) {
+    const training = nutritionDayType(date) === 'training';
+    return training ? {
+      calories: Number(state.nutrition.trainingCalories || 0),
+      proteinG: Number(state.nutrition.proteinG || 0),
+      fatG: Number(state.nutrition.trainingFatG || 0),
+      carbsG: Number(state.nutrition.trainingCarbsG || 0),
+    } : {
+      calories: Number(state.nutrition.recoveryCalories || 0),
+      proteinG: Number(state.nutrition.proteinG || 0),
+      fatG: Number(state.nutrition.recoveryFatG || 0),
+      carbsG: Number(state.nutrition.recoveryCarbsG || 0),
+    };
+  }
+
+  function nutritionPercent(value, target) {
+    if (!Number(target)) return 0;
+    return Math.max(0, Math.min(100, Math.round((Number(value || 0) / Number(target)) * 100)));
+  }
+
+  function formatFoodNumber(value, digits = 0) {
+    const number = Number(value || 0);
+    const fixed = digits ? number.toFixed(digits) : Math.round(number).toString();
+    return fixed.replace('.', ',');
+  }
+
+  function nutritionDateLabel(date) {
+    if (date === todayISO()) return 'Сегодня';
+    const yesterday = dateOffsetISO(todayISO(), -1);
+    if (date === yesterday) return 'Вчера';
+    return formatDate(new Date(`${date}T12:00:00`), { weekday: 'short', day: 'numeric', month: 'long' });
+  }
+
+  function dateOffsetISO(date, offsetDays) {
+    const current = new Date(`${date}T12:00:00`);
+    current.setDate(current.getDate() + Number(offsetDays || 0));
+    return current.toISOString().slice(0, 10);
+  }
+
+  function nutritionMacroCard(label, value, target, className) {
+    const pct = nutritionPercent(value, target);
+    const over = Number(value) > Number(target) && Number(target) > 0;
+    return `<div class="nutrition-macro-card ${className} ${over ? 'over' : ''}">
+      <div><span>${escapeHTML(label)}</span><strong>${formatFoodNumber(value, 1)} <small>/ ${formatFoodNumber(target, 0)} г</small></strong></div>
+      <div class="nutrition-mini-progress"><span style="width:${pct}%"></span></div>
+    </div>`;
+  }
+
+  function renderFoodEntryRow(entry) {
+    const macros = `Б ${formatFoodNumber(entry.proteinG, 1)} · Ж ${formatFoodNumber(entry.fatG, 1)} · У ${formatFoodNumber(entry.carbsG, 1)}`;
+    return `<button class="nutrition-entry-row edit-food-entry" data-id="${entry.id}" type="button">
+      <span class="nutrition-entry-main"><strong>${escapeHTML(entry.name)}</strong><small>${formatFoodNumber(entry.grams, 0)} г · ${escapeHTML(macros)}</small></span>
+      <span class="nutrition-entry-calories"><strong>${formatFoodNumber(entry.calories, 0)}</strong><small>ккал</small></span>
+      <span class="nutrition-entry-arrow">›</span>
+    </button>`;
+  }
+
+  function renderNutritionMeal(meal, date) {
+    const entries = foodEntriesForMeal(meal.id, date);
+    const totals = nutritionTotals(entries);
+    const yesterdayDate = dateOffsetISO(date, -1);
+    const yesterdayCount = foodEntriesForMeal(meal.id, yesterdayDate).length;
+    return `<section class="section nutrition-meal-section">
+      <div class="card nutrition-meal-card">
+        <div class="nutrition-meal-head">
+          <div class="nutrition-meal-title"><span>${meal.icon}</span><div><h2>${escapeHTML(meal.label)}</h2><small>${entries.length ? `${entries.length} поз. · ${formatFoodNumber(totals.calories)} ккал` : 'Пока пусто'}</small></div></div>
+          <button class="nutrition-add-meal" data-meal="${meal.id}" type="button" aria-label="Добавить в ${escapeAttr(meal.label)}">＋</button>
+        </div>
+        <div class="nutrition-entry-list">${entries.length ? entries.map(renderFoodEntryRow).join('') : `<div class="nutrition-meal-empty">Добавь продукт или повтори приём пищи со вчера.</div>`}</div>
+        <div class="nutrition-meal-actions">
+          <button class="button secondary small add-food-entry" data-meal="${meal.id}" type="button">＋ Добавить</button>
+          <button class="button ghost small copy-yesterday-meal" data-meal="${meal.id}" type="button" ${yesterdayCount ? '' : 'disabled'}>↻ Вчера${yesterdayCount ? ` · ${yesterdayCount}` : ''}</button>
+        </div>
+      </div>
+    </section>`;
+  }
+
+  function renderNutrition() {
+    const date = nutritionSelectedDate();
+    const entries = foodEntriesForDate(date);
+    const totals = nutritionTotals(entries);
+    const target = nutritionTarget(date);
+    const caloriePct = nutritionPercent(totals.calories, target.calories);
+    const remaining = Math.round(target.calories - totals.calories);
+    const dayType = nutritionDayType(date);
+    const canGoNext = date < todayISO();
+    const recentCount = recentFoodTemplates().length;
+
+    setTopbar(nutritionDateLabel(date), 'Дневник питания');
     el.main.innerHTML = `
+      <section class="section nutrition-date-section">
+        <div class="nutrition-date-nav card">
+          <button class="nutrition-date-arrow" id="nutrition-date-prev" type="button" aria-label="Предыдущий день">←</button>
+          <button class="nutrition-date-current" id="nutrition-date-today" type="button"><strong>${escapeHTML(nutritionDateLabel(date))}</strong><span>${formatShortDate(date)}</span></button>
+          <button class="nutrition-date-arrow" id="nutrition-date-next" type="button" aria-label="Следующий день" ${canGoNext ? '' : 'disabled'}>→</button>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="card nutrition-hero-card">
+          <div class="nutrition-hero-head">
+            <div><span class="eyebrow">Калории за день</span><h2>${formatFoodNumber(totals.calories)} <small>/ ${formatFoodNumber(target.calories)} ккал</small></h2></div>
+            <button class="nutrition-day-type ${dayType}" id="nutrition-toggle-day-type" type="button">${dayType === 'training' ? 'Тренировочный день' : 'День отдыха'}</button>
+          </div>
+          <div class="nutrition-calorie-progress"><span style="width:${caloriePct}%"></span></div>
+          <div class="nutrition-remaining ${remaining < 0 ? 'over' : ''}">${remaining >= 0 ? `Осталось ${formatFoodNumber(remaining)} ккал` : `Перебор ${formatFoodNumber(Math.abs(remaining))} ккал`}</div>
+          <div class="nutrition-macro-grid">
+            ${nutritionMacroCard('Белки', totals.proteinG, target.proteinG, 'protein')}
+            ${nutritionMacroCard('Жиры', totals.fatG, target.fatG, 'fat')}
+            ${nutritionMacroCard('Углеводы', totals.carbsG, target.carbsG, 'carbs')}
+          </div>
+          <div class="nutrition-hero-actions">
+            <button class="button primary" id="nutrition-add-food" type="button">＋ Добавить продукт</button>
+            <button class="button secondary" id="nutrition-open-saved" type="button">Мои продукты</button>
+            <button class="button ghost" id="nutrition-open-recent" type="button" ${recentCount ? '' : 'disabled'}>Недавние${recentCount ? ` · ${recentCount}` : ''}</button>
+          </div>
+        </div>
+      </section>
+
+      ${nutritionMeals.map((meal) => renderNutritionMeal(meal, date)).join('')}
+
+      <section class="section nutrition-footer-section">
+        <button class="button ghost full" id="nutrition-goals-settings" type="button">Настроить дневные цели</button>
+        <div class="notice">Все записи хранятся локально для профиля «${escapeHTML(state.profile.name)}» и попадают в резервную копию приложения.</div>
+      </section>
+    `;
+    bindNutritionEvents();
+  }
+
+  function bindNutritionEvents() {
+    document.getElementById('nutrition-date-prev')?.addEventListener('click', () => {
+      state.nutritionDate = dateOffsetISO(nutritionSelectedDate(), -1);
+      renderNutrition();
+    });
+    document.getElementById('nutrition-date-next')?.addEventListener('click', () => {
+      const next = dateOffsetISO(nutritionSelectedDate(), 1);
+      if (next <= todayISO()) state.nutritionDate = next;
+      renderNutrition();
+    });
+    document.getElementById('nutrition-date-today')?.addEventListener('click', () => {
+      state.nutritionDate = todayISO();
+      renderNutrition();
+    });
+    document.getElementById('nutrition-toggle-day-type')?.addEventListener('click', toggleNutritionDayType);
+    document.getElementById('nutrition-add-food')?.addEventListener('click', () => showFoodEntryModal({ date: nutritionSelectedDate() }));
+    document.getElementById('nutrition-open-saved')?.addEventListener('click', () => showFoodLibraryModal('saved'));
+    document.getElementById('nutrition-open-recent')?.addEventListener('click', () => showFoodLibraryModal('recent'));
+    document.getElementById('nutrition-goals-settings')?.addEventListener('click', showNutritionModal);
+    el.main.querySelectorAll('.nutrition-add-meal, .add-food-entry').forEach((button) => button.addEventListener('click', () => showFoodEntryModal({ date: nutritionSelectedDate(), meal: button.dataset.meal })));
+    el.main.querySelectorAll('.edit-food-entry').forEach((button) => button.addEventListener('click', () => {
+      const entry = state.foodEntries.find((item) => item.id === button.dataset.id);
+      if (entry) showFoodEntryModal({ entry });
+    }));
+    el.main.querySelectorAll('.copy-yesterday-meal').forEach((button) => button.addEventListener('click', () => copyYesterdayMeal(button.dataset.meal)));
+  }
+
+  async function toggleNutritionDayType() {
+    const date = nutritionSelectedDate();
+    const dayTypes = { ...(state.settings.nutritionDayTypes || {}) };
+    dayTypes[date] = nutritionDayType(date) === 'training' ? 'recovery' : 'training';
+    const sortedDates = Object.keys(dayTypes).sort().slice(-120);
+    state.settings.nutritionDayTypes = Object.fromEntries(sortedDates.map((key) => [key, dayTypes[key]]));
+    await DB.setSettingsObject({ nutritionDayTypes: state.settings.nutritionDayTypes }, state.activeProfileId);
+    renderNutrition();
+  }
+
+  function foodModalTemplateFromEntry(entry = null, savedFood = null) {
+    if (entry) {
+      return {
+        name: entry.name || '',
+        meal: entry.meal || 'breakfast',
+        grams: Number(entry.grams || 100),
+        mode: entry.basis?.mode || 'total',
+        calories: Number(entry.basis?.calories ?? entry.calories ?? 0),
+        proteinG: Number(entry.basis?.proteinG ?? entry.proteinG ?? 0),
+        fatG: Number(entry.basis?.fatG ?? entry.fatG ?? 0),
+        carbsG: Number(entry.basis?.carbsG ?? entry.carbsG ?? 0),
+      };
+    }
+    if (savedFood) {
+      return {
+        name: savedFood.name || '',
+        meal: savedFood.defaultMeal || 'breakfast',
+        grams: Number(savedFood.grams || 100),
+        mode: savedFood.mode || 'per100',
+        calories: Number(savedFood.calories || 0),
+        proteinG: Number(savedFood.proteinG || 0),
+        fatG: Number(savedFood.fatG || 0),
+        carbsG: Number(savedFood.carbsG || 0),
+      };
+    }
+    return { name: '', meal: 'breakfast', grams: 100, mode: 'per100', calories: 0, proteinG: 0, fatG: 0, carbsG: 0 };
+  }
+
+  function calculateFoodModalTotals(values) {
+    const factor = values.mode === 'per100' ? Math.max(0, Number(values.grams || 0)) / 100 : 1;
+    return {
+      calories: Math.max(0, Number(values.calories || 0) * factor),
+      proteinG: Math.max(0, Number(values.proteinG || 0) * factor),
+      fatG: Math.max(0, Number(values.fatG || 0) * factor),
+      carbsG: Math.max(0, Number(values.carbsG || 0) * factor),
+    };
+  }
+
+  function readFoodModalValues() {
+    return {
+      name: document.getElementById('food-name')?.value.trim() || '',
+      meal: document.getElementById('food-meal')?.value || 'breakfast',
+      grams: Math.max(0, Number(document.getElementById('food-grams')?.value || 0)),
+      mode: document.getElementById('food-mode')?.value || 'per100',
+      calories: Math.max(0, Number(document.getElementById('food-calories')?.value || 0)),
+      proteinG: Math.max(0, Number(document.getElementById('food-protein')?.value || 0)),
+      fatG: Math.max(0, Number(document.getElementById('food-fat')?.value || 0)),
+      carbsG: Math.max(0, Number(document.getElementById('food-carbs')?.value || 0)),
+    };
+  }
+
+  function updateFoodModalPreview() {
+    const values = readFoodModalValues();
+    const totals = calculateFoodModalTotals(values);
+    const basisLabel = values.mode === 'per100' ? 'Значения вводятся на 100 г' : 'Значения вводятся за всю порцию';
+    const label = document.getElementById('food-basis-label');
+    if (label) label.textContent = basisLabel;
+    const preview = document.getElementById('food-entry-preview');
+    if (preview) preview.innerHTML = `<strong>${formatFoodNumber(totals.calories)} ккал</strong><span>Б ${formatFoodNumber(totals.proteinG, 1)} · Ж ${formatFoodNumber(totals.fatG, 1)} · У ${formatFoodNumber(totals.carbsG, 1)}</span>`;
+  }
+
+  function showFoodEntryModal({ date = nutritionSelectedDate(), meal = 'breakfast', entry = null, savedFood = null } = {}) {
+    const values = foodModalTemplateFromEntry(entry, savedFood);
+    if (!entry && meal) values.meal = meal;
+    showModal(`
+      <div class="modal-head"><div><div class="eyebrow">${entry ? 'Редактирование' : 'Дневник питания'}</div><h2>${entry ? 'Изменить продукт' : 'Добавить продукт'}</h2></div><button class="modal-close" data-close>×</button></div>
+      <div class="food-modal-shortcuts">
+        <button class="button secondary small" id="food-pick-saved" type="button">Мои продукты</button>
+        <button class="button ghost small" id="food-pick-recent" type="button">Недавние</button>
+      </div>
+      <div class="form-grid food-entry-form">
+        <div class="field"><label>Название</label><input id="food-name" value="${escapeAttr(values.name)}" placeholder="Например, творог 5%" autocomplete="off"></div>
+        <div class="inline-fields two"><div class="field"><label>Приём пищи</label><select id="food-meal">${nutritionMeals.map((item) => `<option value="${item.id}" ${values.meal === item.id ? 'selected' : ''}>${item.label}</option>`).join('')}</select></div><div class="field"><label>Количество, г</label><input id="food-grams" type="number" inputmode="decimal" min="0" step="1" value="${escapeAttr(String(values.grams || 100))}"></div></div>
+        <div class="field"><label>Как вводим БЖУ</label><select id="food-mode"><option value="per100" ${values.mode === 'per100' ? 'selected' : ''}>На 100 граммов</option><option value="total" ${values.mode === 'total' ? 'selected' : ''}>Итог за порцию</option></select><div class="help" id="food-basis-label"></div></div>
+        <div class="inline-fields two"><div class="field"><label>Калории</label><input id="food-calories" type="number" inputmode="decimal" min="0" step="1" value="${escapeAttr(String(values.calories || ''))}"></div><div class="field"><label>Белки, г</label><input id="food-protein" type="number" inputmode="decimal" min="0" step="0.1" value="${escapeAttr(String(values.proteinG || ''))}"></div></div>
+        <div class="inline-fields two"><div class="field"><label>Жиры, г</label><input id="food-fat" type="number" inputmode="decimal" min="0" step="0.1" value="${escapeAttr(String(values.fatG || ''))}"></div><div class="field"><label>Углеводы, г</label><input id="food-carbs" type="number" inputmode="decimal" min="0" step="0.1" value="${escapeAttr(String(values.carbsG || ''))}"></div></div>
+        <div class="food-entry-preview" id="food-entry-preview"></div>
+        ${entry ? '' : '<label class="food-save-template"><input id="food-save-template" type="checkbox"><span><strong>Сохранить в «Мои продукты»</strong><small>Потом добавишь его в пару нажатий</small></span></label>'}
+      </div>
+      <div class="button-row food-modal-actions" style="margin-top:14px">
+        <button class="button primary" id="save-food-entry" type="button">${entry ? 'Сохранить изменения' : 'Добавить в дневник'}</button>
+        ${entry ? '<button class="button danger" id="delete-food-entry" type="button">Удалить</button>' : ''}
+      </div>
+    `);
+    ['food-grams', 'food-mode', 'food-calories', 'food-protein', 'food-fat', 'food-carbs'].forEach((id) => {
+      const input = document.getElementById(id);
+      input?.addEventListener(id === 'food-mode' ? 'change' : 'input', updateFoodModalPreview);
+    });
+    document.getElementById('food-pick-saved')?.addEventListener('click', () => showFoodLibraryModal('saved', { date, meal: values.meal }));
+    document.getElementById('food-pick-recent')?.addEventListener('click', () => showFoodLibraryModal('recent', { date, meal: values.meal }));
+    document.getElementById('save-food-entry')?.addEventListener('click', () => saveFoodEntry({ date, entry }));
+    document.getElementById('delete-food-entry')?.addEventListener('click', () => deleteFoodEntry(entry));
+    updateFoodModalPreview();
+    setTimeout(() => document.getElementById('food-name')?.focus(), 40);
+  }
+
+  async function saveFoodEntry({ date, entry = null }) {
+    const values = readFoodModalValues();
+    if (!values.name) return toast('Напиши название продукта');
+    if (values.grams <= 0) return toast('Укажи количество в граммах');
+    const totals = calculateFoodModalTotals(values);
+    if (totals.calories <= 0 && totals.proteinG <= 0 && totals.fatG <= 0 && totals.carbsG <= 0) return toast('Добавь калории или БЖУ');
+    const now = new Date().toISOString();
+    const row = {
+      ...(entry || {}),
+      id: entry?.id || uid('food'),
+      profileId: state.activeProfileId,
+      date: entry?.date || date,
+      meal: values.meal,
+      name: values.name,
+      grams: values.grams,
+      calories: totals.calories,
+      proteinG: totals.proteinG,
+      fatG: totals.fatG,
+      carbsG: totals.carbsG,
+      basis: {
+        mode: values.mode,
+        calories: values.calories,
+        proteinG: values.proteinG,
+        fatG: values.fatG,
+        carbsG: values.carbsG,
+      },
+      createdAt: entry?.createdAt || now,
+      updatedAt: now,
+    };
+    await DB.put('foodEntries', row);
+    state.foodEntries = state.foodEntries.filter((item) => item.id !== row.id);
+    state.foodEntries.push(row);
+    state.foodEntries.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+
+    if (!entry && document.getElementById('food-save-template')?.checked) {
+      const saved = {
+        id: uid('saved-food'),
+        profileId: state.activeProfileId,
+        name: values.name,
+        defaultMeal: values.meal,
+        grams: values.grams,
+        mode: values.mode,
+        calories: values.calories,
+        proteinG: values.proteinG,
+        fatG: values.fatG,
+        carbsG: values.carbsG,
+        createdAt: now,
+        updatedAt: now,
+      };
+      await DB.put('savedFoods', saved);
+      state.savedFoods.push(saved);
+      state.savedFoods.sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'ru'));
+    }
+    closeModal();
+    state.nutritionDate = row.date;
+    if (state.route === 'nutrition') renderNutrition();
+    else if (state.route === 'home') renderHome();
+    toast(entry ? 'Запись обновлена' : 'Добавлено в дневник');
+  }
+
+  async function deleteFoodEntry(entry) {
+    if (!entry || !window.confirm(`Удалить «${entry.name}» из дневника?`)) return;
+    await DB.remove('foodEntries', entry.id);
+    state.foodEntries = state.foodEntries.filter((item) => item.id !== entry.id);
+    closeModal();
+    if (state.route === 'nutrition') renderNutrition();
+    else renderHome();
+    toast('Запись удалена');
+  }
+
+  function recentFoodTemplates() {
+    const seen = new Set();
+    return [...state.foodEntries]
+      .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))
+      .filter((entry) => {
+        const key = String(entry.name || '').trim().toLowerCase();
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .slice(0, 12)
+      .map((entry) => ({
+        id: `recent:${entry.id}`,
+        name: entry.name,
+        defaultMeal: entry.meal,
+        grams: entry.grams,
+        mode: entry.basis?.mode || 'total',
+        calories: entry.basis?.calories ?? entry.calories,
+        proteinG: entry.basis?.proteinG ?? entry.proteinG,
+        fatG: entry.basis?.fatG ?? entry.fatG,
+        carbsG: entry.basis?.carbsG ?? entry.carbsG,
+        recent: true,
+      }));
+  }
+
+  function renderFoodLibraryRow(food, mode) {
+    const totals = calculateFoodModalTotals({ ...food, grams: food.grams || 100 });
+    return `<div class="food-library-row">
+      <button class="food-library-select" data-id="${escapeAttr(food.id)}" type="button">
+        <span><strong>${escapeHTML(food.name)}</strong><small>${formatFoodNumber(food.grams || 100)} г · ${formatFoodNumber(totals.calories)} ккал · Б ${formatFoodNumber(totals.proteinG, 1)} · Ж ${formatFoodNumber(totals.fatG, 1)} · У ${formatFoodNumber(totals.carbsG, 1)}</small></span><b>＋</b>
+      </button>
+      ${mode === 'saved' ? `<button class="food-library-delete" data-id="${escapeAttr(food.id)}" type="button" aria-label="Удалить сохранённый продукт">×</button>` : ''}
+    </div>`;
+  }
+
+  function showFoodLibraryModal(mode = 'saved', context = {}) {
+    const foods = mode === 'saved' ? state.savedFoods : recentFoodTemplates();
+    showModal(`
+      <div class="modal-head"><div><div class="eyebrow">Дневник питания</div><h2>${mode === 'saved' ? 'Мои продукты' : 'Недавние продукты'}</h2></div><button class="modal-close" data-close>×</button></div>
+      <div class="food-library-tabs"><button class="tab ${mode === 'saved' ? 'active' : ''}" id="food-library-saved" type="button">Мои</button><button class="tab ${mode === 'recent' ? 'active' : ''}" id="food-library-recent" type="button">Недавние</button></div>
+      <div class="card food-library-list">${foods.length ? foods.map((food) => renderFoodLibraryRow(food, mode)).join('') : `<div class="empty compact-empty"><strong>${mode === 'saved' ? 'Сохранённых продуктов нет' : 'Недавних продуктов нет'}</strong>${mode === 'saved' ? 'Поставь галочку при добавлении продукта.' : 'Они появятся после первых записей.'}</div>`}</div>
+      <button class="button primary full" id="food-library-new" type="button" style="margin-top:12px">＋ Новый продукт</button>
+    `);
+    document.getElementById('food-library-saved')?.addEventListener('click', () => showFoodLibraryModal('saved', context));
+    document.getElementById('food-library-recent')?.addEventListener('click', () => showFoodLibraryModal('recent', context));
+    document.getElementById('food-library-new')?.addEventListener('click', () => showFoodEntryModal({ date: context.date || nutritionSelectedDate(), meal: context.meal || 'breakfast' }));
+    el.modalRoot.querySelectorAll('.food-library-select').forEach((button) => button.addEventListener('click', () => {
+      const food = foods.find((item) => item.id === button.dataset.id);
+      if (food) showFoodEntryModal({ date: context.date || nutritionSelectedDate(), meal: context.meal || food.defaultMeal || 'breakfast', savedFood: food });
+    }));
+    el.modalRoot.querySelectorAll('.food-library-delete').forEach((button) => button.addEventListener('click', async (event) => {
+      event.stopPropagation();
+      const food = state.savedFoods.find((item) => item.id === button.dataset.id);
+      if (!food || !window.confirm(`Удалить «${food.name}» из сохранённых?`)) return;
+      await DB.remove('savedFoods', food.id);
+      state.savedFoods = state.savedFoods.filter((item) => item.id !== food.id);
+      showFoodLibraryModal('saved', context);
+      toast('Продукт удалён из сохранённых');
+    }));
+  }
+
+  async function copyYesterdayMeal(mealId) {
+    const date = nutritionSelectedDate();
+    const sourceDate = dateOffsetISO(date, -1);
+    const source = foodEntriesForMeal(mealId, sourceDate);
+    if (!source.length) return toast('Вчера этот приём пищи был пуст');
+    const now = new Date().toISOString();
+    const copies = source.map((entry, index) => ({
+      ...clone(entry),
+      id: uid('food'),
+      date,
+      source: 'copied',
+      createdAt: new Date(Date.now() + index).toISOString(),
+      updatedAt: now,
+    }));
+    await DB.putMany('foodEntries', copies);
+    state.foodEntries.push(...copies);
+    renderNutrition();
+    toast(`${nutritionMeal(mealId).label} скопирован со вчера`);
+  }
+
+  function renderHistoryContent() {
+    const filtered = filteredHistory();
+    return `
       <section class="section"><div class="tabs">${[['day','День'],['week','Неделя'],['month','Месяц'],['all','Всё']].map(([value,label]) => `<button class="tab ${state.historyFilter === value ? 'active' : ''} history-filter" data-filter="${value}">${label}</button>`).join('')}</div></section>
       <section class="section">
         <div class="stats-grid">
@@ -4041,8 +4524,23 @@
         ${filtered.length ? filtered.map(workoutSummaryCard).join('') : `<div class="card empty"><strong>Ничего не найдено</strong>В выбранном периоде тренировок нет.</div>`}
       </section>
     `;
-    el.main.querySelectorAll('.history-filter').forEach((button) => button.addEventListener('click', () => { state.historyFilter = button.dataset.filter; renderHistory(); }));
+  }
+
+  function bindHistoryEvents() {
+    el.main.querySelectorAll('.history-filter').forEach((button) => button.addEventListener('click', () => {
+      state.historyFilter = button.dataset.filter;
+      renderProgress();
+    }));
     el.main.querySelectorAll('.view-workout').forEach((button) => button.addEventListener('click', () => showWorkoutDetails(button.dataset.id)));
+  }
+
+  function refreshHistoryView() {
+    if (state.route === 'progress') {
+      state.progressTab = 'history';
+      renderProgress();
+      return;
+    }
+    renderHome();
   }
 
   function filteredHistory() {
@@ -4093,7 +4591,7 @@
       state.painEntries = state.painEntries.filter((entry) => entry.workoutId !== id);
       state.workouts = state.workouts.filter((w) => w.id !== id);
       closeModal();
-      renderHistory();
+      refreshHistoryView();
       toast('Тренировка удалена');
     });
   }
@@ -4120,7 +4618,7 @@
       await DB.remove('workouts', workout.id);
       state.workouts = state.workouts.filter((w) => w.id !== workout.id);
       closeModal();
-      renderHistory();
+      refreshHistoryView();
       toast('Запись отдыха удалена');
     });
   }
@@ -4129,15 +4627,17 @@
     setTopbar('Прогресс', 'Без самообмана — только данные');
     el.main.innerHTML = `
       <section class="section"><div class="tabs">
-        ${[['body','Тело'],['training','Тренировки'],['muscles','Мышцы'],['recovery','Восстановление'],['records','Рекорды'],['strength','Рабочие веса'],['stepper','Степпер'],['photos','Фото']].map(([value,label]) => `<button class="tab ${state.progressTab === value ? 'active' : ''} progress-tab" data-tab="${value}">${label}</button>`).join('')}
+        ${[['history','История'],['body','Тело'],['training','Тренировки'],['muscles','Мышцы'],['recovery','Восстановление'],['records','Рекорды'],['strength','Рабочие веса'],['stepper','Степпер'],['photos','Фото']].map(([value,label]) => `<button class="tab ${state.progressTab === value ? 'active' : ''} progress-tab" data-tab="${value}">${label}</button>`).join('')}
       </div></section>
       <div id="progress-content">${renderProgressContent()}</div>
     `;
     el.main.querySelectorAll('.progress-tab').forEach((button) => button.addEventListener('click', () => { state.progressTab = button.dataset.tab; renderProgress(); }));
     bindProgressEvents();
+    if (state.progressTab === 'history') bindHistoryEvents();
   }
 
   function renderProgressContent() {
+    if (state.progressTab === 'history') return renderHistoryContent();
     if (state.progressTab === 'body') return renderBodyProgress();
     if (state.progressTab === 'training') return renderTrainingProgress();
     if (state.progressTab === 'muscles') return renderMuscleProgress();
@@ -5376,7 +5876,7 @@
 
             <div class="more-subsection storage-subsection">
               <div class="more-subsection-head"><div><span class="eyebrow">На этом iPhone</span><h3>Хранилище приложения</h3></div></div>
-              <div class="card"><p class="muted more-storage-copy">Профили, тренировки, замеры и фотографии хранятся локально в IndexedDB.</p><button class="button secondary full" id="storage-info" type="button">Проверить хранилище</button><div class="help" style="margin-top:10px">Версия приложения ${escapeHTML(APP_VERSION)} · база IndexedDB v3</div></div>
+              <div class="card"><p class="muted more-storage-copy">Профили, тренировки, питание, замеры и фотографии хранятся локально в IndexedDB.</p><button class="button secondary full" id="storage-info" type="button">Проверить хранилище</button><div class="help" style="margin-top:10px">Версия приложения ${escapeHTML(APP_VERSION)} · база IndexedDB v4</div></div>
               <div class="notice warning more-storage-warning"><strong>Важно.</strong> Данные PWA могут исчезнуть после удаления иконки, очистки данных Safari или при критической нехватке памяти. Экспорт — обязательная страховка.</div>
             </div>
           </div>
@@ -6030,7 +6530,7 @@
     `);
     document.getElementById('save-nutrition').addEventListener('click', async ()=>{
       Object.assign(state.nutrition,{trainingCalories:Number(document.getElementById('n-train-cal').value),recoveryCalories:Number(document.getElementById('n-rest-cal').value),proteinG:Number(document.getElementById('n-protein').value),trainingFatG:Number(document.getElementById('n-fat-train').value),recoveryFatG:Number(document.getElementById('n-fat-rest').value),trainingCarbsG:Number(document.getElementById('n-carb-train').value),recoveryCarbsG:Number(document.getElementById('n-carb-rest').value),note:document.getElementById('n-note').value.trim()});
-      await DB.put('nutrition',state.nutrition); closeModal(); renderMore(); toast('Питание обновлено');
+      await DB.put('nutrition',state.nutrition); closeModal(); if (state.route === 'nutrition') renderNutrition(); else if (state.route === 'home') renderHome(); else renderMore(); toast('Питание обновлено');
     });
   }
 
@@ -6203,8 +6703,9 @@
   function showQuickAdd() {
     showModal(`
       <div class="modal-head"><h2>Быстро добавить</h2><button class="modal-close" data-close>×</button></div>
-      <div class="card list-card"><button class="list-row quick-measure" style="width:100%;background:transparent;border-left:0;border-right:0;border-top:0;color:inherit"><div class="list-row-main"><div class="list-row-title">Замер тела</div><div class="list-row-sub">Вес, талия, живот и объёмы</div></div><span>＋</span></button><button class="list-row quick-photo" style="width:100%;background:transparent;border:0;color:inherit"><div class="list-row-main"><div class="list-row-title">Фото прогресса</div><div class="list-row-sub">Хранится локально</div></div><span>＋</span></button></div>
+      <div class="card list-card"><button class="list-row quick-food" style="width:100%;background:transparent;border-left:0;border-right:0;border-top:0;color:inherit"><div class="list-row-main"><div class="list-row-title">Еду в дневник</div><div class="list-row-sub">Калории, белки, жиры и углеводы</div></div><span>＋</span></button><button class="list-row quick-measure" style="width:100%;background:transparent;border-left:0;border-right:0;border-top:0;color:inherit"><div class="list-row-main"><div class="list-row-title">Замер тела</div><div class="list-row-sub">Вес, талия, живот и объёмы</div></div><span>＋</span></button><button class="list-row quick-photo" style="width:100%;background:transparent;border:0;color:inherit"><div class="list-row-main"><div class="list-row-title">Фото прогресса</div><div class="list-row-sub">Хранится локально</div></div><span>＋</span></button></div>
     `);
+    el.modalRoot.querySelector('.quick-food').addEventListener('click',()=>{closeModal();showFoodEntryModal({ date: todayISO() });});
     el.modalRoot.querySelector('.quick-measure').addEventListener('click',()=>{closeModal();showMeasurementModal();});
     el.modalRoot.querySelector('.quick-photo').addEventListener('click',()=>{closeModal();showPhotoModal();});
   }

@@ -1,7 +1,7 @@
 (() => {
   const DB_NAME = 'nikita-workouts-db';
-  const DB_VERSION = 3;
-  const STORES = ['meta', 'settings', 'profile', 'nutrition', 'exercises', 'programs', 'workouts', 'measurements', 'photos', 'painEntries'];
+  const DB_VERSION = 4;
+  const STORES = ['meta', 'settings', 'profile', 'nutrition', 'foodEntries', 'savedFoods', 'exercises', 'programs', 'workouts', 'measurements', 'photos', 'painEntries'];
   let dbPromise = null;
 
   function openDB() {
@@ -17,6 +17,29 @@
         if (!db.objectStoreNames.contains('settings')) db.createObjectStore('settings', { keyPath: 'key' });
         if (!db.objectStoreNames.contains('profile')) db.createObjectStore('profile', { keyPath: 'id' });
         if (!db.objectStoreNames.contains('nutrition')) db.createObjectStore('nutrition', { keyPath: 'id' });
+
+        if (!db.objectStoreNames.contains('foodEntries')) {
+          const store = db.createObjectStore('foodEntries', { keyPath: 'id' });
+          store.createIndex('profileId', 'profileId', { unique: false });
+          store.createIndex('date', 'date', { unique: false });
+          store.createIndex('meal', 'meal', { unique: false });
+        } else {
+          const store = tx.objectStore('foodEntries');
+          if (!store.indexNames.contains('profileId')) store.createIndex('profileId', 'profileId', { unique: false });
+          if (!store.indexNames.contains('date')) store.createIndex('date', 'date', { unique: false });
+          if (!store.indexNames.contains('meal')) store.createIndex('meal', 'meal', { unique: false });
+        }
+
+        if (!db.objectStoreNames.contains('savedFoods')) {
+          const store = db.createObjectStore('savedFoods', { keyPath: 'id' });
+          store.createIndex('profileId', 'profileId', { unique: false });
+          store.createIndex('name', 'name', { unique: false });
+        } else {
+          const store = tx.objectStore('savedFoods');
+          if (!store.indexNames.contains('profileId')) store.createIndex('profileId', 'profileId', { unique: false });
+          if (!store.indexNames.contains('name')) store.createIndex('name', 'name', { unique: false });
+        }
+
         if (!db.objectStoreNames.contains('exercises')) db.createObjectStore('exercises', { keyPath: 'id' });
         if (!db.objectStoreNames.contains('programs')) db.createObjectStore('programs', { keyPath: 'id' });
 
@@ -110,7 +133,7 @@
       cursor.continue();
     };
 
-    for (const storeName of ['workouts', 'measurements', 'photos', 'painEntries']) {
+    for (const storeName of ['workouts', 'measurements', 'photos', 'painEntries', 'foodEntries', 'savedFoods']) {
       const store = tx.objectStore(storeName);
       store.openCursor().onsuccess = (event) => {
         const cursor = event.target.result;
@@ -274,7 +297,7 @@
   }
 
   async function deleteProfile(profileId) {
-    const storesToOpen = ['profile', 'nutrition', 'settings', 'programs', 'exercises', 'workouts', 'measurements', 'photos', 'painEntries', 'meta'];
+    const storesToOpen = ['profile', 'nutrition', 'foodEntries', 'savedFoods', 'settings', 'programs', 'exercises', 'workouts', 'measurements', 'photos', 'painEntries', 'meta'];
     await transaction(storesToOpen, 'readwrite', async (stores) => {
       stores.profile.delete(profileId);
       stores.nutrition.delete(profileId);
@@ -287,7 +310,7 @@
         cursor.continue();
       };
 
-      for (const storeName of ['workouts', 'measurements', 'photos', 'painEntries']) {
+      for (const storeName of ['workouts', 'measurements', 'photos', 'painEntries', 'foodEntries', 'savedFoods']) {
         stores[storeName].openCursor().onsuccess = (event) => {
           const cursor = event.target.result;
           if (!cursor) return;
@@ -328,12 +351,12 @@
   async function exportData(includePhotos = false) {
     const result = {
       format: 'nikita-workouts-backup',
-      version: 3,
+      version: 4,
       appVersion: globalThis.NIKITA_APP?.version || null,
       exportedAt: new Date().toISOString(),
       data: {},
     };
-    for (const store of ['meta', 'settings', 'profile', 'nutrition', 'exercises', 'programs', 'workouts', 'measurements', 'painEntries']) {
+    for (const store of ['meta', 'settings', 'profile', 'nutrition', 'foodEntries', 'savedFoods', 'exercises', 'programs', 'workouts', 'measurements', 'painEntries']) {
       result.data[store] = await getAll(store);
     }
     if (includePhotos) {
@@ -352,7 +375,7 @@
     if (!backup || backup.format !== 'nikita-workouts-backup' || !backup.data) {
       throw new Error('Это не резервная копия приложения «Тренировки»');
     }
-    const stores = ['meta', 'settings', 'profile', 'nutrition', 'exercises', 'programs', 'workouts', 'measurements', 'photos', 'painEntries'];
+    const stores = ['meta', 'settings', 'profile', 'nutrition', 'foodEntries', 'savedFoods', 'exercises', 'programs', 'workouts', 'measurements', 'photos', 'painEntries'];
     await transaction(stores, 'readwrite', async (s) => {
       if (mode === 'replace') {
         for (const store of stores) s[store].clear();
