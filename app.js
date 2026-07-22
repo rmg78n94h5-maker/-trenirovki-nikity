@@ -4057,43 +4057,150 @@
       navigate('workout');
       return;
     }
+
     const draft = { name: 'Своя тренировка', entries: [], groups: new Set(), query: '' };
     showModal(`
-      <div class="modal-head"><div><div class="eyebrow">Ручной конструктор</div><h2>Собрать свою тренировку</h2></div><button class="modal-close" data-close>×</button></div>
-      <div class="field"><label>Название</label><input id="custom-workout-name" value="Своя тренировка" maxlength="60"></div>
-      <div class="custom-workout-summary" id="custom-workout-summary"></div>
-      <div class="custom-selected-list" id="custom-selected-list"></div>
-      <div class="custom-builder-library">
-        <div class="smart-builder-label"><strong>Добавить упражнения</strong><span>нажимай «＋»</span></div>
-        <div class="exercise-filter-chips custom-filter-chips" id="custom-workout-filters">
-          ${muscleGroups.map((group) => `<button class="exercise-filter-chip" data-group="${group.id}" type="button">${escapeHTML(group.label)}</button>`).join('')}
-        </div>
-        <div class="field"><input id="custom-workout-search" placeholder="Поиск по названию, мышцам или оборудованию"></div>
-        <div class="card list-card exercise-picker-scroll" id="custom-workout-library"></div>
+      <div class="modal-head custom-builder-head">
+        <div><div class="eyebrow">Ручной конструктор</div><h2>Собрать свою тренировку</h2></div>
+        <button class="modal-close" data-close aria-label="Закрыть">×</button>
       </div>
-      <button class="button primary full" id="start-custom-workout" type="button" disabled>Начать свою тренировку</button>
-      <div class="help center" style="margin-top:10px">Эта тренировка не двигает основной цикл. Подходы, вес и повторы можно менять уже во время выполнения.</div>
+
+      <div class="custom-builder-explainer">
+        <strong>Как собрать</strong>
+        <span>1. Отметь нужные мышцы — можно несколько. 2. Нажимай «Добавить» возле упражнений. 3. Настрой подходы и запускай.</span>
+      </div>
+
+      <div class="field custom-builder-name">
+        <label>Название тренировки</label>
+        <input id="custom-workout-name" value="Своя тренировка" maxlength="60">
+      </div>
+
+      <div class="custom-workout-summary" id="custom-workout-summary"></div>
+
+      <section class="custom-builder-step selected-step" id="custom-selected-section">
+        <div class="custom-builder-step-head">
+          <span class="custom-builder-selected-icon">✓</span>
+          <div><strong>Выбрано в тренировку</strong><small>Здесь можно менять подходы и порядок.</small></div>
+        </div>
+        <div class="custom-selected-list" id="custom-selected-list"></div>
+      </section>
+
+      <section class="custom-builder-step">
+        <div class="custom-builder-step-head">
+          <span class="custom-builder-step-number">1</span>
+          <div><strong>Выбери мышечные группы</strong><small>Необязательно. Без выбора покажем все упражнения.</small></div>
+          <button class="custom-filter-clear" id="custom-filter-clear" type="button" hidden>Сбросить</button>
+        </div>
+        <div class="custom-muscle-filter-grid" id="custom-workout-filters">
+          ${muscleGroups.map((group) => `<button class="custom-muscle-filter" data-group="${group.id}" type="button" aria-pressed="false"><span class="custom-filter-check">✓</span><strong>${escapeHTML(group.label)}</strong><small>${escapeHTML(group.hint || '')}</small></button>`).join('')}
+        </div>
+        <div class="custom-filter-status" id="custom-filter-status">Показаны все мышечные группы</div>
+      </section>
+
+      <section class="custom-builder-step">
+        <div class="custom-builder-step-head">
+          <span class="custom-builder-step-number">2</span>
+          <div><strong>Добавь упражнения</strong><small>Нажми «Добавить». Повторное нажатие уберёт упражнение.</small></div>
+        </div>
+        <div class="field custom-builder-search"><input id="custom-workout-search" placeholder="Поиск: жим, спина, гантели…" inputmode="search"></div>
+        <div class="custom-library-result-head"><strong id="custom-library-count">Все упражнения</strong><span>выбранные идут первыми</span></div>
+        <div class="card list-card exercise-picker-scroll custom-workout-library" id="custom-workout-library"></div>
+      </section>
+
+      <div class="custom-builder-footer">
+        <div class="custom-builder-footer-meta">
+          <button id="custom-scroll-selected" type="button">Выбрано: 0</button>
+          <span id="custom-footer-duration">≈ 10 мин</span>
+        </div>
+        <button class="button primary full" id="start-custom-workout" type="button" disabled>Начать свою тренировку</button>
+        <div class="help center">Тренировка не двигает основной цикл. Вес и повторы можно менять во время выполнения.</div>
+      </div>
     `);
 
+    const modal = el.modalRoot.querySelector('.modal');
+    modal?.classList.add('custom-workout-modal');
+
     const selectedIds = () => new Set(draft.entries.map((entry) => entry.exerciseId));
+
+    const updateFilterUi = () => {
+      const selectedGroups = [...draft.groups];
+      el.modalRoot.querySelectorAll('#custom-workout-filters .custom-muscle-filter').forEach((button) => {
+        const active = draft.groups.has(button.dataset.group);
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-pressed', String(active));
+      });
+      const clearButton = document.getElementById('custom-filter-clear');
+      if (clearButton) clearButton.hidden = !selectedGroups.length;
+      const status = document.getElementById('custom-filter-status');
+      if (status) {
+        status.textContent = selectedGroups.length
+          ? `Выбрано: ${selectedGroups.map(muscleGroupLabel).join(', ')}`
+          : 'Показаны все мышечные группы';
+      }
+    };
+
     const renderSelected = () => {
       const selectedList = document.getElementById('custom-selected-list');
       const summary = document.getElementById('custom-workout-summary');
       const startButton = document.getElementById('start-custom-workout');
+      const scrollSelectedButton = document.getElementById('custom-scroll-selected');
+      const footerDuration = document.getElementById('custom-footer-duration');
       const minutes = estimateCustomWorkoutMinutes(draft.entries);
-      if (summary) summary.innerHTML = `<div><span>Упражнений</span><strong>${draft.entries.length}</strong></div><div><span>Примерно</span><strong>${minutes} мин</strong></div>`;
-      if (startButton) startButton.disabled = !draft.entries.length;
+      if (summary) summary.innerHTML = `
+        <div><span>Упражнений</span><strong>${draft.entries.length}</strong></div>
+        <div><span>Примерно</span><strong>${minutes} мин</strong></div>
+      `;
+      if (scrollSelectedButton) {
+        scrollSelectedButton.textContent = `Выбрано: ${draft.entries.length}`;
+        scrollSelectedButton.disabled = !draft.entries.length;
+      }
+      if (footerDuration) footerDuration.textContent = `≈ ${minutes} мин`;
+      if (startButton) {
+        startButton.disabled = !draft.entries.length;
+        startButton.textContent = draft.entries.length
+          ? `Начать · ${draft.entries.length} упр. · ≈ ${minutes} мин`
+          : 'Сначала добавь упражнения';
+      }
       if (!selectedList) return;
+
       selectedList.innerHTML = draft.entries.length ? draft.entries.map((entry, index) => {
         const exercise = getExercise(entry.exerciseId);
         const groups = exercise ? getMuscleGroupsForExercise(exercise).map(muscleGroupLabel).join(' · ') : '';
-        return `<div class="custom-selected-card" data-index="${index}"><span class="custom-selected-index">${index + 1}</span><div><strong>${escapeHTML(exercise?.name || entry.exerciseId)}</strong><small>${escapeHTML(groups || exercise?.group || '')}</small><div class="custom-selected-sets"><button class="custom-set-minus" type="button">−</button><span>${entry.sets} подх.</span><button class="custom-set-plus" type="button">＋</button></div></div><div class="custom-selected-actions"><button class="mini-button custom-move-up" type="button" ${index === 0 ? 'disabled' : ''}>↑</button><button class="mini-button custom-move-down" type="button" ${index === draft.entries.length - 1 ? 'disabled' : ''}>↓</button><button class="mini-button custom-remove" type="button">×</button></div></div>`;
-      }).join('') : '<div class="empty compact-empty"><strong>Пока пусто</strong>Выбери упражнения ниже. Можно фильтровать сразу по нескольким мышечным группам.</div>';
+        return `
+          <div class="custom-selected-card" data-index="${index}">
+            <span class="custom-selected-index">${index + 1}</span>
+            <div class="custom-selected-copy">
+              <strong>${escapeHTML(exercise?.name || entry.exerciseId)}</strong>
+              <small>${escapeHTML(groups || exercise?.group || '')}</small>
+              <div class="custom-selected-sets" aria-label="Количество подходов">
+                <button class="custom-set-minus" type="button" aria-label="Уменьшить количество подходов">−</button>
+                <span>${entry.sets} подх.</span>
+                <button class="custom-set-plus" type="button" aria-label="Увеличить количество подходов">＋</button>
+              </div>
+            </div>
+            <div class="custom-selected-actions">
+              <button class="mini-button custom-move-up" type="button" aria-label="Поднять выше" ${index === 0 ? 'disabled' : ''}>↑</button>
+              <button class="mini-button custom-move-down" type="button" aria-label="Опустить ниже" ${index === draft.entries.length - 1 ? 'disabled' : ''}>↓</button>
+              <button class="mini-button custom-remove" type="button" aria-label="Удалить упражнение">×</button>
+            </div>
+          </div>`;
+      }).join('') : '<div class="custom-empty-selection"><strong>Пока ничего не добавлено</strong><span>Выбери мышцы выше или сразу найди упражнение через поиск, затем нажми «Добавить».</span></div>';
+
       selectedList.querySelectorAll('.custom-selected-card').forEach((card) => {
         const index = Number(card.dataset.index);
-        card.querySelector('.custom-remove')?.addEventListener('click', () => { draft.entries.splice(index, 1); renderSelected(); renderLibrary(); });
-        card.querySelector('.custom-set-minus')?.addEventListener('click', () => { draft.entries[index].sets = Math.max(1, Number(draft.entries[index].sets || 1) - 1); renderSelected(); });
-        card.querySelector('.custom-set-plus')?.addEventListener('click', () => { draft.entries[index].sets = Math.min(10, Number(draft.entries[index].sets || 1) + 1); renderSelected(); });
+        card.querySelector('.custom-remove')?.addEventListener('click', () => {
+          draft.entries.splice(index, 1);
+          renderSelected();
+          renderLibrary();
+        });
+        card.querySelector('.custom-set-minus')?.addEventListener('click', () => {
+          draft.entries[index].sets = Math.max(1, Number(draft.entries[index].sets || 1) - 1);
+          renderSelected();
+        });
+        card.querySelector('.custom-set-plus')?.addEventListener('click', () => {
+          draft.entries[index].sets = Math.min(10, Number(draft.entries[index].sets || 1) + 1);
+          renderSelected();
+        });
         card.querySelector('.custom-move-up')?.addEventListener('click', () => {
           if (index <= 0) return;
           [draft.entries[index - 1], draft.entries[index]] = [draft.entries[index], draft.entries[index - 1]];
@@ -4109,6 +4216,7 @@
 
     const renderLibrary = () => {
       const list = document.getElementById('custom-workout-library');
+      const count = document.getElementById('custom-library-count');
       if (!list) return;
       const selected = selectedIds();
       const query = draft.query.trim().toLowerCase();
@@ -4119,31 +4227,62 @@
         if (query && !`${exercise.name} ${exercise.group} ${exercise.equipment} ${muscleIds.map(muscleGroupLabel).join(' ')}`.toLowerCase().includes(query)) return false;
         return true;
       }).sort((a, b) => Number(selected.has(b.id)) - Number(selected.has(a.id)) || a.name.localeCompare(b.name, 'ru'));
+
+      if (count) count.textContent = `${filtered.length} ${filtered.length === 1 ? 'упражнение' : filtered.length >= 2 && filtered.length <= 4 ? 'упражнения' : 'упражнений'}`;
       list.innerHTML = filtered.length ? filtered.map((exercise) => {
         const inWorkout = selected.has(exercise.id);
         const groupsText = getMuscleGroupsForExercise(exercise).map(muscleGroupLabel).join(' · ') || exercise.group;
-        return `<button class="list-row custom-library-choice ${inWorkout ? 'selected' : ''}" data-id="${escapeAttr(exercise.id)}" type="button"><div class="list-row-main"><div class="list-row-title">${escapeHTML(exercise.name)}</div><div class="list-row-sub">${escapeHTML(groupsText)} · ${escapeHTML(exercise.equipment)}</div></div><span>${inWorkout ? '✓' : '＋'}</span></button>`;
+        return `
+          <div class="custom-library-card ${inWorkout ? 'selected' : ''}" data-id="${escapeAttr(exercise.id)}">
+            <div class="custom-library-copy">
+              <strong>${escapeHTML(exercise.name)}</strong>
+              <small>${escapeHTML(groupsText)}</small>
+              <span>${escapeHTML(exercise.equipment)}</span>
+            </div>
+            <button class="custom-library-toggle" type="button" aria-pressed="${inWorkout}" aria-label="${inWorkout ? 'Убрать' : 'Добавить'} ${escapeAttr(exercise.name)}">
+              ${inWorkout ? '✓ В тренировке' : '＋ Добавить'}
+            </button>
+          </div>`;
       }).join('') : '<div class="empty compact-empty"><strong>Ничего не найдено</strong>Сними часть фильтров или измени запрос.</div>';
-      list.querySelectorAll('.custom-library-choice').forEach((button) => button.addEventListener('click', () => {
-        const exerciseId = button.dataset.id;
-        const existingIndex = draft.entries.findIndex((entry) => entry.exerciseId === exerciseId);
-        if (existingIndex >= 0) draft.entries.splice(existingIndex, 1);
-        else {
-          const exercise = getExercise(exerciseId);
-          draft.entries.push({ exerciseId, sets: Math.max(1, Number(exercise?.defaults?.sets || 3)) });
-        }
-        renderSelected();
-        renderLibrary();
-      }));
+
+      list.querySelectorAll('.custom-library-card').forEach((card) => {
+        card.querySelector('.custom-library-toggle')?.addEventListener('click', () => {
+          const exerciseId = card.dataset.id;
+          const existingIndex = draft.entries.findIndex((entry) => entry.exerciseId === exerciseId);
+          if (existingIndex >= 0) draft.entries.splice(existingIndex, 1);
+          else {
+            const exercise = getExercise(exerciseId);
+            draft.entries.push({ exerciseId, sets: Math.max(1, Number(exercise?.defaults?.sets || 3)) });
+          }
+          renderSelected();
+          renderLibrary();
+        });
+      });
     };
 
-    document.getElementById('custom-workout-search')?.addEventListener('input', (event) => { draft.query = event.target.value; renderLibrary(); });
-    el.modalRoot.querySelectorAll('#custom-workout-filters .exercise-filter-chip').forEach((button) => button.addEventListener('click', () => {
+    document.getElementById('custom-workout-search')?.addEventListener('input', (event) => {
+      draft.query = event.target.value;
+      renderLibrary();
+    });
+
+    el.modalRoot.querySelectorAll('#custom-workout-filters .custom-muscle-filter').forEach((button) => button.addEventListener('click', () => {
       const groupId = button.dataset.group;
-      if (draft.groups.has(groupId)) draft.groups.delete(groupId); else draft.groups.add(groupId);
-      button.classList.toggle('active', draft.groups.has(groupId));
+      if (draft.groups.has(groupId)) draft.groups.delete(groupId);
+      else draft.groups.add(groupId);
+      updateFilterUi();
       renderLibrary();
     }));
+
+    document.getElementById('custom-filter-clear')?.addEventListener('click', () => {
+      draft.groups.clear();
+      updateFilterUi();
+      renderLibrary();
+    });
+
+    document.getElementById('custom-scroll-selected')?.addEventListener('click', () => {
+      document.getElementById('custom-selected-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+
     document.getElementById('start-custom-workout')?.addEventListener('click', async () => {
       if (!draft.entries.length) return toast('Добавь хотя бы одно упражнение');
       const name = document.getElementById('custom-workout-name')?.value.trim() || 'Своя тренировка';
@@ -4157,6 +4296,8 @@
       closeModal();
       await startWorkout({ customDay, startMode: 'custom', shouldAdvanceCycle: false });
     });
+
+    updateFilterUi();
     renderSelected();
     renderLibrary();
   }
