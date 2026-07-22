@@ -543,7 +543,7 @@
     el.quickAdd.classList.toggle('hidden', state.route === 'workout' || state.route === 'guide');
     el.profileSwitch.classList.toggle('hidden', state.route === 'workout');
     render();
-    window.scrollTo({ top: 0, behavior: 'auto' });
+    document.querySelector('.app-shell')?.scrollTo({ top: 0, behavior: 'auto' });
     scheduleWorkoutStickyOffsetSync();
   }
 
@@ -806,6 +806,18 @@
     });
   }
 
+  function todayTrainerCardData() {
+    const readiness = smartWorkoutReadinessSummary();
+    const focusGroups = smartAutoFocusGroups(readiness);
+    const rows = focusGroups.map((id) => readiness.rows.find((row) => row.id === id)).filter(Boolean);
+    const title = readiness.completedWorkouts ? rows.slice(0, 2).map((row) => row.label).join(' + ') : 'Всё тело';
+    const detail = readiness.completedWorkouts
+      ? rows.slice(0, 2).map((row) => `${row.label}: ${row.statusLabel}, ${smartDaysSinceLabel(row.daysSince)}`).join(' · ')
+      : 'Истории пока мало — начнём со спокойного сбалансированного варианта';
+    const warning = rows.some((row) => ['high', 'overload'].includes(row.status) || (row.daysSince !== null && row.daysSince <= 1));
+    return { readiness, focusGroups, rows, title, detail, warning };
+  }
+
   function renderHome() {
     const { program, day, index } = getCurrentDay();
     const today = new Date();
@@ -841,6 +853,7 @@
     const startPanelOpen = Boolean(draft) || homePanelOpen('start', false);
     const weekPanelOpen = homePanelOpen('week', false);
     const dataPanelOpen = homePanelOpen('data', false);
+    const trainerCard = todayTrainerCardData();
 
     setTopbar(formatDate(today, { weekday: 'long', day: 'numeric', month: 'long' }), `День ${index + 1} из ${program.days.length} · ${scheduleStatus.label}`);
 
@@ -859,28 +872,46 @@
         </section>
       ` : ''}
 
-      <section class="section compact-home-section">
-        <div class="card hero-card smart-start-card sport-premium-hero compact-start-card ${startPanelOpen ? 'expanded' : ''}" id="home-start-card">
-          <button class="home-start-summary" id="toggle-home-start" type="button" aria-expanded="${startPanelOpen}" aria-controls="home-start-details">
-            <span class="home-start-summary-copy">
-              <span class="smart-start-topline">
-                <span class="chip accent">${day.recovery ? 'ВОССТАНОВЛЕНИЕ' : 'УМНЫЙ СТАРТ'}</span>
-                <span class="chip">${escapeHTML(scheduleStatus.label)}</span>
-              </span>
-              <strong class="home-start-title">${escapeHTML(day.name)}</strong>
-              <span class="home-start-meta">≈ ${day.durationMin} мин · ${day.exercises.length} упражнений · серия ${streak} дн.</span>
-            </span>
-            <span class="home-disclosure-chevron" aria-hidden="true">⌄</span>
+      <section class="section today-hub-section">
+        <div class="today-hub-head">
+          <div><span class="eyebrow">Сегодня</span><h2>Выбери тренировку</h2></div>
+          <span class="today-hub-date">${escapeHTML(formatDate(today, { day: 'numeric', month: 'short' }))}</span>
+        </div>
+        <div class="today-action-grid">
+          <article class="today-action-card program">
+            <div class="today-action-top"><span class="today-action-icon">▦</span><span class="chip accent">ПО ПРОГРАММЕ</span></div>
+            <div class="today-action-copy"><strong>${escapeHTML(day.name)}</strong><small>≈ ${day.durationMin} мин · ${day.exercises.length} упражнений · ${escapeHTML(scheduleStatus.label)}</small></div>
+            ${draft
+              ? '<button class="button primary full" id="resume-draft-program" type="button">Продолжить черновик</button>'
+              : `<button class="button primary full" id="start-cycle" type="button">${scheduleStatus.mode === 'every_other_day' && !scheduleStatus.due ? 'Начать досрочно' : 'Начать по программе'}</button>`}
+          </article>
+
+          <button class="today-action-card trainer" id="today-trainer-workout" type="button">
+            <span class="today-action-top"><span class="today-action-icon">✨</span><span class="chip ${trainerCard.warning ? 'warning' : 'success'}">СОВЕТ ТРЕНЕРА</span></span>
+            <span class="today-action-copy"><strong>${escapeHTML(trainerCard.title)}</strong><small>${escapeHTML(trainerCard.detail)}</small></span>
+            <span class="today-action-footer">Посмотреть вариант <b>›</b></span>
           </button>
 
-          ${draft ? `
-            <div class="notice compact-start-notice"><strong>Сначала продолжи или удали черновик выше.</strong></div>
-          ` : `
-            <button class="button primary full home-main-start" id="start-cycle" type="button">${scheduleStatus.mode === 'every_other_day' && !scheduleStatus.due ? 'Начать досрочно' : 'Начать тренировку'}</button>
-          `}
+          <button class="today-action-card muscles" id="today-muscle-workout" type="button">
+            <span class="today-action-top"><span class="today-action-icon">◎</span><span class="chip">ПО МЫШЦАМ</span></span>
+            <span class="today-action-copy"><strong>Выбрать несколько групп</strong><small>20–90 минут · приложение учтёт нагрузку, отдых и боль</small></span>
+            <span class="today-action-footer">Настроить подбор <b>›</b></span>
+          </button>
 
-          <div class="home-start-details" id="home-start-details" ${startPanelOpen ? '' : 'hidden'}>
-            <p class="home-start-focus">${escapeHTML(day.focus || program.description)}</p>
+          <button class="today-action-card custom" id="today-custom-workout" type="button">
+            <span class="today-action-top"><span class="today-action-icon">＋</span><span class="chip">СВОЯ ТРЕНИРОВКА</span></span>
+            <span class="today-action-copy"><strong>Собрать вручную</strong><small>Фильтр по мышцам, поиск и сразу несколько упражнений</small></span>
+            <span class="today-action-footer">Открыть конструктор <b>›</b></span>
+          </button>
+        </div>
+
+        <details class="card today-program-details" data-home-panel="start" ${startPanelOpen ? 'open' : ''}>
+          <summary>
+            <span class="home-disclosure-icon">▦</span>
+            <span class="home-disclosure-copy"><strong>План по программе</strong><small>${escapeHTML(day.focus || program.description)} · ${day.exercises.length} упражнений</small></span>
+            <span class="home-disclosure-chevron" aria-hidden="true">⌄</span>
+          </summary>
+          <div class="home-disclosure-body">
             <div class="premium-hero-stats" aria-label="Короткая сводка">
               <div><span>Вес</span><strong>${formatBodyValue(displayedWeight)} кг</strong><small class="${weightDiffClass}">${escapeHTML(weightDiffText)}</small></div>
               <div><span>Неделя</span><strong>${completedThisWeek} трен.</strong><small>${totalMinutes} мин · ${formatCompactLoad(weeklyLoad)} кг</small></div>
@@ -893,18 +924,11 @@
                 <button class="show-more-exercises" id="toggle-extra-exercises" type="button">Показать ещё ${day.exercises.length - 6}</button>
               ` : ''}
             </div>
-            ${draft ? `
-              <div class="notice"><strong>Новая тренировка не перезапишет черновик.</strong></div>
-            ` : `
-              ${scheduleStatus.mode === 'every_other_day' ? `<div class="notice ${scheduleStatus.due ? 'success' : ''} schedule-status-notice"><strong>${scheduleStatus.due ? 'По графику сегодня тренировка.' : 'По графику сегодня отдых.'}</strong><br>${escapeHTML(scheduleStatus.detail)}${scheduleStatus.due ? '' : ' Начать раньше можно — приложение не блокирует тренировку.'}</div>` : ''}
-              <button class="button secondary full home-workout-options" id="home-workout-options" type="button">Другой вариант <span aria-hidden="true">›</span></button>
-              <div class="help smart-start-help">Подбор, повтор прошлой, выбор дня и короткая тренировка собраны в одном меню. Основной цикл двигается только после обычного запуска цикла.</div>
-            `}
+            ${scheduleStatus.mode === 'every_other_day' ? `<div class="notice ${scheduleStatus.due ? 'success' : ''} schedule-status-notice"><strong>${scheduleStatus.due ? 'По графику сегодня тренировка.' : 'По графику сегодня отдых.'}</strong><br>${escapeHTML(scheduleStatus.detail)}${scheduleStatus.due ? '' : ' Начать раньше можно — приложение не блокирует тренировку.'}</div>` : ''}
+            <button class="button secondary full home-workout-options" id="home-workout-options" type="button">Ещё варианты <span aria-hidden="true">›</span></button>
           </div>
-        </div>
+        </details>
       </section>
-
-      ${renderSmartWorkoutSuggestionCard()}
 
       <section class="section compact-home-section">
         <details class="card home-disclosure" data-home-panel="week" ${weekPanelOpen ? 'open' : ''}>
@@ -947,16 +971,6 @@
               </div>
             </div>
             <div class="home-data-block">
-              <div class="section-head"><h2>Питание сегодня</h2><button class="link-button" data-go="more" type="button">Настроить</button></div>
-              <div class="stats-grid">
-                <div class="stat"><div class="stat-value">${nutrition.calories}</div><div class="stat-label">ккал</div></div>
-                <div class="stat"><div class="stat-value">${nutrition.protein}</div><div class="stat-label">белок, г</div></div>
-                <div class="stat"><div class="stat-value">${nutrition.fat}</div><div class="stat-label">жиры, г</div></div>
-                <div class="stat"><div class="stat-value">${nutrition.carbs}</div><div class="stat-label">углеводы, г</div></div>
-              </div>
-              <div class="help home-data-help">${escapeHTML(state.nutrition.note)}</div>
-            </div>
-            <div class="home-data-block">
               <div class="section-head"><h2>Последняя тренировка</h2></div>
               ${lastWorkout ? workoutSummaryCard(lastWorkout) : `<div class="empty compact-empty"><strong>История пока пустая</strong>После первой тренировки приложение запомнит веса и начнёт предлагать прогрессию.</div>`}
             </div>
@@ -968,12 +982,14 @@
 
     document.getElementById('start-cycle')?.addEventListener('click', () => startWorkout({ shortMode: false, startMode: 'cycle', shouldAdvanceCycle: true }));
     document.getElementById('home-workout-options')?.addEventListener('click', showHomeWorkoutOptionsModal);
-    document.getElementById('view-smart-home-suggestion')?.addEventListener('click', () => {
-      state.smartWorkoutProposal = buildSmartWorkoutProposal({ target: 'auto', duration: 45, intensity: 'normal', energy: 'normal' }, 0);
+    document.getElementById('today-trainer-workout')?.addEventListener('click', () => {
+      state.smartWorkoutProposal = buildSmartWorkoutProposal({ target: 'auto', selectedGroups: [], duration: 45, intensity: 'normal', energy: 'normal' }, 0);
       showSmartWorkoutPreview();
     });
-    document.getElementById('dismiss-smart-home-suggestion')?.addEventListener('click', dismissSmartHomeSuggestion);
+    document.getElementById('today-muscle-workout')?.addEventListener('click', () => showSmartWorkoutBuilderModal({ target: 'custom' }));
+    document.getElementById('today-custom-workout')?.addEventListener('click', showCustomWorkoutBuilderModal);
     document.getElementById('resume-draft')?.addEventListener('click', () => navigate('workout'));
+    document.getElementById('resume-draft-program')?.addEventListener('click', () => navigate('workout'));
     document.getElementById('delete-draft-home')?.addEventListener('click', discardDraftFromHome);
     document.getElementById('add-measurement-home')?.addEventListener('click', showMeasurementModal);
     document.getElementById('open-muscle-progress-home')?.addEventListener('click', () => { state.progressTab = 'muscles'; navigate('progress'); });
@@ -982,16 +998,6 @@
     document.getElementById('open-rest-progress-home')?.addEventListener('click', () => { state.progressTab = 'recovery'; navigate('progress'); });
     document.getElementById('log-rest-home')?.addEventListener('click', () => recordRecoveryDay({ source: 'home' }));
     document.getElementById('start-light-home')?.addEventListener('click', () => startWorkout({ shortMode: true, startMode: 'cycle', shouldAdvanceCycle: false, recoveryCheckDone: true }));
-
-    const startToggle = document.getElementById('toggle-home-start');
-    const startDetails = document.getElementById('home-start-details');
-    startToggle?.addEventListener('click', () => {
-      const opening = startDetails.hidden;
-      startDetails.hidden = !opening;
-      startToggle.setAttribute('aria-expanded', String(opening));
-      document.getElementById('home-start-card')?.classList.toggle('expanded', opening);
-      saveHomePanelOpen('start', opening);
-    });
 
     document.getElementById('toggle-extra-exercises')?.addEventListener('click', (event) => {
       const extra = document.getElementById('home-extra-exercises');
@@ -1026,7 +1032,8 @@
     showModal(`
       <div class="modal-head"><div><div class="eyebrow">Другой вариант</div><h2>Как тренируемся?</h2></div><button class="modal-close" data-close>×</button></div>
       <div class="home-options-list">
-        <button class="home-option-card" id="home-option-smart" type="button"><span>✨</span><div><strong>Подобрать автоматически</strong><small>По мышцам, истории и восстановлению</small></div><b>›</b></button>
+        <button class="home-option-card" id="home-option-smart" type="button"><span>✨</span><div><strong>Подобрать автоматически</strong><small>Несколько групп, 20–90 минут, история и восстановление</small></div><b>›</b></button>
+        <button class="home-option-card" id="home-option-custom" type="button"><span>＋</span><div><strong>Собрать свою тренировку</strong><small>Поиск и фильтры по мышечным группам</small></div><b>›</b></button>
         <button class="home-option-card" id="home-option-repeat" type="button" ${lastWorkout ? '' : 'disabled'}><span>↻</span><div><strong>Повторить прошлую</strong><small>${lastWorkout ? escapeHTML(lastWorkout.dayName || 'Последняя тренировка') : 'История пока пустая'}</small></div><b>›</b></button>
         <button class="home-option-card" id="home-option-choose" type="button"><span>▦</span><div><strong>Выбрать из плана</strong><small>Основной цикл останется на месте</small></div><b>›</b></button>
         <button class="home-option-card" id="home-option-short" type="button"><span>⚡</span><div><strong>Нет сил · 15–20 минут</strong><small>Короткая тренировка после смены</small></div><b>›</b></button>
@@ -1034,6 +1041,7 @@
       <div class="notice" style="margin-top:12px"><strong>Без наказаний за перестановку.</strong><br>Повтор и выбор другого дня не сдвигают основной цикл.</div>
     `);
     document.getElementById('home-option-smart')?.addEventListener('click', () => { closeModal(); showSmartWorkoutBuilderModal(); });
+    document.getElementById('home-option-custom')?.addEventListener('click', () => { closeModal(); showCustomWorkoutBuilderModal(); });
     document.getElementById('home-option-repeat')?.addEventListener('click', () => { closeModal(); repeatLastWorkout(); });
     document.getElementById('home-option-choose')?.addEventListener('click', () => { closeModal(); showChooseWorkoutModal(); });
     document.getElementById('home-option-short')?.addEventListener('click', () => { closeModal(); startWorkout({ shortMode: true, startMode: 'cycle', shouldAdvanceCycle: true }); });
@@ -1127,9 +1135,16 @@
       navigate('workout');
       return;
     }
+    const initialTarget = smartWorkoutTargetById(initial.target || 'auto');
+    const initialGroups = Array.isArray(initial.selectedGroups)
+      ? initial.selectedGroups.filter((id) => muscleGroups.some((group) => group.id === id))
+      : initial.target && initial.target !== 'auto' && initial.target !== 'custom'
+        ? initialTarget.groups.filter((id) => muscleGroups.some((group) => group.id === id))
+        : [];
     const config = {
-      target: initial.target || 'auto',
-      duration: [20, 30, 45, 60].includes(Number(initial.duration)) ? Number(initial.duration) : 45,
+      target: initialGroups.length || initial.target === 'custom' ? 'custom' : 'auto',
+      selectedGroups: [...new Set(initialGroups)],
+      duration: [20, 30, 45, 60, 75, 90].includes(Number(initial.duration)) ? Number(initial.duration) : 45,
       intensity: ['light', 'normal', 'dense'].includes(initial.intensity) ? initial.intensity : 'normal',
       energy: ['fresh', 'normal', 'tired'].includes(initial.energy) ? initial.energy : 'normal',
     };
@@ -1140,15 +1155,18 @@
       : 'Истории пока мало — соберём спокойную тренировку всего тела';
     showModal(`
       <div class="modal-head"><div><div class="eyebrow">Автоматический конструктор</div><h2>Что тренируем сегодня?</h2></div><button class="modal-close" data-close>×</button></div>
-      <p class="muted smart-builder-intro">Приложение сверит последние тренировки, нагрузку по мышцам, недавнюю боль и доступное оборудование. Это предложение — ты всегда можешь заменить упражнения или отказаться.</p>
-      <div class="smart-builder-target-grid" role="group" aria-label="Выбор направления">
-        ${smartWorkoutTargets.map((target) => `<button class="smart-target-option ${target.id === config.target ? 'active' : ''}" data-target="${target.id}" type="button"><span>${target.icon}</span><strong>${escapeHTML(target.label)}</strong><small>${escapeHTML(target.note)}</small></button>`).join('')}
+      <p class="muted smart-builder-intro">Можно выбрать сразу несколько мышечных групп. Приложение сверит нагрузку, восстановление, недавнюю боль и доступное оборудование.</p>
+      <button class="smart-target-auto ${config.target === 'auto' ? 'active' : ''}" id="smart-target-auto" type="button"><span>✨</span><div><strong>Подбери сам</strong><small>По нагрузке, восстановлению и истории</small></div><b>✓</b></button>
+      <div class="smart-builder-label smart-muscle-label"><strong>Или выбери мышцы</strong><span>можно несколько</span></div>
+      <div class="smart-muscle-multi-grid" role="group" aria-label="Выбор мышечных групп">
+        ${muscleGroups.map((group) => `<button class="smart-muscle-option ${config.selectedGroups.includes(group.id) ? 'active' : ''}" data-group="${group.id}" type="button"><strong>${escapeHTML(group.label)}</strong><small>${escapeHTML(group.hint)}</small><span>✓</span></button>`).join('')}
       </div>
+      <div class="smart-selection-summary" id="smart-selection-summary"></div>
       <div class="smart-auto-hint"><strong>Что вижу сейчас</strong><span>${escapeHTML(autoHint)}</span></div>
       <div class="smart-builder-section">
         <div class="smart-builder-label"><strong>Сколько времени</strong><span>примерно</span></div>
-        <div class="smart-option-row" data-smart-options="duration">
-          ${[20, 30, 45, 60].map((value) => `<button class="smart-option ${value === config.duration ? 'active' : ''}" data-value="${value}" type="button">${value} мин</button>`).join('')}
+        <div class="smart-option-row duration-long" data-smart-options="duration">
+          ${[20, 30, 45, 60, 75, 90].map((value) => `<button class="smart-option ${value === config.duration ? 'active' : ''}" data-value="${value}" type="button">${value} мин</button>`).join('')}
         </div>
       </div>
       <div class="smart-builder-section">
@@ -1171,9 +1189,35 @@
       <button class="button primary full" id="build-smart-workout" type="button" style="margin-top:12px">Собрать тренировку</button>
     `);
 
-    el.modalRoot.querySelectorAll('.smart-target-option').forEach((button) => button.addEventListener('click', () => {
-      config.target = button.dataset.target;
-      el.modalRoot.querySelectorAll('.smart-target-option').forEach((item) => item.classList.toggle('active', item === button));
+    const refreshSelection = () => {
+      const autoButton = document.getElementById('smart-target-auto');
+      autoButton?.classList.toggle('active', config.target === 'auto');
+      el.modalRoot.querySelectorAll('.smart-muscle-option').forEach((button) => button.classList.toggle('active', config.selectedGroups.includes(button.dataset.group)));
+      const summaryNode = document.getElementById('smart-selection-summary');
+      const buildButton = document.getElementById('build-smart-workout');
+      if (buildButton) buildButton.disabled = config.target === 'custom' && !config.selectedGroups.length;
+      if (!summaryNode) return;
+      if (config.target === 'auto') {
+        summaryNode.innerHTML = '<strong>Автовыбор</strong><span>Приложение само определит 1–2 подходящие группы.</span>';
+      } else {
+        const labels = config.selectedGroups.map((id) => muscleGroups.find((group) => group.id === id)?.label).filter(Boolean);
+        summaryNode.innerHTML = `<strong>Выбрано: ${labels.length}</strong><span>${escapeHTML(labels.join(' + ') || 'Нажми на нужные мышцы')}</span>`;
+      }
+    };
+
+    document.getElementById('smart-target-auto')?.addEventListener('click', () => {
+      config.target = 'auto';
+      config.selectedGroups = [];
+      refreshSelection();
+    });
+    el.modalRoot.querySelectorAll('.smart-muscle-option').forEach((button) => button.addEventListener('click', () => {
+      const groupId = button.dataset.group;
+      config.target = 'custom';
+      config.selectedGroups = config.selectedGroups.includes(groupId)
+        ? config.selectedGroups.filter((id) => id !== groupId)
+        : [...config.selectedGroups, groupId];
+      if (!config.selectedGroups.length) config.target = 'auto';
+      refreshSelection();
     }));
     el.modalRoot.querySelectorAll('[data-smart-options]').forEach((row) => {
       row.querySelectorAll('.smart-option').forEach((button) => button.addEventListener('click', () => {
@@ -1186,6 +1230,7 @@
       state.smartWorkoutProposal = buildSmartWorkoutProposal(config, 0);
       showSmartWorkoutPreview();
     });
+    refreshSelection();
   }
 
   function smartWorkoutReadinessSummary() {
@@ -1244,41 +1289,54 @@
 
   function buildSmartWorkoutProposal(rawConfig, variant = 0) {
     const config = { ...rawConfig };
+    config.selectedGroups = Array.isArray(rawConfig.selectedGroups)
+      ? [...new Set(rawConfig.selectedGroups.filter((id) => muscleGroups.some((group) => group.id === id)))]
+      : [];
+    if (config.selectedGroups.length) config.target = 'custom';
     if (config.energy === 'tired') config.intensity = 'light';
     const readiness = smartWorkoutReadinessSummary();
-    const target = smartWorkoutTargetById(config.target);
+    const selectedLabels = config.selectedGroups.map((id) => muscleGroups.find((group) => group.id === id)?.label).filter(Boolean);
+    const target = config.target === 'custom'
+      ? { id: 'custom', label: selectedLabels.join(' + ') || 'Выбранные мышцы', groups: config.selectedGroups }
+      : smartWorkoutTargetById(config.target);
     let focusGroups = target.id === 'auto' ? smartAutoFocusGroups(readiness) : [...target.groups];
+    if (!focusGroups.length) focusGroups = smartAutoFocusGroups(readiness);
     if (target.id === 'legs' || target.id === 'glutes') {
       focusGroups = focusGroups.slice().sort((a, b) => (readiness.rows.find((row) => row.id === b)?.score || 0) - (readiness.rows.find((row) => row.id === a)?.score || 0));
     }
-    const workCount = config.duration <= 20 ? 3 : config.duration <= 30 ? 4 : config.duration <= 45 ? 5 : 6;
+    const workCount = config.duration <= 20 ? 3 : config.duration <= 30 ? 4 : config.duration <= 45 ? 5 : config.duration <= 60 ? 6 : config.duration <= 75 ? 7 : 8;
     const selectedIds = selectSmartExercises(focusGroups, workCount, config, readiness, variant);
-    const exercises = [{ exerciseId: 'warmup-joints', durationMin: config.duration <= 20 ? 4 : config.duration >= 60 ? 7 : 5 }];
+    const exercises = [{ exerciseId: 'warmup-joints', durationMin: config.duration <= 20 ? 4 : config.duration >= 75 ? 8 : config.duration >= 60 ? 7 : 5 }];
     for (const exerciseId of selectedIds) {
       const exercise = getExercise(exerciseId);
       if (!exercise) continue;
       exercises.push(smartExerciseEntry(exercise, config, readiness, focusGroups));
     }
-    if (config.duration >= 45 && target.id !== 'abs' && !exercises.some((entry) => getMuscleGroupsForExercise(getExercise(entry.exerciseId), entry).includes('abs'))) {
+    const onlyAbs = focusGroups.length === 1 && focusGroups[0] === 'abs';
+    if (config.duration >= 45 && !onlyAbs && !exercises.some((entry) => getMuscleGroupsForExercise(getExercise(entry.exerciseId), entry).includes('abs'))) {
       const coreId = smartSafeCandidates(['abs'], config, readiness, variant + 17, exercises.map((entry) => entry.exerciseId))[0]?.id;
       if (coreId) exercises.push(smartExerciseEntry(getExercise(coreId), { ...config, intensity: config.intensity === 'dense' ? 'normal' : 'light' }, readiness, ['abs']));
     }
     if (config.duration >= 60 && smartExerciseAvailable(getExercise('stepper-short')) && !exercises.some((entry) => entry.exerciseId.startsWith('stepper-'))) {
-      exercises.push({ exerciseId: 'stepper-short', durationMin: config.intensity === 'light' ? 6 : 8 });
+      exercises.push({ exerciseId: 'stepper-short', durationMin: config.duration >= 90 ? 12 : config.duration >= 75 ? 10 : config.intensity === 'light' ? 6 : 8 });
     }
 
     const focusRows = focusGroups.map((id) => readiness.rows.find((row) => row.id === id)).filter(Boolean);
     const labels = focusRows.map((row) => row.label);
     const title = target.id === 'auto'
       ? (!readiness.completedWorkouts ? 'Умная: всё тело' : `Умная: ${labels.slice(0, 2).join(' + ')}`)
-      : `Умная: ${target.label}${labels.length > 1 && !['full', 'arms', 'abs'].includes(target.id) ? ` + ${labels[1].toLowerCase()}` : ''}`;
+      : target.id === 'custom'
+        ? `Своя: ${labels.slice(0, 3).join(' + ')}`
+        : `Умная: ${target.label}${labels.length > 1 && !['full', 'arms', 'abs'].includes(target.id) ? ` + ${labels[1].toLowerCase()}` : ''}`;
     const reasons = [];
     if (target.id === 'auto') {
       reasons.push(!readiness.completedWorkouts ? 'Истории пока мало, поэтому выбран спокойный сбалансированный вариант.' : 'Направление выбрано по недобору нагрузки и времени после последней тренировки.');
+    } else if (target.id === 'custom') {
+      reasons.push(`Учтены выбранные группы: ${labels.join(', ').toLowerCase()}.`);
     } else {
       reasons.push(`Учтён твой запрос: ${target.label.toLowerCase()}.`);
     }
-    for (const row of focusRows.slice(0, 3)) reasons.push(`${row.label}: ${row.sets} раб. подходов за 7 дней · ${row.statusLabel} · ${smartDaysSinceLabel(row.daysSince)}.`);
+    for (const row of focusRows.slice(0, 4)) reasons.push(`${row.label}: ${row.sets} раб. подходов за 7 дней · ${row.statusLabel} · ${smartDaysSinceLabel(row.daysSince)}.`);
     const warnings = [];
     for (const row of focusRows) {
       if (row.status === 'overload') warnings.push(`${row.label}: за 7 дней уже перегруз — объём автоматически снижен.`);
@@ -1288,13 +1346,14 @@
     }
     if (config.energy === 'tired') warnings.push('Ты отметил усталость — тренировка автоматически переведена в лёгкий режим.');
     const canStart = exercises.length >= 4;
-    if (!canStart) warnings.unshift('Безопасных и доступных упражнений для этого запроса недостаточно. Выбери другое направление или проверь список оборудования.');
+    if (!canStart) warnings.unshift('Безопасных и доступных упражнений для этого запроса недостаточно. Выбери другие группы или проверь список оборудования.');
     const cleanWarnings = [...new Set(warnings)];
     const smartRecommendation = {
-      version: 1,
+      version: 2,
       targetId: target.id,
       targetLabel: target.label,
       focusGroups,
+      selectedGroups: config.selectedGroups,
       durationMin: config.duration,
       intensity: config.intensity,
       energy: config.energy,
@@ -1323,7 +1382,7 @@
 
   function selectSmartExercises(focusGroups, count, config, readiness, variant) {
     const chosen = [];
-    if (config.target === 'full' || focusGroups.length >= 4) {
+    if (config.target === 'full') {
       const order = ['legs', 'chest', 'back', 'abs', 'glutes', 'shoulders'];
       for (const groupId of order) {
         if (chosen.length >= count) break;
@@ -3977,20 +4036,168 @@
     });
   }
 
+  function estimateCustomWorkoutMinutes(entries) {
+    let seconds = 5 * 60;
+    for (const entry of entries) {
+      const exercise = getExercise(entry.exerciseId);
+      if (!exercise) continue;
+      const defaults = { ...exercise.defaults, ...entry };
+      const sets = Math.max(1, Number(defaults.sets || 1));
+      if (defaults.unit === 'minutes') seconds += Math.max(1, Number(defaults.durationMin || 5)) * 60;
+      else if (defaults.unit === 'seconds') seconds += sets * Math.max(20, Number(defaults.durationSec || 30));
+      else seconds += sets * 42;
+      seconds += Math.max(0, sets - 1) * Math.max(0, Number(defaults.restSec || 60));
+    }
+    return Math.max(10, Math.round(seconds / 60));
+  }
+
+  function showCustomWorkoutBuilderModal() {
+    if (state.currentWorkout) {
+      toast('Сначала продолжи или удали сохранённый черновик');
+      navigate('workout');
+      return;
+    }
+    const draft = { name: 'Своя тренировка', entries: [], groups: new Set(), query: '' };
+    showModal(`
+      <div class="modal-head"><div><div class="eyebrow">Ручной конструктор</div><h2>Собрать свою тренировку</h2></div><button class="modal-close" data-close>×</button></div>
+      <div class="field"><label>Название</label><input id="custom-workout-name" value="Своя тренировка" maxlength="60"></div>
+      <div class="custom-workout-summary" id="custom-workout-summary"></div>
+      <div class="custom-selected-list" id="custom-selected-list"></div>
+      <div class="custom-builder-library">
+        <div class="smart-builder-label"><strong>Добавить упражнения</strong><span>нажимай «＋»</span></div>
+        <div class="exercise-filter-chips custom-filter-chips" id="custom-workout-filters">
+          ${muscleGroups.map((group) => `<button class="exercise-filter-chip" data-group="${group.id}" type="button">${escapeHTML(group.label)}</button>`).join('')}
+        </div>
+        <div class="field"><input id="custom-workout-search" placeholder="Поиск по названию, мышцам или оборудованию"></div>
+        <div class="card list-card exercise-picker-scroll" id="custom-workout-library"></div>
+      </div>
+      <button class="button primary full" id="start-custom-workout" type="button" disabled>Начать свою тренировку</button>
+      <div class="help center" style="margin-top:10px">Эта тренировка не двигает основной цикл. Подходы, вес и повторы можно менять уже во время выполнения.</div>
+    `);
+
+    const selectedIds = () => new Set(draft.entries.map((entry) => entry.exerciseId));
+    const renderSelected = () => {
+      const selectedList = document.getElementById('custom-selected-list');
+      const summary = document.getElementById('custom-workout-summary');
+      const startButton = document.getElementById('start-custom-workout');
+      const minutes = estimateCustomWorkoutMinutes(draft.entries);
+      if (summary) summary.innerHTML = `<div><span>Упражнений</span><strong>${draft.entries.length}</strong></div><div><span>Примерно</span><strong>${minutes} мин</strong></div>`;
+      if (startButton) startButton.disabled = !draft.entries.length;
+      if (!selectedList) return;
+      selectedList.innerHTML = draft.entries.length ? draft.entries.map((entry, index) => {
+        const exercise = getExercise(entry.exerciseId);
+        const groups = exercise ? getMuscleGroupsForExercise(exercise).map(muscleGroupLabel).join(' · ') : '';
+        return `<div class="custom-selected-card" data-index="${index}"><span class="custom-selected-index">${index + 1}</span><div><strong>${escapeHTML(exercise?.name || entry.exerciseId)}</strong><small>${escapeHTML(groups || exercise?.group || '')}</small><div class="custom-selected-sets"><button class="custom-set-minus" type="button">−</button><span>${entry.sets} подх.</span><button class="custom-set-plus" type="button">＋</button></div></div><div class="custom-selected-actions"><button class="mini-button custom-move-up" type="button" ${index === 0 ? 'disabled' : ''}>↑</button><button class="mini-button custom-move-down" type="button" ${index === draft.entries.length - 1 ? 'disabled' : ''}>↓</button><button class="mini-button custom-remove" type="button">×</button></div></div>`;
+      }).join('') : '<div class="empty compact-empty"><strong>Пока пусто</strong>Выбери упражнения ниже. Можно фильтровать сразу по нескольким мышечным группам.</div>';
+      selectedList.querySelectorAll('.custom-selected-card').forEach((card) => {
+        const index = Number(card.dataset.index);
+        card.querySelector('.custom-remove')?.addEventListener('click', () => { draft.entries.splice(index, 1); renderSelected(); renderLibrary(); });
+        card.querySelector('.custom-set-minus')?.addEventListener('click', () => { draft.entries[index].sets = Math.max(1, Number(draft.entries[index].sets || 1) - 1); renderSelected(); });
+        card.querySelector('.custom-set-plus')?.addEventListener('click', () => { draft.entries[index].sets = Math.min(10, Number(draft.entries[index].sets || 1) + 1); renderSelected(); });
+        card.querySelector('.custom-move-up')?.addEventListener('click', () => {
+          if (index <= 0) return;
+          [draft.entries[index - 1], draft.entries[index]] = [draft.entries[index], draft.entries[index - 1]];
+          renderSelected();
+        });
+        card.querySelector('.custom-move-down')?.addEventListener('click', () => {
+          if (index >= draft.entries.length - 1) return;
+          [draft.entries[index + 1], draft.entries[index]] = [draft.entries[index], draft.entries[index + 1]];
+          renderSelected();
+        });
+      });
+    };
+
+    const renderLibrary = () => {
+      const list = document.getElementById('custom-workout-library');
+      if (!list) return;
+      const selected = selectedIds();
+      const query = draft.query.trim().toLowerCase();
+      const groups = [...draft.groups];
+      const filtered = state.exercises.filter((exercise) => {
+        const muscleIds = getMuscleGroupsForExercise(exercise);
+        if (groups.length && !muscleIds.some((id) => draft.groups.has(id))) return false;
+        if (query && !`${exercise.name} ${exercise.group} ${exercise.equipment} ${muscleIds.map(muscleGroupLabel).join(' ')}`.toLowerCase().includes(query)) return false;
+        return true;
+      }).sort((a, b) => Number(selected.has(b.id)) - Number(selected.has(a.id)) || a.name.localeCompare(b.name, 'ru'));
+      list.innerHTML = filtered.length ? filtered.map((exercise) => {
+        const inWorkout = selected.has(exercise.id);
+        const groupsText = getMuscleGroupsForExercise(exercise).map(muscleGroupLabel).join(' · ') || exercise.group;
+        return `<button class="list-row custom-library-choice ${inWorkout ? 'selected' : ''}" data-id="${escapeAttr(exercise.id)}" type="button"><div class="list-row-main"><div class="list-row-title">${escapeHTML(exercise.name)}</div><div class="list-row-sub">${escapeHTML(groupsText)} · ${escapeHTML(exercise.equipment)}</div></div><span>${inWorkout ? '✓' : '＋'}</span></button>`;
+      }).join('') : '<div class="empty compact-empty"><strong>Ничего не найдено</strong>Сними часть фильтров или измени запрос.</div>';
+      list.querySelectorAll('.custom-library-choice').forEach((button) => button.addEventListener('click', () => {
+        const exerciseId = button.dataset.id;
+        const existingIndex = draft.entries.findIndex((entry) => entry.exerciseId === exerciseId);
+        if (existingIndex >= 0) draft.entries.splice(existingIndex, 1);
+        else {
+          const exercise = getExercise(exerciseId);
+          draft.entries.push({ exerciseId, sets: Math.max(1, Number(exercise?.defaults?.sets || 3)) });
+        }
+        renderSelected();
+        renderLibrary();
+      }));
+    };
+
+    document.getElementById('custom-workout-search')?.addEventListener('input', (event) => { draft.query = event.target.value; renderLibrary(); });
+    el.modalRoot.querySelectorAll('#custom-workout-filters .exercise-filter-chip').forEach((button) => button.addEventListener('click', () => {
+      const groupId = button.dataset.group;
+      if (draft.groups.has(groupId)) draft.groups.delete(groupId); else draft.groups.add(groupId);
+      button.classList.toggle('active', draft.groups.has(groupId));
+      renderLibrary();
+    }));
+    document.getElementById('start-custom-workout')?.addEventListener('click', async () => {
+      if (!draft.entries.length) return toast('Добавь хотя бы одно упражнение');
+      const name = document.getElementById('custom-workout-name')?.value.trim() || 'Своя тренировка';
+      const customDay = {
+        id: uid('custom-day'),
+        name,
+        focus: 'Тренировка собрана вручную',
+        durationMin: estimateCustomWorkoutMinutes(draft.entries),
+        exercises: draft.entries.map((entry) => ({ ...entry })),
+      };
+      closeModal();
+      await startWorkout({ customDay, startMode: 'custom', shouldAdvanceCycle: false });
+    });
+    renderSelected();
+    renderLibrary();
+  }
+
   function showExercisePicker(onChoose) {
+    const selectedGroups = new Set();
     showModal(`
       <div class="modal-head"><h2>Выбрать упражнение</h2><button class="modal-close" data-close>×</button></div>
-      <div class="field"><input id="exercise-search" placeholder="Поиск по названию или группе"></div>
-      <div class="card list-card" id="exercise-picker-list" style="margin-top:12px;max-height:55vh;overflow:auto"></div>
+      <div class="exercise-filter-chips" id="exercise-picker-filters">
+        ${muscleGroups.map((group) => `<button class="exercise-filter-chip" data-group="${group.id}" type="button">${escapeHTML(group.label)}</button>`).join('')}
+      </div>
+      <div class="field"><input id="exercise-search" placeholder="Поиск по названию, мышцам или оборудованию"></div>
+      <div class="exercise-picker-caption" id="exercise-picker-caption">Все упражнения</div>
+      <div class="card list-card exercise-picker-scroll" id="exercise-picker-list"></div>
       <button class="button secondary full" id="create-custom-exercise" style="margin-top:12px">Создать своё упражнение</button>
     `);
     const renderList = () => {
       const q = document.getElementById('exercise-search').value.trim().toLowerCase();
-      const filtered = state.exercises.filter((x) => `${x.name} ${x.group} ${x.equipment}`.toLowerCase().includes(q));
-      document.getElementById('exercise-picker-list').innerHTML = filtered.map((x) => `<button class="list-row pick-exercise" data-id="${x.id}" style="width:100%;text-align:left;background:transparent;border-left:0;border-right:0;border-top:0;color:inherit"><div class="list-row-main"><div class="list-row-title">${escapeHTML(x.name)}</div><div class="list-row-sub">${escapeHTML(x.group)} · ${escapeHTML(x.equipment)}</div></div><span>＋</span></button>`).join('');
+      const filtered = state.exercises.filter((exercise) => {
+        const exerciseGroups = getMuscleGroupsForExercise(exercise);
+        if (selectedGroups.size && !exerciseGroups.some((id) => selectedGroups.has(id))) return false;
+        const haystack = `${exercise.name} ${exercise.group} ${exercise.equipment} ${exerciseGroups.map(muscleGroupLabel).join(' ')}`.toLowerCase();
+        return !q || haystack.includes(q);
+      });
+      const caption = document.getElementById('exercise-picker-caption');
+      if (caption) caption.textContent = `${filtered.length} упражнений${selectedGroups.size ? ` · фильтров: ${selectedGroups.size}` : ''}`;
+      document.getElementById('exercise-picker-list').innerHTML = filtered.length
+        ? filtered.map((exercise) => {
+          const groupsText = getMuscleGroupsForExercise(exercise).map(muscleGroupLabel).join(' · ') || exercise.group;
+          return `<button class="list-row pick-exercise" data-id="${escapeAttr(exercise.id)}" type="button"><div class="list-row-main"><div class="list-row-title">${escapeHTML(exercise.name)}</div><div class="list-row-sub">${escapeHTML(groupsText)} · ${escapeHTML(exercise.equipment)}</div></div><span>＋</span></button>`;
+        }).join('')
+        : '<div class="empty compact-empty"><strong>Ничего не найдено</strong>Сними часть фильтров или измени запрос.</div>';
       el.modalRoot.querySelectorAll('.pick-exercise').forEach((button) => button.addEventListener('click', () => { closeModal(); onChoose(button.dataset.id); }));
     };
     document.getElementById('exercise-search').addEventListener('input', renderList);
+    el.modalRoot.querySelectorAll('#exercise-picker-filters .exercise-filter-chip').forEach((button) => button.addEventListener('click', () => {
+      const groupId = button.dataset.group;
+      if (selectedGroups.has(groupId)) selectedGroups.delete(groupId); else selectedGroups.add(groupId);
+      button.classList.toggle('active', selectedGroups.has(groupId));
+      renderList();
+    }));
     document.getElementById('create-custom-exercise').addEventListener('click', () => showCustomExerciseModal(onChoose));
     renderList();
   }
@@ -6210,12 +6417,16 @@
   }
 
   function showModal(content) {
+    document.body.classList.add('modal-open');
     el.modalRoot.innerHTML = `<div class="modal-backdrop"><div class="modal"><div class="modal-handle"></div>${content}</div></div>`;
     el.modalRoot.querySelectorAll('[data-close]').forEach((x)=>x.addEventListener('click',closeModal));
     el.modalRoot.querySelector('.modal-backdrop').addEventListener('click',(e)=>{if(e.target.classList.contains('modal-backdrop'))closeModal();});
   }
 
-  function closeModal() { el.modalRoot.innerHTML=''; }
+  function closeModal() {
+    el.modalRoot.innerHTML='';
+    document.body.classList.remove('modal-open');
+  }
 
   function showMeasurementsQuick() { showMeasurementModal(); }
 
