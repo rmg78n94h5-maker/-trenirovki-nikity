@@ -220,6 +220,10 @@
     { id: 'abs', label: 'Пресс', hint: 'кор, бока, стабилизация' },
   ];
 
+  function muscleGroupLabel(groupId) {
+    return muscleGroups.find((group) => group.id === groupId)?.label || String(groupId || '');
+  }
+
   const muscleGroupMap = {
     pushups: ['chest', 'triceps'],
     'chair-incline-pushups': ['chest', 'triceps'],
@@ -538,6 +542,7 @@
     state.route = allowed.includes(route) ? route : 'home';
     if (updateHash && location.hash !== `#/${state.route}`) history.pushState(null, '', `#/${state.route}`);
     const activeNavRoute = state.route === 'guide' ? 'more' : state.route;
+    document.body.dataset.route = state.route;
     el.nav.forEach((button) => button.classList.toggle('active', button.dataset.route === activeNavRoute));
     document.querySelector('.bottom-nav').classList.toggle('hidden', state.route === 'workout');
     el.quickAdd.classList.toggle('hidden', state.route === 'workout' || state.route === 'guide');
@@ -4240,20 +4245,24 @@
         const context = [groups.length ? `${groups.length} групп` : '', query ? `по запросу «${draft.query.trim()}»` : ''].filter(Boolean).join(' · ');
         count.textContent = `${filtered.length} ${word}${context ? ` · ${context}` : ''}`;
       }
-      list.innerHTML = filtered.length ? filtered.map((exercise) => {
-        const inWorkout = selected.has(exercise.id);
-        const groupsText = getMuscleGroupsForExercise(exercise).map(muscleGroupLabel).join(' · ') || exercise.group;
+      const cardsHtml = filtered.map((exercise) => {
+        const exerciseId = String(exercise?.id || '');
+        const exerciseName = String(exercise?.name || exerciseId || 'Без названия');
+        const equipment = String(exercise?.equipment || 'Без оборудования');
+        const inWorkout = selected.has(exerciseId);
+        const groupsText = getMuscleGroupsForExercise(exercise).map(muscleGroupLabel).filter(Boolean).join(' · ') || String(exercise?.group || 'Другая группа');
         return `
-          <button class="custom-library-card ${inWorkout ? 'selected' : ''}" data-id="${escapeAttr(exercise.id)}" type="button" aria-pressed="${inWorkout}" aria-label="${inWorkout ? 'Убрать' : 'Добавить'} ${escapeAttr(exercise.name)}">
+          <button class="custom-library-card ${inWorkout ? 'selected' : ''}" data-id="${escapeAttr(exerciseId)}" type="button" aria-pressed="${inWorkout}" aria-label="${inWorkout ? 'Убрать' : 'Добавить'} ${escapeAttr(exerciseName)}">
             <span class="custom-library-add-mark" aria-hidden="true">${inWorkout ? '✓' : '＋'}</span>
             <span class="custom-library-copy">
-              <strong>${escapeHTML(exercise.name)}</strong>
+              <strong>${escapeHTML(exerciseName)}</strong>
               <small>${escapeHTML(groupsText)}</small>
-              <span>${escapeHTML(exercise.equipment)}</span>
+              <span>${escapeHTML(equipment)}</span>
             </span>
             <span class="custom-library-toggle" aria-hidden="true">${inWorkout ? 'В тренировке' : 'Добавить'}</span>
           </button>`;
-      }).join('') : '<div class="empty compact-empty"><strong>Ничего не найдено</strong>Сними часть фильтров или измени запрос.</div>';
+      }).join('');
+      list.innerHTML = cardsHtml || '<div class="empty compact-empty"><strong>Ничего не найдено</strong>Сними часть фильтров или измени запрос.</div>';
 
       list.querySelectorAll('.custom-library-card').forEach((card) => {
         card.addEventListener('click', () => {

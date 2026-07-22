@@ -4746,3 +4746,101 @@ body.modal-open .bottom-nav {
   }
   .custom-search-row input { font-size: 16px; }
 }
+
+
+/* v1.19.4 — починка списка упражнений и компактные панели */
+body[data-route="home"] .topbar {
+  min-height: calc(48px + var(--safe-top));
+  gap: 10px;
+  padding: 7px 14px 7px;
+  background: linear-gradient(180deg, rgba(8,10,12,.99), rgba(8,10,12,.93), rgba(8,10,12,.72));
+}
+body[data-route="home"] .topbar .eyebrow {
+  font-size: 10px;
+  letter-spacing: .065em;
+}
+body[data-route="home"] .topbar h1 {
+  margin-top: 1px;
+  font-size: clamp(22px, 6vw, 26px);
+  line-height: 1;
+}
+body[data-route="home"] .topbar-actions { gap: 6px; }
+body[data-route="home"] .profile-button,
+body[data-route="home"] .icon-button {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+}
+body[data-route="home"] .icon-button { font-size: 23px; }
+
+.app-shell {
+  padding-bottom: calc(80px + var(--safe-bottom));
+}
+.bottom-nav {
+  min-height: calc(66px + var(--safe-bottom)) !important;
+  align-items: center;
+  padding: 5px 7px calc(5px + var(--safe-bottom));
+  border-radius: 17px 17px 0 0;
+  box-shadow: 0 -9px 26px rgba(0,0,0,.50), inset 0 1px 0 rgba(255,255,255,.035);
+}
+.nav-item {
+  min-height: 48px;
+  padding: 4px 2px;
+  border-radius: 12px;
+  gap: 2px;
+  font-size: 9px;
+}
+.nav-item .nav-icon { font-size: 19px; }
+.nav-item-today {
+  min-height: 57px;
+  margin-top: -7px;
+  border-radius: 17px;
+}
+.nav-item-today .nav-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 11px;
+  font-size: 20px;
+  box-shadow: 0 5px 14px rgba(199,255,47,.14);
+}
+
+.custom-library-step {
+  min-height: 0;
+}
+.custom-workout-library {
+  min-height: 0 !important;
+}
+.custom-library-card {
+  display: grid !important;
+  grid-template-columns: 42px minmax(0,1fr) auto !important;
+  min-height: 78px !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+.custom-library-copy,
+.custom-library-add-mark,
+.custom-library-toggle {
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+.custom-library-result-head {
+  position: sticky;
+  top: -1px;
+  z-index: 3;
+  padding: 8px 2px;
+  background: rgba(16,19,23,.96);
+}
+
+@media (max-width: 390px) {
+  body[data-route="home"] .topbar { padding-left: 11px; padding-right: 11px; }
+  body[data-route="home"] .topbar h1 { font-size: 22px; }
+  .custom-library-card {
+    grid-template-columns: 38px minmax(0,1fr) !important;
+    min-height: 74px !important;
+  }
+  .custom-library-toggle {
+    grid-column: 2;
+    width: max-content;
+    min-width: 0;
+  }
+}
