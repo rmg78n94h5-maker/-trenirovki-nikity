@@ -4638,3 +4638,111 @@ body.modal-open .bottom-nav {
     margin-right: -16px;
   }
 }
+
+
+/* v1.19.3 — упражнения и поиск всегда видимы в ручном конструкторе */
+.custom-workout-modal {
+  padding-bottom: calc(22px + var(--safe-bottom)) !important;
+  scroll-padding-bottom: calc(24px + var(--safe-bottom));
+}
+
+.custom-library-step {
+  overflow: visible;
+}
+
+.custom-search-panel {
+  display: grid;
+  gap: 7px;
+  padding: 11px;
+  border: 1px solid rgba(199,255,47,.20);
+  border-radius: 16px;
+  background: rgba(199,255,47,.045);
+}
+
+.custom-search-panel > label {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .045em;
+  text-transform: uppercase;
+}
+
+.custom-search-panel > small {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.custom-search-row {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) auto;
+  align-items: center;
+  gap: 7px;
+}
+
+.custom-search-row input {
+  min-width: 0;
+  width: 100%;
+  min-height: 48px;
+  padding: 11px 13px;
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 13px;
+  background: rgba(7,9,11,.78);
+  color: var(--text);
+  font-size: 16px;
+}
+
+.custom-search-row input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(199,255,47,.09);
+  outline: none;
+}
+
+.custom-search-row button {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 13px;
+  background: rgba(255,255,255,.045);
+  color: var(--text);
+  font-size: 24px;
+}
+
+.custom-search-row button[hidden] { display: none; }
+
+.custom-workout-library {
+  display: grid !important;
+  gap: 9px;
+  min-height: 84px;
+  padding-bottom: 4px;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.custom-library-card {
+  width: 100%;
+  color: inherit;
+  text-align: left;
+}
+
+.custom-builder-footer {
+  position: static !important;
+  inset: auto !important;
+  width: auto !important;
+  margin: 18px 0 0 !important;
+  padding: 12px 0 calc(4px + var(--safe-bottom)) !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+@media (max-width: 390px) {
+  .custom-builder-footer {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+  .custom-search-row input { font-size: 16px; }
+}
