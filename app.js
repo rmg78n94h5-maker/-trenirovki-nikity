@@ -4095,15 +4095,21 @@
           ${muscleGroups.map((group) => `<button class="custom-muscle-filter" data-group="${group.id}" type="button" aria-pressed="false"><span class="custom-filter-check">✓</span><strong>${escapeHTML(group.label)}</strong><small>${escapeHTML(group.hint || '')}</small></button>`).join('')}
         </div>
         <div class="custom-filter-status" id="custom-filter-status">Показаны все мышечные группы</div>
-        <button class="button primary full custom-show-exercises" id="custom-show-exercises" type="button">Показать упражнения ↓</button>
       </section>
 
-      <section class="custom-builder-step" id="custom-library-section">
+      <section class="custom-builder-step custom-library-step" id="custom-library-section">
         <div class="custom-builder-step-head">
           <span class="custom-builder-step-number">2</span>
-          <div><strong>Добавь упражнения</strong><small>Нажимай на карточку или на «＋». Выбранное сразу появится сверху.</small></div>
+          <div><strong>Найди и добавь упражнения</strong><small>Список уже открыт. Нажми на карточку — упражнение сразу попадёт в тренировку.</small></div>
         </div>
-        <div class="field custom-builder-search"><input id="custom-workout-search" placeholder="Найти упражнение: жим, спина, гантели…" inputmode="search"></div>
+        <div class="custom-search-panel">
+          <label for="custom-workout-search">Поиск упражнений</label>
+          <div class="custom-search-row">
+            <input id="custom-workout-search" type="search" placeholder="Например: жим, гантели, спина" enterkeyhint="search" autocomplete="off" autocapitalize="none">
+            <button id="custom-workout-search-clear" type="button" aria-label="Очистить поиск" hidden>×</button>
+          </div>
+          <small>Ищем по названию, оборудованию и мышечным группам.</small>
+        </div>
         <div class="custom-library-result-head"><strong id="custom-library-count">Все упражнения</strong><span>нажми карточку, чтобы добавить</span></div>
         <div class="custom-workout-library" id="custom-workout-library"></div>
       </section>
@@ -4229,7 +4235,11 @@
         return true;
       }).sort((a, b) => Number(selected.has(b.id)) - Number(selected.has(a.id)) || a.name.localeCompare(b.name, 'ru'));
 
-      if (count) count.textContent = `${filtered.length} ${filtered.length === 1 ? 'упражнение' : filtered.length >= 2 && filtered.length <= 4 ? 'упражнения' : 'упражнений'}`;
+      if (count) {
+        const word = filtered.length === 1 ? 'упражнение' : filtered.length >= 2 && filtered.length <= 4 ? 'упражнения' : 'упражнений';
+        const context = [groups.length ? `${groups.length} групп` : '', query ? `по запросу «${draft.query.trim()}»` : ''].filter(Boolean).join(' · ');
+        count.textContent = `${filtered.length} ${word}${context ? ` · ${context}` : ''}`;
+      }
       list.innerHTML = filtered.length ? filtered.map((exercise) => {
         const inWorkout = selected.has(exercise.id);
         const groupsText = getMuscleGroupsForExercise(exercise).map(muscleGroupLabel).join(' · ') || exercise.group;
@@ -4260,14 +4270,18 @@
       });
     };
 
-    document.getElementById('custom-show-exercises')?.addEventListener('click', () => {
-      document.getElementById('custom-library-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      window.setTimeout(() => document.getElementById('custom-workout-search')?.focus({ preventScroll: true }), 360);
-    });
-
-    document.getElementById('custom-workout-search')?.addEventListener('input', (event) => {
-      draft.query = event.target.value;
+    const customSearchInput = document.getElementById('custom-workout-search');
+    const customSearchClear = document.getElementById('custom-workout-search-clear');
+    const syncCustomSearch = () => {
+      draft.query = customSearchInput?.value || '';
+      if (customSearchClear) customSearchClear.hidden = !draft.query.trim();
       renderLibrary();
+    };
+    ['input', 'change', 'search', 'keyup'].forEach((eventName) => customSearchInput?.addEventListener(eventName, syncCustomSearch));
+    customSearchClear?.addEventListener('click', () => {
+      if (customSearchInput) customSearchInput.value = '';
+      syncCustomSearch();
+      customSearchInput?.focus();
     });
 
     el.modalRoot.querySelectorAll('#custom-workout-filters .custom-muscle-filter').forEach((button) => button.addEventListener('click', () => {
