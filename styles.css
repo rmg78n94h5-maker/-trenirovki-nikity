@@ -4927,3 +4927,140 @@ body[data-route="workout"] .topbar h1 { margin-top: 1px; font-size: clamp(21px, 
   .workout-dock-stepper { grid-template-columns: 28px minmax(0,1fr) 28px !important; }
   .timer-overlay { bottom: calc(186px + var(--safe-bottom-ui)) !important; }
 }
+
+/* v1.19.6 — окончательно компактные системные панели на iPhone */
+:root {
+  /* Ограничиваем верхнюю безопасную область: не перекрывает статус-бар и не раздувает шапку. */
+  --safe-top-compact: clamp(44px, env(safe-area-inset-top, 44px), 59px);
+}
+
+/* Safe area учитываем только внутри самой шапки — без двойного отступа у оболочки. */
+.app-shell {
+  padding-top: 0 !important;
+  padding-bottom: 54px !important;
+}
+
+.topbar,
+body[data-route="home"] .topbar,
+body[data-route="workout"] .topbar {
+  top: 0 !important;
+  min-height: 0 !important;
+  gap: 8px !important;
+  padding: calc(var(--safe-top-compact) + 1px) 12px 6px !important;
+  background: #080a0c !important;
+  box-shadow: 0 1px 0 rgba(255,255,255,.035) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+.topbar .eyebrow,
+body[data-route="home"] .topbar .eyebrow,
+body[data-route="workout"] .topbar .eyebrow {
+  font-size: 9px !important;
+  line-height: 1 !important;
+  letter-spacing: .065em !important;
+}
+
+.topbar h1,
+body[data-route="home"] .topbar h1,
+body[data-route="workout"] .topbar h1 {
+  margin: 2px 0 0 !important;
+  font-size: clamp(20px, 5.4vw, 24px) !important;
+  line-height: 1 !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.topbar-actions,
+body[data-route="home"] .topbar-actions {
+  gap: 5px !important;
+}
+
+.topbar .profile-button,
+.topbar .icon-button,
+body[data-route="home"] .profile-button,
+body[data-route="home"] .icon-button {
+  width: 36px !important;
+  height: 36px !important;
+  border-radius: 11px !important;
+}
+
+/* На «Сегодня» убираем второй дублирующий заголовок — дата уже находится в шапке. */
+body[data-route="home"] .today-hub-head {
+  display: none !important;
+}
+
+body[data-route="home"] .today-hub-section {
+  gap: 10px !important;
+}
+
+/* Нижняя панель без env(safe-area-inset-bottom): на iOS он давал огромную пустую область. */
+.bottom-nav {
+  bottom: 0 !important;
+  min-height: 0 !important;
+  height: 52px !important;
+  align-items: center !important;
+  padding: 2px 6px 1px !important;
+  border-radius: 12px 12px 0 0 !important;
+  background: #0b0e11 !important;
+  box-shadow: 0 -5px 16px rgba(0,0,0,.44), inset 0 1px 0 rgba(255,255,255,.035) !important;
+  overflow: visible !important;
+}
+
+.nav-item {
+  min-height: 43px !important;
+  height: 43px !important;
+  padding: 2px 1px !important;
+  border-radius: 10px !important;
+  gap: 1px !important;
+  font-size: 8.5px !important;
+  line-height: 1 !important;
+}
+
+.nav-item .nav-icon {
+  font-size: 17px !important;
+  line-height: 1 !important;
+}
+
+.nav-item-today {
+  min-height: 47px !important;
+  height: 47px !important;
+  margin-top: 0 !important;
+  border-radius: 13px !important;
+}
+
+.nav-item-today .nav-icon {
+  width: 27px !important;
+  height: 27px !important;
+  border-radius: 9px !important;
+  font-size: 17px !important;
+  box-shadow: 0 4px 11px rgba(199,255,47,.12) !important;
+}
+
+/* Затемнение продолжается до физического края даже при особенностях visual viewport iOS. */
+.bottom-nav::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 80px;
+  background: #0b0e11;
+  pointer-events: none;
+}
+
+.toast {
+  bottom: 62px !important;
+}
+
+@media (max-width: 390px) {
+  .topbar,
+  body[data-route="home"] .topbar,
+  body[data-route="workout"] .topbar {
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+  }
+  .bottom-nav { padding-left: 4px !important; padding-right: 4px !important; }
+  .nav-item { font-size: 8px !important; }
+}
