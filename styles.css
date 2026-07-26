@@ -5192,7 +5192,13 @@ body[data-route="home"] .today-hub-section {
 
 :root {
   --bottom-nav-content-height: 52px;
-  --bottom-nav-safe: env(safe-area-inset-bottom, 0px);
+  /*
+   * Нижние панели намеренно не получают полный safe-area-inset.
+   * На iPhone он превращался в 50–60 px пустого пространства под кнопками.
+   * Сами панели доходят до физического края, внутри остаётся только их
+   * компактный фиксированный отступ.
+   */
+  --bottom-nav-safe: 0px;
 }
 
 html {
@@ -5249,7 +5255,7 @@ body::after {
 }
 
 
-/* v1.22.0 — физический низ iPhone, отмеченный отдых и мастер своей программы */
+/* v1.22.1 — физический низ iPhone без внутренней пустой safe area */
 html,
 body {
   background: #0b0e11 !important;
@@ -5262,23 +5268,19 @@ body {
   background: var(--bg);
 }
 
-/*
- * В standalone-PWA iOS layout viewport заканчивается перед нижней safe area.
- * Сдвигаем весь fixed-блок вниз на её высоту: кнопки оказываются у физического
- * края, а дополнительная часть элемента остаётся под home indicator.
- */
+/* Компактная панель прижата к физическому низу без пустого safe-area внутри. */
 .bottom-nav {
-  bottom: calc(0px - var(--bottom-nav-safe)) !important;
-  height: calc(var(--bottom-nav-content-height) + var(--bottom-nav-safe)) !important;
-  min-height: calc(var(--bottom-nav-content-height) + var(--bottom-nav-safe)) !important;
-  padding: 2px 6px var(--bottom-nav-safe) !important;
+  bottom: 0 !important;
+  height: var(--bottom-nav-content-height) !important;
+  min-height: var(--bottom-nav-content-height) !important;
+  padding: 2px 6px 1px !important;
   background: #0b0e11 !important;
 }
 
 /* Такой же прижим для панели управления внутри активной тренировки. */
 .workout-control-dock {
-  bottom: calc(0px - var(--bottom-nav-safe)) !important;
-  padding-bottom: calc(6px + var(--bottom-nav-safe)) !important;
+  bottom: 0 !important;
+  padding-bottom: 6px !important;
 }
 
 .sport-workout-screen {
@@ -5297,21 +5299,21 @@ body {
 .modal-backdrop {
   top: 0 !important;
   right: 0 !important;
-  bottom: calc(0px - var(--bottom-nav-safe)) !important;
+  bottom: 0 !important;
   left: 0 !important;
 }
 
 .modal {
-  max-height: calc(92dvh + var(--bottom-nav-safe));
-  padding-bottom: calc(24px + var(--bottom-nav-safe));
+  max-height: 92dvh;
+  padding-bottom: 24px;
 }
 
 .custom-workout-modal,
 .program-builder-modal {
-  height: min(calc(94dvh + var(--bottom-nav-safe)), calc(920px + var(--bottom-nav-safe)));
-  max-height: calc(94dvh + var(--bottom-nav-safe));
-  padding-bottom: calc(22px + var(--bottom-nav-safe)) !important;
-  scroll-padding-bottom: calc(28px + var(--bottom-nav-safe));
+  height: min(94dvh, 920px);
+  max-height: 94dvh;
+  padding-bottom: 22px !important;
+  scroll-padding-bottom: 28px;
 }
 
 .rest-day.rest.logged-rest {
@@ -5400,8 +5402,8 @@ body {
   position: sticky;
   bottom: 0;
   z-index: 8;
-  margin: 16px -16px calc(0px - var(--bottom-nav-safe));
-  padding: 10px 16px calc(10px + var(--bottom-nav-safe));
+  margin: 16px -16px 0;
+  padding: 10px 16px;
   border-top: 1px solid rgba(255,255,255,.08);
   background: rgba(16,19,23,.97);
   box-shadow: 0 -12px 30px rgba(0,0,0,.34);
@@ -5426,13 +5428,13 @@ body {
 
 @media (max-width: 390px) {
   .modal {
-    max-height: calc(96dvh + var(--bottom-nav-safe));
+    max-height: 96dvh;
   }
 
   .custom-workout-modal,
   .program-builder-modal {
-    height: calc(96dvh + var(--bottom-nav-safe));
-    max-height: calc(96dvh + var(--bottom-nav-safe));
+    height: 96dvh;
+    max-height: 96dvh;
   }
 
   .today-action-card.program-builder {
@@ -5450,5 +5452,227 @@ body {
 
   .program-builder-muscles {
     grid-template-columns: 1fr;
+  }
+}
+
+/* v1.23.0 — черновики программ и полноценные дни отдыха */
+.today-action-card.program-builder.has-draft {
+  border-color: rgba(105,169,255,.52);
+  background:
+    radial-gradient(circle at 92% 8%, rgba(105,169,255,.17), transparent 40%),
+    linear-gradient(145deg, rgba(105,169,255,.075), rgba(255,255,255,.018));
+}
+
+.today-action-card.program-builder.has-draft .today-action-footer,
+.today-action-card.program-builder.has-draft .today-action-icon {
+  color: #8dc2ff;
+}
+
+.today-action-card.program.rest-day {
+  border-color: rgba(105,169,255,.38);
+  background:
+    radial-gradient(circle at 90% 4%, rgba(105,169,255,.14), transparent 42%),
+    linear-gradient(145deg, rgba(105,169,255,.06), rgba(255,255,255,.018));
+}
+
+.program-builder-day-type {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.program-day-type-option {
+  min-width: 0;
+  min-height: 70px;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  background: rgba(255,255,255,.025);
+  color: var(--text);
+  text-align: left;
+}
+
+.program-day-type-option > b {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: rgba(255,255,255,.055);
+  color: var(--muted);
+  font-size: 17px;
+}
+
+.program-day-type-option > span {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.program-day-type-option strong {
+  font-size: 13px;
+}
+
+.program-day-type-option small {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.25;
+}
+
+.program-day-type-option.active {
+  border-color: var(--accent);
+  background: rgba(199,255,47,.10);
+  box-shadow: 0 0 0 2px rgba(199,255,47,.05);
+}
+
+.program-day-type-option.active > b {
+  background: var(--accent);
+  color: #080a0c;
+}
+
+.program-day-type-option[data-program-day-type="rest"].active,
+.program-day-type-option[data-edit-day-type="rest"].active {
+  border-color: rgba(105,169,255,.72);
+  background: rgba(105,169,255,.11);
+  box-shadow: 0 0 0 2px rgba(105,169,255,.05);
+}
+
+.program-day-type-option[data-program-day-type="rest"].active > b,
+.program-day-type-option[data-edit-day-type="rest"].active > b {
+  background: #72adff;
+  color: #07101d;
+}
+
+.program-builder-rest-card,
+.program-rest-home-note,
+.program-rest-plan-note {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: center;
+  gap: 11px;
+  padding: 13px;
+  border: 1px solid rgba(105,169,255,.38);
+  border-radius: 16px;
+  background: rgba(105,169,255,.075);
+}
+
+.program-builder-rest-card > span,
+.program-rest-home-note > span,
+.program-rest-plan-note > span {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: rgba(105,169,255,.18);
+  color: #8dc2ff;
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.program-builder-rest-card > div,
+.program-rest-home-note > div,
+.program-rest-plan-note > div {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.program-builder-rest-card strong,
+.program-rest-home-note strong,
+.program-rest-plan-note strong {
+  font-size: 13px;
+}
+
+.program-builder-rest-card p,
+.program-rest-home-note small,
+.program-rest-plan-note small {
+  margin: 0;
+  color: var(--muted);
+  font-size: 10.5px;
+  line-height: 1.4;
+}
+
+.program-rest-plan-note {
+  margin-top: 13px;
+}
+
+.program-builder-draft-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.program-builder-autosave-note {
+  margin: 8px 0 2px;
+}
+
+.program-builder-rest-preview {
+  min-height: 62px;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 28px;
+  align-items: center;
+  gap: 9px;
+  padding: 11px;
+  border: 1px solid rgba(105,169,255,.36);
+  border-radius: 15px;
+  background: rgba(105,169,255,.065);
+}
+
+.program-builder-rest-preview > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.program-builder-rest-preview strong {
+  font-size: 13px;
+}
+
+.program-builder-rest-preview small {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+.program-builder-rest-preview > b {
+  color: #8dc2ff;
+  font-size: 24px;
+  text-align: center;
+}
+
+.premium-plan-day.rest-day {
+  border-color: rgba(105,169,255,.34);
+  background:
+    linear-gradient(145deg, rgba(105,169,255,.065), rgba(255,255,255,.018));
+}
+
+.premium-plan-day.rest-day.current::before {
+  background: #72adff;
+}
+
+.premium-plan-day.rest-day .premium-day-badge,
+.premium-plan-day-pill.recovery {
+  border-color: rgba(105,169,255,.38);
+}
+
+.tab-create.has-draft {
+  border-color: rgba(105,169,255,.50);
+  color: #8dc2ff;
+}
+
+@media (max-width: 390px) {
+  .program-builder-day-type,
+  .program-builder-draft-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .program-day-type-option {
+    min-height: 60px;
   }
 }
