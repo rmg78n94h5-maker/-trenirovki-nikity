@@ -5676,3 +5676,273 @@ body {
     min-height: 60px;
   }
 }
+
+/* v1.24.0 — ручной состав упражнений в программах */
+.program-builder-exercise-summary {
+  display: grid;
+  gap: 10px;
+  padding: 13px;
+  border: 1px solid rgba(199,255,47,.28);
+  border-radius: 17px;
+  background: rgba(199,255,47,.055);
+}
+
+.program-builder-exercise-summary-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.program-builder-exercise-summary-head > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.program-builder-exercise-summary-head strong {
+  font-size: 14px;
+}
+
+.program-builder-exercise-summary-head small {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.program-builder-exercise-summary-head > span {
+  flex: 0 0 auto;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: rgba(199,255,47,.13);
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.program-builder-exercise-mini-list {
+  display: grid;
+  gap: 5px;
+}
+
+.program-builder-exercise-mini-list > div {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 25px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 8px;
+  border-radius: 11px;
+  background: rgba(0,0,0,.16);
+}
+
+.program-builder-exercise-mini-list > div > span,
+.program-builder-exercise-index {
+  width: 25px;
+  height: 25px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: rgba(199,255,47,.12);
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 950;
+}
+
+.program-builder-exercise-mini-list > div > strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+.program-builder-exercise-mini-list > div > small {
+  color: var(--muted);
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.program-builder-exercise-mini-list > p {
+  margin: 1px 3px 0;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.program-builder-exercise-mini-list .program-builder-exercise-empty {
+  grid-template-columns: 1fr;
+}
+
+.program-builder-exercise-summary-actions {
+  display: grid;
+  gap: 7px;
+}
+
+.program-builder-preview-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+
+.program-builder-save-destination {
+  margin-top: 12px;
+}
+
+.program-builder-exercises-modal {
+  width: min(100%, 720px);
+  overflow-y: auto;
+}
+
+.program-builder-exercise-editor-meta {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 12px 2px 8px;
+}
+
+.program-builder-exercise-editor-meta > span {
+  flex: 0 0 auto;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: rgba(199,255,47,.13);
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.program-builder-exercise-editor-meta > strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.program-builder-exercise-editor-row {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) auto;
+  gap: 8px;
+  padding: 10px;
+}
+
+.program-builder-exercise-editor-row .row-actions,
+#edit-day-list .row-actions {
+  display: grid;
+  grid-template-columns: repeat(2, 34px);
+  gap: 4px;
+}
+
+.program-builder-exercise-editor-row .mini-button,
+#edit-day-list .mini-button {
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+}
+
+.program-builder-exercise-editor-row .mini-button:disabled,
+#edit-day-list .mini-button:disabled {
+  opacity: .28;
+}
+
+.program-builder-exercise-editor-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 8;
+  display: grid;
+  grid-template-columns: 1fr 1.3fr;
+  gap: 8px;
+  margin: 14px -16px 8px;
+  padding: 10px 16px;
+  border-top: 1px solid rgba(255,255,255,.08);
+  background: rgba(16,19,23,.97);
+  box-shadow: 0 -12px 30px rgba(0,0,0,.34);
+}
+
+.program-editor-days-head {
+  margin-top: 18px;
+}
+
+.program-editor-days {
+  display: grid;
+  gap: 7px;
+}
+
+.program-editor-day {
+  width: 100%;
+  min-height: 64px;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255,255,255,.025);
+  color: var(--text);
+  text-align: left;
+}
+
+.program-editor-day > span {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  background: rgba(199,255,47,.12);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.program-editor-day > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.program-editor-day strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.program-editor-day small {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.program-editor-day > b {
+  color: var(--accent);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.edit-day-exercises-help {
+  margin: -3px 1px 8px;
+  line-height: 1.35;
+}
+
+@media (max-width: 390px) {
+  .program-builder-exercise-mini-list > div {
+    grid-template-columns: 25px minmax(0, 1fr);
+  }
+
+  .program-builder-exercise-mini-list > div > small {
+    grid-column: 2;
+  }
+
+  .program-builder-preview-actions,
+  .program-builder-exercise-editor-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .program-builder-exercise-editor-row {
+    grid-template-columns: 26px minmax(0, 1fr);
+  }
+
+  .program-builder-exercise-editor-row .row-actions {
+    grid-column: 2;
+    grid-template-columns: repeat(4, 34px);
+  }
+}

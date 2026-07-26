@@ -4031,11 +4031,11 @@
           ` : ''}
 
           <div class="premium-plan-actions">
-            <button class="button secondary" id="edit-program" type="button">Редактировать / копия</button>
+            <button class="button secondary" id="edit-program" type="button">Редактировать программу</button>
             <button class="button secondary" id="add-program-day" type="button">Добавить день</button>
             <button class="button primary" id="new-program" type="button">${programDraft ? 'Продолжить черновик программы' : 'Создать программу с нуля'}</button>
           </div>
-          <div class="help premium-plan-help">${programDraft ? `Черновик «${escapeHTML(String(programDraft.name || 'Моя программа').trim() || 'Без названия')}» сохранён и откроется с шага ${programDraft.step + 1}. ` : ''}Карандаш редактирует день. В «Редактировать / копия» можно переименовать программу или сохранить её отдельным новым вариантом.</div>
+          <div class="help premium-plan-help">${programDraft ? `Черновик «${escapeHTML(String(programDraft.name || 'Моя программа').trim() || 'Без названия')}» сохранён и откроется с шага ${programDraft.step + 1}. ` : ''}В «Редактировать программу» можно открыть любой день, добавить или убрать упражнения и сохранить весь план отдельным вариантом.</div>
         </div>
       </section>
 
@@ -4254,11 +4254,21 @@
     const suggestedCopyName = `${active.name} — вариант`;
     showModal(`
       <div class="modal-head"><div><div class="eyebrow">Редактор программы</div><h2>${escapeHTML(active.name)}</h2></div><button class="modal-close" data-close>×</button></div>
-      <div class="notice"><strong>Дни и упражнения остаются как в плане.</strong><br>Здесь можно изменить название текущей программы или сохранить весь план отдельной новой программой.</div>
+      <div class="notice"><strong>Здесь редактируется вся программа.</strong><br>Открой нужный день ниже: там можно добавлять, убирать и переставлять упражнения, а также менять подходы, повторы, вес и отдых.</div>
       <div class="form-grid" style="margin-top:14px">
         <div class="field"><label>Название текущей программы</label><input id="edit-program-name" value="${escapeAttr(active.name)}" maxlength="80"></div>
         <div class="field"><label>Описание</label><textarea id="edit-program-description" maxlength="300">${escapeHTML(active.description || '')}</textarea></div>
         <div class="field"><label>Название нового варианта</label><input id="copy-program-name" value="${escapeAttr(suggestedCopyName)}" maxlength="80"></div>
+      </div>
+      <div class="section-head program-editor-days-head"><div><h2>Дни и упражнения</h2><div class="help">Нажми день, чтобы изменить его состав.</div></div></div>
+      <div class="program-editor-days">
+        ${(active.days || []).map((day, index) => `
+          <button class="program-editor-day open-program-editor-day" data-index="${index}" type="button">
+            <span>${index + 1}</span>
+            <div><strong>${escapeHTML(day.name || `День ${index + 1}`)}</strong><small>${day.restDay ? 'Полный отдых' : `${day.exercises?.length || 0} упр. · ≈ ${day.durationMin || 0} мин`}</small></div>
+            <b>${day.restDay ? '○' : 'Изменить ›'}</b>
+          </button>
+        `).join('')}
       </div>
       <div class="button-row" style="margin-top:14px">
         <button class="button secondary" id="save-program-info" type="button">Сохранить изменения</button>
@@ -4266,6 +4276,10 @@
       </div>
       <div class="help" style="margin-top:10px">«Сохранить как новую» не удаляет и не перезаписывает текущую программу: появится отдельный вариант, и приложение сразу откроет его.</div>
     `);
+    el.modalRoot.querySelectorAll('.open-program-editor-day').forEach((button) => button.addEventListener('click', () => {
+      closeModal();
+      showEditDayModal(Number(button.dataset.index));
+    }));
     document.getElementById('save-program-info').addEventListener('click', async () => {
       const name = document.getElementById('edit-program-name').value.trim();
       if (!name) return toast('Введи название программы');
@@ -4316,6 +4330,8 @@
       duration,
       intensity: 'normal',
       energy: 'normal',
+      exercises: [],
+      exercisesCustomized: false,
     };
   }
 
@@ -4342,7 +4358,7 @@
     const defaultDuration = programBuilderDefaultDuration();
     const now = new Date().toISOString();
     return {
-      version: 3,
+      version: 4,
       step: 0,
       name: 'Моя программа',
       description: '',
@@ -4363,7 +4379,7 @@
     const draft = {
       ...base,
       ...clone(raw),
-      version: 3,
+      version: 4,
       dayCount,
       defaultDuration,
       name: String(raw.name ?? base.name),
@@ -4376,6 +4392,13 @@
       const saved = Array.isArray(raw.days) ? raw.days[index] : null;
       if (!saved || typeof saved !== 'object') return defaults;
       const groups = Array.isArray(saved.groups) ? saved.groups.filter((groupId) => allowedGroups.has(groupId)) : defaults.groups;
+      const exercises = Array.isArray(saved.exercises)
+        ? saved.exercises.map((entry) => {
+          if (typeof entry === 'string') return { exerciseId: entry };
+          if (!entry || typeof entry !== 'object' || !String(entry.exerciseId || '').trim()) return null;
+          return { ...clone(entry), exerciseId: String(entry.exerciseId).trim() };
+        }).filter(Boolean)
+        : [];
       return {
         ...defaults,
         ...saved,
@@ -4386,6 +4409,8 @@
         duration: Number(saved.duration) || defaultDuration,
         intensity: ['light', 'normal', 'dense'].includes(saved.intensity) ? saved.intensity : 'normal',
         energy: ['fresh', 'normal', 'tired'].includes(saved.energy) ? saved.energy : 'normal',
+        exercises,
+        exercisesCustomized: Boolean(saved.exercisesCustomized),
       };
     });
     draft.step = Math.max(0, Math.min(dayCount + 1, Number(raw.step) || 0));
@@ -4454,6 +4479,22 @@
     return labels.length ? `День ${index + 1}: ${labels.slice(0, 3).join(' + ')}` : `День ${index + 1}`;
   }
 
+  function programBuilderAutoProposal(dayConfig, index, draft) {
+    return buildSmartWorkoutProposal({
+      target: 'custom',
+      selectedGroups: [...(dayConfig.groups || [])],
+      duration: Number(dayConfig.duration || draft.defaultDuration || 45),
+      intensity: dayConfig.intensity || 'normal',
+      energy: dayConfig.energy || 'normal',
+    }, index + 11);
+  }
+
+  function programBuilderResolvedExercises(dayConfig, index, draft) {
+    if (dayConfig.exercisesCustomized) return clone(dayConfig.exercises || []);
+    const proposal = programBuilderAutoProposal(dayConfig, index, draft);
+    return clone(proposal.day?.exercises || []);
+  }
+
   function buildProgramFromBuilderDraft(draft, preview = false) {
     const now = new Date().toISOString();
     const proposals = draft.days.map((dayConfig, index) => {
@@ -4477,14 +4518,10 @@
         };
         return { day, proposal: null, type: 'rest' };
       }
-      const proposal = buildSmartWorkoutProposal({
-        target: 'custom',
-        selectedGroups: [...(dayConfig.groups || [])],
-        duration: Number(dayConfig.duration || draft.defaultDuration || 45),
-        intensity: dayConfig.intensity || 'normal',
-        energy: dayConfig.energy || 'normal',
-      }, index + 11);
+      const proposal = programBuilderAutoProposal(dayConfig, index, draft);
       const day = clone(proposal.day);
+      const customized = Boolean(dayConfig.exercisesCustomized);
+      if (customized) day.exercises = clone(dayConfig.exercises || []);
       day.id = preview ? `program-preview-day-${index + 1}` : uid('day');
       day.name = String(dayConfig.name || '').trim() || programBuilderSuggestedDayName(dayConfig, index);
       day.focus = (dayConfig.groups || []).map(muscleGroupLabel).join(', ');
@@ -4496,8 +4533,9 @@
         durationMin: day.durationMin,
         intensity: dayConfig.intensity || 'normal',
         energy: dayConfig.energy || 'normal',
+        exercisesCustomized: customized,
       };
-      return { day, proposal, type: 'training' };
+      return { day, proposal, type: 'training', customized };
     });
     const days = proposals.map((item) => item.day);
     const trainingItems = proposals.filter((item) => item.type === 'training');
@@ -4511,13 +4549,13 @@
       description: String(draft.description || '').trim()
         || `${draft.dayCount} дн. в свободном цикле · ${trainingItems.length} тренировочн. · ${restCount} отдых · в среднем ${averageDuration} мин`,
       ownerProfileId: state.activeProfileId,
-      generatedBy: 'program-builder-v3',
+      generatedBy: 'program-builder-v4',
       scheduleMode: 'cycle',
       daysPerWeek: null,
       createdAt: now,
       updatedAt: now,
       builderSettings: {
-        version: 3,
+        version: 4,
         dayCount: draft.dayCount,
         days: draft.days.map((day) => ({
           type: day.type === 'rest' ? 'rest' : 'training',
@@ -4526,6 +4564,8 @@
           duration: day.type === 'rest' ? 0 : Number(day.duration || 45),
           intensity: day.type === 'rest' ? null : day.intensity || 'normal',
           energy: day.type === 'rest' ? null : day.energy || 'normal',
+          exercisesCustomized: day.type === 'rest' ? false : Boolean(day.exercisesCustomized),
+          exercises: day.type === 'rest' || !day.exercisesCustomized ? [] : clone(day.exercises || []),
         })),
       },
       days,
@@ -4536,7 +4576,10 @@
       warnings: programRecoveryWarnings(days),
       trainingCount: trainingItems.length,
       restCount,
-      canSave: trainingItems.length > 0 && trainingItems.every((item) => item.proposal?.canStart && item.day.exercises.length >= 4),
+      canSave: trainingItems.length > 0 && trainingItems.every((item) => (
+        item.day.exercises.length >= 1
+        && (item.customized || (item.proposal?.canStart && item.day.exercises.length >= 4))
+      )),
     };
   }
 
@@ -4576,11 +4619,13 @@
     const isRest = day.type === 'rest';
     const fullBody = ['legs', 'chest', 'back', 'abs'];
     const fullSelected = fullBody.every((groupId) => day.groups.includes(groupId)) && day.groups.length === fullBody.length;
+    const resolvedExercises = isRest ? [] : programBuilderResolvedExercises(day, index, draft);
+    const exercisePreview = resolvedExercises.slice(0, 5);
     return `
       <div class="program-builder-stack">
         <div class="program-builder-day-heading">
           <span class="day-badge">${index + 1}</span>
-          <div><strong>Настрой день ${index + 1} из ${draft.dayCount}</strong><small>${isRest ? 'Он разрывает нагрузку между соседними тренировками.' : 'После создания упражнения и подходы можно будет менять обычным редактором.'}</small></div>
+          <div><strong>Настрой день ${index + 1} из ${draft.dayCount}</strong><small>${isRest ? 'Он разрывает нагрузку между соседними тренировками.' : 'Состав упражнений можно изменить прямо сейчас или позже в «Плане».'}</small></div>
         </div>
         <div class="program-builder-day-type" role="group" aria-label="Тип дня ${index + 1}">
           <button class="program-day-type-option ${isRest ? '' : 'active'}" data-program-day-type="training" type="button"><b>🏋️</b><span><strong>Тренировка</strong><small>Мышцы, время и нагрузка</small></span></button>
@@ -4621,6 +4666,23 @@
               <button class="smart-option ${day.energy === 'tired' ? 'active' : ''}" data-value="tired" type="button">Устал</button>
             </div>
           </div>
+          <section class="program-builder-exercise-summary">
+            <div class="program-builder-exercise-summary-head">
+              <div><strong>Упражнения этого дня</strong><small>${day.exercisesCustomized ? 'Ручной состав — автоподбор больше его не меняет' : 'Автоподбор по мышцам, времени и оборудованию'}</small></div>
+              <span>${resolvedExercises.length} упр.</span>
+            </div>
+            <div class="program-builder-exercise-mini-list">
+              ${exercisePreview.length ? exercisePreview.map((entry, exerciseIndex) => {
+                const exercise = getExercise(entry.exerciseId);
+                return `<div><span>${exerciseIndex + 1}</span><strong>${escapeHTML(exercise?.name || entry.exerciseId)}</strong><small>${escapeHTML(workPrescription(exercise, entry))}</small></div>`;
+              }).join('') : '<div class="program-builder-exercise-empty"><strong>Список пока пуст</strong><small>Добавь хотя бы одно упражнение.</small></div>'}
+              ${resolvedExercises.length > exercisePreview.length ? `<p>Ещё ${resolvedExercises.length - exercisePreview.length} упр.</p>` : ''}
+            </div>
+            <div class="program-builder-exercise-summary-actions">
+              <button class="button secondary full edit-program-builder-exercises" data-index="${index}" type="button">Добавить / убрать упражнения</button>
+              ${day.exercisesCustomized ? `<button class="button ghost full reset-program-builder-exercises" data-index="${index}" type="button">Вернуть автоподбор</button>` : ''}
+            </div>
+          </section>
           <div class="notice"><strong>Оборудование берём из профиля.</strong><br>Боль и фактическое самочувствие приложение ещё раз проверит перед запуском тренировки.</div>
         `}
       </div>`;
@@ -4628,7 +4690,10 @@
 
   function renderProgramBuilderPreview(draft) {
     const built = buildProgramFromBuilderDraft(draft, true);
-    const unavailable = built.proposals.filter((item) => item.type === 'training' && !item.proposal?.canStart).length;
+    const unavailable = built.proposals.filter((item) => (
+      item.type === 'training'
+      && (!item.day.exercises.length || (!item.customized && !item.proposal?.canStart))
+    )).length;
     return `
       <div class="program-builder-preview">
         <div class="profile-builder-summary">
@@ -4657,14 +4722,188 @@
             }
             return `<article class="program-builder-preview-day">
               <details class="profile-builder-day" ${index === 0 ? 'open' : ''}>
-                <summary><span class="day-badge small-badge">${index + 1}</span><span><strong>${escapeHTML(day.name)}</strong><small>≈ ${day.durationMin} мин · ${day.exercises.length} упр. · ${escapeHTML(smartIntensityLabel(config.intensity))} · ${escapeHTML(programBuilderEnergyLabel(config.energy))}</small></span><b>⌄</b></summary>
+                <summary><span class="day-badge small-badge">${index + 1}</span><span><strong>${escapeHTML(day.name)}</strong><small>≈ ${day.durationMin} мин · ${day.exercises.length} упр. · ${config.exercisesCustomized ? 'ручной состав' : 'автоподбор'} · ${escapeHTML(smartIntensityLabel(config.intensity))}</small></span><b>⌄</b></summary>
                 <div>${day.exercises.map((entry, exerciseIndex) => { const exercise = getExercise(entry.exerciseId); return `<p><span>${exerciseIndex + 1}</span><strong>${escapeHTML(exercise?.name || entry.exerciseId)}</strong><small>${escapeHTML(workPrescription(exercise, entry))}</small></p>`; }).join('')}</div>
               </details>
-              <button class="button ghost small full edit-program-builder-day" data-index="${index}" type="button">Изменить день ${index + 1}</button>
+              <div class="program-builder-preview-actions">
+                <button class="button ghost small edit-program-builder-day" data-index="${index}" type="button">Настройки дня</button>
+                <button class="button secondary small edit-program-builder-exercises" data-index="${index}" type="button">Упражнения</button>
+              </div>
             </article>`;
           }).join('')}
         </div>
+        <div class="notice success program-builder-save-destination"><strong>После сохранения откроется «План».</strong><br>Программа появится там отдельным вариантом и сразу станет активной.</div>
       </div>`;
+  }
+
+  function programBuilderExerciseEntries(draft, dayIndex) {
+    const day = draft.days[dayIndex];
+    if (!day || day.type === 'rest') return [];
+    return day.exercisesCustomized
+      ? clone(day.exercises || [])
+      : programBuilderResolvedExercises(day, dayIndex, draft);
+  }
+
+  function applyProgramBuilderExerciseEntries(dayIndex, entries, { customized = true, rerender = true } = {}) {
+    const draft = state.programBuilder;
+    const day = draft?.days?.[dayIndex];
+    if (!draft || !day || day.type === 'rest') return;
+    day.exercises = customized ? clone(entries || []) : [];
+    day.exercisesCustomized = Boolean(customized);
+    debounceProgramBuilderDraftSave();
+    if (rerender) renderProgramBuilderExerciseEditor(dayIndex);
+  }
+
+  function renderProgramBuilderExerciseEditor(dayIndex) {
+    const draft = state.programBuilder;
+    const day = draft?.days?.[dayIndex];
+    if (!draft || !day) return;
+    if (day.type === 'rest') {
+      draft.step = dayIndex + 1;
+      renderProgramBuilderModal();
+      return;
+    }
+    const entries = programBuilderExerciseEntries(draft, dayIndex);
+    showModal(`
+      <div class="modal-head">
+        <div><div class="eyebrow">Своя программа · день ${dayIndex + 1}</div><h2>Упражнения дня</h2></div>
+        <button class="modal-close" data-close aria-label="Сохранить черновик и выйти">×</button>
+      </div>
+      <div class="notice"><strong>${day.exercisesCustomized ? 'Ручной состав' : 'Сейчас показан автоподбор'}.</strong><br>Добавляй, убирай и переставляй упражнения. Карандаш меняет подходы, повторы, вес и отдых.</div>
+      <div class="program-builder-exercise-editor-meta">
+        <span>${entries.length} упр.</span>
+        <strong>${escapeHTML(String(day.name || '').trim() || programBuilderSuggestedDayName(day, dayIndex))}</strong>
+      </div>
+      <div class="card list-card program-builder-exercise-editor-list" id="program-builder-exercise-editor-list">
+        ${entries.length ? entries.map((entry, entryIndex) => {
+          const exercise = getExercise(entry.exerciseId);
+          return `<div class="list-row program-builder-exercise-editor-row" data-entry-index="${entryIndex}" data-exercise-id="${escapeAttr(entry.exerciseId)}">
+            <span class="program-builder-exercise-index">${entryIndex + 1}</span>
+            <div class="list-row-main">
+              <div class="list-row-title">${escapeHTML(exercise?.name || entry.exerciseId)}</div>
+              <div class="list-row-sub">${escapeHTML(workPrescription(exercise, entry))} · отдых ${entry.restSec ?? exercise?.defaults?.restSec ?? 0} сек</div>
+            </div>
+            <div class="row-actions">
+              <button class="mini-button program-builder-exercise-up" type="button" aria-label="Поднять упражнение" ${entryIndex === 0 ? 'disabled' : ''}>↑</button>
+              <button class="mini-button program-builder-exercise-down" type="button" aria-label="Опустить упражнение" ${entryIndex === entries.length - 1 ? 'disabled' : ''}>↓</button>
+              <button class="mini-button program-builder-exercise-edit" type="button" aria-label="Настроить упражнение">✎</button>
+              <button class="mini-button program-builder-exercise-remove" type="button" aria-label="Убрать упражнение">×</button>
+            </div>
+          </div>`;
+        }).join('') : '<div class="empty"><strong>В этом дне пока нет упражнений</strong>Нажми кнопку ниже и добавь хотя бы одно.</div>'}
+      </div>
+      <button class="button secondary full" id="add-program-builder-exercise" type="button" style="margin-top:12px">＋ Добавить упражнение</button>
+      ${day.exercisesCustomized ? '<button class="button ghost full" id="restore-program-builder-auto-exercises" type="button" style="margin-top:8px">Вернуть автоматический подбор</button>' : ''}
+      <div class="program-builder-exercise-editor-actions">
+        <button class="button ghost" id="back-to-program-builder-day" type="button">Назад к дню</button>
+        <button class="button primary" id="save-program-builder-exercises" type="button">Готово</button>
+      </div>
+      <div class="help center">Изменения входят в автосохраняемый черновик программы.</div>
+    `);
+    el.modalRoot.querySelector('.modal')?.classList.add('program-builder-modal', 'program-builder-exercises-modal');
+
+    const commitEntries = (nextEntries) => applyProgramBuilderExerciseEntries(dayIndex, nextEntries);
+    el.modalRoot.querySelectorAll('.program-builder-exercise-editor-row').forEach((row) => {
+      const entryIndex = Number(row.dataset.entryIndex);
+      row.querySelector('.program-builder-exercise-up')?.addEventListener('click', () => {
+        if (entryIndex <= 0) return;
+        const next = clone(entries);
+        [next[entryIndex - 1], next[entryIndex]] = [next[entryIndex], next[entryIndex - 1]];
+        commitEntries(next);
+      });
+      row.querySelector('.program-builder-exercise-down')?.addEventListener('click', () => {
+        if (entryIndex >= entries.length - 1) return;
+        const next = clone(entries);
+        [next[entryIndex + 1], next[entryIndex]] = [next[entryIndex], next[entryIndex + 1]];
+        commitEntries(next);
+      });
+      row.querySelector('.program-builder-exercise-remove')?.addEventListener('click', () => {
+        const next = clone(entries);
+        next.splice(entryIndex, 1);
+        commitEntries(next);
+      });
+      row.querySelector('.program-builder-exercise-edit')?.addEventListener('click', async () => {
+        if (!day.exercisesCustomized) {
+          day.exercises = clone(entries);
+          day.exercisesCustomized = true;
+          await persistProgramBuilderDraft(draft);
+        }
+        showProgramBuilderExerciseSettings(dayIndex, entryIndex);
+      });
+    });
+    document.getElementById('add-program-builder-exercise')?.addEventListener('click', async () => {
+      await persistProgramBuilderDraft(draft);
+      showExercisePicker((exerciseId) => {
+        const current = programBuilderExerciseEntries(draft, dayIndex);
+        if (current.some((entry) => entry.exerciseId === exerciseId)) {
+          toast('Это упражнение уже есть в дне');
+          renderProgramBuilderExerciseEditor(dayIndex);
+          return;
+        }
+        const exercise = getExercise(exerciseId);
+        current.push({ exerciseId, sets: Math.max(1, Number(exercise?.defaults?.sets || 3)) });
+        applyProgramBuilderExerciseEntries(dayIndex, current);
+      }, () => renderProgramBuilderExerciseEditor(dayIndex));
+    });
+    document.getElementById('restore-program-builder-auto-exercises')?.addEventListener('click', () => {
+      applyProgramBuilderExerciseEntries(dayIndex, [], { customized: false });
+      toast('Автоматический подбор восстановлен');
+    });
+    document.getElementById('back-to-program-builder-day')?.addEventListener('click', async () => {
+      await persistProgramBuilderDraft(draft);
+      draft.step = dayIndex + 1;
+      renderProgramBuilderModal();
+    });
+    document.getElementById('save-program-builder-exercises')?.addEventListener('click', async () => {
+      if (!entries.length) return toast('Добавь хотя бы одно упражнение');
+      await persistProgramBuilderDraft(draft);
+      draft.step = dayIndex + 1;
+      renderProgramBuilderModal();
+      toast('Состав дня сохранён в черновик');
+    });
+  }
+
+  function showProgramBuilderExerciseSettings(dayIndex, entryIndex) {
+    const draft = state.programBuilder;
+    const day = draft?.days?.[dayIndex];
+    const entry = day?.exercises?.[entryIndex];
+    if (!draft || !day || !entry) return renderProgramBuilderExerciseEditor(dayIndex);
+    const exercise = getExercise(entry.exerciseId);
+    const defaults = { ...(exercise?.defaults || {}), ...entry };
+    showModal(`
+      <div class="modal-head"><h2>${escapeHTML(exercise?.name || entry.exerciseId)}</h2><button class="modal-close" id="back-from-program-builder-entry" type="button">×</button></div>
+      <div class="notice"><strong>Настройки только для этого дня.</strong><br>Оригинал упражнения в библиотеке не изменится.</div>
+      <div class="form-grid" style="margin-top:14px">
+        <div class="inline-fields three">
+          <div class="field"><label>Подходы</label><input id="program-entry-sets" type="number" min="1" max="10" value="${defaults.sets || 1}"></div>
+          <div class="field"><label>Повторы от</label><input id="program-entry-reps-min" type="number" min="0" value="${defaults.repsMin || 0}"></div>
+          <div class="field"><label>До</label><input id="program-entry-reps-max" type="number" min="0" value="${defaults.repsMax || defaults.repsMin || 0}"></div>
+        </div>
+        <div class="inline-fields">
+          <div class="field"><label>Рабочий вес, кг</label><input id="program-entry-weight" type="number" step="0.5" min="0" value="${defaults.weightKg ?? ''}"></div>
+          <div class="field"><label>Отдых, сек</label><input id="program-entry-rest" type="number" min="0" value="${defaults.restSec || 0}"></div>
+        </div>
+      </div>
+      <div class="button-row" style="margin-top:14px">
+        <button class="button ghost" id="cancel-program-builder-entry" type="button">Назад</button>
+        <button class="button primary" id="save-program-builder-entry" type="button">Применить</button>
+      </div>
+    `);
+    el.modalRoot.querySelector('.modal')?.classList.add('program-builder-modal');
+    const back = () => renderProgramBuilderExerciseEditor(dayIndex);
+    document.getElementById('back-from-program-builder-entry')?.addEventListener('click', back);
+    document.getElementById('cancel-program-builder-entry')?.addEventListener('click', back);
+    document.getElementById('save-program-builder-entry')?.addEventListener('click', async () => {
+      Object.assign(entry, {
+        sets: Math.max(1, Number(document.getElementById('program-entry-sets').value || 1)),
+        repsMin: Math.max(0, Number(document.getElementById('program-entry-reps-min').value || 0)),
+        repsMax: Math.max(0, Number(document.getElementById('program-entry-reps-max').value || 0)),
+        weightKg: numberOrBlank(document.getElementById('program-entry-weight').value),
+        restSec: Math.max(0, Number(document.getElementById('program-entry-rest').value || 0)),
+      });
+      await persistProgramBuilderDraft(draft);
+      renderProgramBuilderExerciseEditor(dayIndex);
+    });
   }
 
   function renderProgramBuilderModal() {
@@ -4767,10 +5006,28 @@
         && draft.days[draft.step - 1].type !== 'rest'
         && !draft.days[draft.step - 1].groups.length
       ) return toast('Выбери хотя бы одну мышечную группу');
+      if (
+        draft.step >= 1
+        && draft.step <= draft.dayCount
+        && draft.days[draft.step - 1].type !== 'rest'
+        && draft.days[draft.step - 1].exercisesCustomized
+        && !draft.days[draft.step - 1].exercises.length
+      ) return toast('Добавь хотя бы одно упражнение или верни автоподбор');
       draft.step = Math.min(draft.dayCount + 1, draft.step + 1);
       debounceProgramBuilderDraftSave();
       renderProgramBuilderModal();
     });
+    el.modalRoot.querySelectorAll('.edit-program-builder-exercises').forEach((button) => button.addEventListener('click', async () => {
+      readProgramBuilderInputs();
+      await persistProgramBuilderDraft(draft);
+      renderProgramBuilderExerciseEditor(Number(button.dataset.index));
+    }));
+    el.modalRoot.querySelectorAll('.reset-program-builder-exercises').forEach((button) => button.addEventListener('click', () => {
+      const dayIndex = Number(button.dataset.index);
+      applyProgramBuilderExerciseEntries(dayIndex, [], { customized: false, rerender: false });
+      renderProgramBuilderModal();
+      toast('Автоматический подбор восстановлен');
+    }));
     el.modalRoot.querySelectorAll('.edit-program-builder-day').forEach((button) => button.addEventListener('click', () => {
       draft.step = Number(button.dataset.index) + 1;
       debounceProgramBuilderDraftSave();
@@ -4826,10 +5083,8 @@
       await clearProgramBuilderDraft();
       state.programBuilder = null;
       closeModal();
-      if (state.route === 'plan') renderPlan();
-      else if (state.route === 'home') renderHome();
-      else render();
-      toast(`Программа «${program.name}» сохранена`);
+      navigate('plan');
+      toast(`Программа «${program.name}» сохранена в «План»`);
     };
     if (!built.warnings.length) {
       await commit();
@@ -4854,6 +5109,7 @@
   function showEditDayModal(index, draftDay = null) {
     const program = getActiveProgram();
     const day = draftDay || clone(program.days[index]);
+    day.exercises = Array.isArray(day.exercises) ? day.exercises : [];
     const isRest = Boolean(day.restDay);
     showModal(`
       <div class="modal-head"><h2>Редактор дня ${index + 1}</h2><button class="modal-close" data-close>×</button></div>
@@ -4873,10 +5129,12 @@
         `}
       </div>
       ${isRest ? '' : `
-        <div class="section-head" style="margin-top:18px"><h2>Упражнения</h2><button class="link-button" id="add-day-exercise">Добавить</button></div>
+        <div class="section-head edit-day-exercises-head" style="margin-top:18px"><div><h2>Упражнения</h2><div class="help">${day.exercises.length} в этом дне</div></div></div>
+        <div class="help edit-day-exercises-help">↑↓ — порядок · ✎ — подходы, повторы, вес и отдых · × — убрать упражнение.</div>
         <div class="card list-card" id="edit-day-list">
           ${day.exercises.length ? day.exercises.map((entry, i) => editDayExerciseRow(entry, i)).join('') : '<div class="empty"><strong>День пустой</strong>Добавь упражнения из библиотеки.</div>'}
         </div>
+        <button class="button secondary full" id="add-day-exercise" type="button" style="margin-top:10px">＋ Добавить упражнение</button>
       `}
       <button class="button primary full" id="save-day" style="margin-top:14px">Сохранить день</button>
       <button class="button danger full" id="delete-day" style="margin-top:10px">Удалить этот день</button>
@@ -4958,7 +5216,7 @@
 
   function editDayExerciseRow(entry, index) {
     const exercise = getExercise(entry.exerciseId);
-    return `<div class="list-row" data-entry-index="${index}">
+    return `<div class="list-row" data-entry-index="${index}" data-exercise-id="${escapeAttr(entry.exerciseId)}">
       <div class="list-row-main"><div class="list-row-title">${escapeHTML(exercise?.name || entry.exerciseId)}</div><div class="list-row-sub">${workPrescription(exercise, entry)} · отдых ${entry.restSec ?? exercise?.defaults.restSec ?? 0} сек</div></div>
       <div class="row-actions"><button class="mini-button move-up">↑</button><button class="mini-button move-down">↓</button><button class="mini-button edit-entry">✎</button><button class="mini-button remove-entry">×</button></div>
     </div>`;
@@ -5296,10 +5554,10 @@
     renderLibrary();
   }
 
-  function showExercisePicker(onChoose) {
+  function showExercisePicker(onChoose, onCancel = null) {
     const selectedGroups = new Set();
     showModal(`
-      <div class="modal-head"><h2>Выбрать упражнение</h2><button class="modal-close" data-close>×</button></div>
+      <div class="modal-head"><h2>Выбрать упражнение</h2><button class="modal-close" ${onCancel ? 'id="cancel-exercise-picker"' : 'data-close'}>×</button></div>
       <div class="exercise-filter-chips" id="exercise-picker-filters">
         ${muscleGroups.map((group) => `<button class="exercise-filter-chip" data-group="${group.id}" type="button">${escapeHTML(group.label)}</button>`).join('')}
       </div>
@@ -5327,19 +5585,23 @@
       el.modalRoot.querySelectorAll('.pick-exercise').forEach((button) => button.addEventListener('click', () => { closeModal(); onChoose(button.dataset.id); }));
     };
     document.getElementById('exercise-search').addEventListener('input', renderList);
+    document.getElementById('cancel-exercise-picker')?.addEventListener('click', () => {
+      closeModal();
+      onCancel?.();
+    });
     el.modalRoot.querySelectorAll('#exercise-picker-filters .exercise-filter-chip').forEach((button) => button.addEventListener('click', () => {
       const groupId = button.dataset.group;
       if (selectedGroups.has(groupId)) selectedGroups.delete(groupId); else selectedGroups.add(groupId);
       button.classList.toggle('active', selectedGroups.has(groupId));
       renderList();
     }));
-    document.getElementById('create-custom-exercise').addEventListener('click', () => showCustomExerciseModal(onChoose));
+    document.getElementById('create-custom-exercise').addEventListener('click', () => showCustomExerciseModal(onChoose, onCancel));
     renderList();
   }
 
-  function showCustomExerciseModal(onChoose) {
+  function showCustomExerciseModal(onChoose, onCancel = null) {
     showModal(`
-      <div class="modal-head"><h2>Своё упражнение</h2><button class="modal-close" data-close>×</button></div>
+      <div class="modal-head"><h2>Своё упражнение</h2><button class="modal-close" ${onCancel ? 'id="cancel-custom-exercise"' : 'data-close'}>×</button></div>
       <div class="form-grid">
         <div class="field"><label>Название</label><input id="custom-name"></div>
         <div class="inline-fields"><div class="field"><label>Группа</label><input id="custom-group" placeholder="Например: спина"></div><div class="field"><label>Оборудование</label><input id="custom-equipment" placeholder="Гантели"></div></div>
@@ -5348,6 +5610,10 @@
       </div>
       <button class="button primary full" id="save-custom" style="margin-top:14px">Создать и добавить</button>
     `);
+    document.getElementById('cancel-custom-exercise')?.addEventListener('click', () => {
+      closeModal();
+      onCancel?.();
+    });
     document.getElementById('save-custom').addEventListener('click', async () => {
       const name = document.getElementById('custom-name').value.trim();
       if (!name) return toast('Введи название');
