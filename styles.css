@@ -5134,7 +5134,7 @@ body[data-route="home"] .today-hub-section {
 /* Панель занимает системную нижнюю область, а не висит над ней. */
 .app-shell { padding-bottom: 52px !important; }
 .bottom-nav {
-  bottom: calc(-1 * env(safe-area-inset-bottom, 0px)) !important;
+  bottom: calc(0px - env(safe-area-inset-bottom, 0px)) !important;
   height: calc(52px + env(safe-area-inset-bottom, 0px)) !important;
   min-height: calc(52px + env(safe-area-inset-bottom, 0px)) !important;
   padding: 2px 6px env(safe-area-inset-bottom, 0px) !important;
@@ -5246,4 +5246,209 @@ body::after {
   .past-activity-jump { grid-template-columns: 1fr; }
   .past-activity-jump .button { width: 100%; }
   .program-recovery-banner { padding-left: 10px; padding-right: 10px; }
+}
+
+
+/* v1.22.0 — физический низ iPhone, отмеченный отдых и мастер своей программы */
+html,
+body {
+  background: #0b0e11 !important;
+}
+
+.app-shell {
+  height: 100dvh;
+  min-height: 100dvh;
+  padding-bottom: var(--bottom-nav-content-height) !important;
+  background: var(--bg);
+}
+
+/*
+ * В standalone-PWA iOS layout viewport заканчивается перед нижней safe area.
+ * Сдвигаем весь fixed-блок вниз на её высоту: кнопки оказываются у физического
+ * края, а дополнительная часть элемента остаётся под home indicator.
+ */
+.bottom-nav {
+  bottom: calc(0px - var(--bottom-nav-safe)) !important;
+  height: calc(var(--bottom-nav-content-height) + var(--bottom-nav-safe)) !important;
+  min-height: calc(var(--bottom-nav-content-height) + var(--bottom-nav-safe)) !important;
+  padding: 2px 6px var(--bottom-nav-safe) !important;
+  background: #0b0e11 !important;
+}
+
+/* Такой же прижим для панели управления внутри активной тренировки. */
+.workout-control-dock {
+  bottom: calc(0px - var(--bottom-nav-safe)) !important;
+  padding-bottom: calc(6px + var(--bottom-nav-safe)) !important;
+}
+
+.sport-workout-screen {
+  padding-bottom: 208px !important;
+}
+
+.timer-overlay {
+  bottom: 190px !important;
+}
+
+.toast {
+  bottom: 62px !important;
+}
+
+/* Модальные листы тоже продолжаются в системную нижнюю область, без чёрной щели. */
+.modal-backdrop {
+  top: 0 !important;
+  right: 0 !important;
+  bottom: calc(0px - var(--bottom-nav-safe)) !important;
+  left: 0 !important;
+}
+
+.modal {
+  max-height: calc(92dvh + var(--bottom-nav-safe));
+  padding-bottom: calc(24px + var(--bottom-nav-safe));
+}
+
+.custom-workout-modal,
+.program-builder-modal {
+  height: min(calc(94dvh + var(--bottom-nav-safe)), calc(920px + var(--bottom-nav-safe)));
+  max-height: calc(94dvh + var(--bottom-nav-safe));
+  padding-bottom: calc(22px + var(--bottom-nav-safe)) !important;
+  scroll-padding-bottom: calc(28px + var(--bottom-nav-safe));
+}
+
+.rest-day.rest.logged-rest {
+  opacity: 1;
+  border-color: rgba(105, 169, 255, .46);
+  background: rgba(105, 169, 255, .085);
+}
+
+.rest-day.rest.logged-rest span {
+  background: rgba(105, 169, 255, .22);
+  color: #8dc2ff;
+}
+
+.past-activity-date.rest.logged-rest {
+  border-color: rgba(105, 169, 255, .46);
+  background: rgba(105, 169, 255, .075);
+}
+
+.past-activity-date.rest.logged-rest > span {
+  background: rgba(105, 169, 255, .22);
+  color: #8dc2ff;
+}
+
+.today-action-card.program-builder {
+  grid-column: 1 / -1;
+  min-height: 150px;
+  border-color: rgba(199,255,47,.30);
+  background:
+    radial-gradient(circle at 92% 8%, rgba(199,255,47,.13), transparent 38%),
+    linear-gradient(145deg, rgba(199,255,47,.055), rgba(255,255,255,.018));
+}
+
+.program-builder-modal {
+  width: min(100%, 720px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.program-builder-subtitle {
+  margin: 9px 0 14px;
+}
+
+.program-builder-stack {
+  display: grid;
+  gap: 14px;
+}
+
+.program-day-count-picker {
+  margin: 0;
+}
+
+.program-builder-day-heading {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  border: 1px solid rgba(199,255,47,.20);
+  border-radius: 16px;
+  background: rgba(199,255,47,.055);
+}
+
+.program-builder-day-heading > div {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.program-builder-day-heading strong {
+  font-size: 15px;
+}
+
+.program-builder-day-heading small {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.program-builder-full-body {
+  margin: 0;
+}
+
+.program-builder-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 8;
+  margin: 16px -16px calc(0px - var(--bottom-nav-safe));
+  padding: 10px 16px calc(10px + var(--bottom-nav-safe));
+  border-top: 1px solid rgba(255,255,255,.08);
+  background: rgba(16,19,23,.97);
+  box-shadow: 0 -12px 30px rgba(0,0,0,.34);
+}
+
+.program-builder-preview-warning {
+  margin-top: 12px;
+}
+
+.program-builder-preview-days {
+  margin-top: 12px;
+}
+
+.program-builder-preview-day {
+  display: grid;
+  gap: 7px;
+}
+
+.program-builder-preview-day + .program-builder-preview-day {
+  margin-top: 10px;
+}
+
+@media (max-width: 390px) {
+  .modal {
+    max-height: calc(96dvh + var(--bottom-nav-safe));
+  }
+
+  .custom-workout-modal,
+  .program-builder-modal {
+    height: calc(96dvh + var(--bottom-nav-safe));
+    max-height: calc(96dvh + var(--bottom-nav-safe));
+  }
+
+  .today-action-card.program-builder {
+    grid-column: 1 / -1;
+    min-height: auto;
+  }
+
+  .sport-workout-screen {
+    padding-bottom: 202px !important;
+  }
+
+  .timer-overlay {
+    bottom: 186px !important;
+  }
+
+  .program-builder-muscles {
+    grid-template-columns: 1fr;
+  }
 }

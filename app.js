@@ -50,6 +50,7 @@
     guideQuery: '',
     smartWorkoutProposal: null,
     profileBuilder: null,
+    programBuilder: null,
     timer: { seconds: 0, interval: null, nextLabel: '', lastAnnouncedSecond: null },
     photoUrls: new Map(),
     swRegistration: null,
@@ -904,9 +905,15 @@
           </button>
 
           <button class="today-action-card custom" id="today-custom-workout" type="button">
-            <span class="today-action-top"><span class="today-action-icon">＋</span><span class="chip">СВОЯ ТРЕНИРОВКА</span></span>
-            <span class="today-action-copy"><strong>Собрать вручную</strong><small>Фильтр по мышцам, поиск и сразу несколько упражнений</small></span>
+            <span class="today-action-top"><span class="today-action-icon">＋</span><span class="chip">НА ОДИН ДЕНЬ</span></span>
+            <span class="today-action-copy"><strong>Собрать тренировку на сегодня</strong><small>Разовый запуск: фильтр по мышцам, поиск и выбор упражнений</small></span>
             <span class="today-action-footer">Открыть конструктор <b>›</b></span>
+          </button>
+
+          <button class="today-action-card program-builder" id="today-program-builder" type="button">
+            <span class="today-action-top"><span class="today-action-icon">▦</span><span class="chip accent">СВОЯ ПРОГРАММА</span></span>
+            <span class="today-action-copy"><strong>Создать свою программу</strong><small>1–7 дней · мышцы, время, интенсивность и самочувствие для каждого дня</small></span>
+            <span class="today-action-footer">Открыть мастер программы <b>›</b></span>
           </button>
         </div>
 
@@ -993,6 +1000,7 @@
     });
     document.getElementById('today-muscle-workout')?.addEventListener('click', () => showSmartWorkoutBuilderModal({ target: 'custom' }));
     document.getElementById('today-custom-workout')?.addEventListener('click', showCustomWorkoutBuilderModal);
+    document.getElementById('today-program-builder')?.addEventListener('click', showNewProgramModal);
     document.getElementById('resume-draft')?.addEventListener('click', () => navigate('workout'));
     document.getElementById('resume-draft-program')?.addEventListener('click', () => navigate('workout'));
     document.getElementById('delete-draft-home')?.addEventListener('click', discardDraftFromHome);
@@ -1597,7 +1605,7 @@
       <div class="modal-head"><div><div class="eyebrow">Умный отдых</div><h2>${escapeHTML(analysis.modalTitle)}</h2></div><button class="modal-close" data-close>×</button></div>
       <div class="card smart-rest-card ${analysis.status}">
         <p>${escapeHTML(analysis.modalText)}</p>
-        <div class="rest-week-strip">${analysis.days.slice(0, 7).reverse().map((day) => `<div class="rest-day ${day.kind}"><span>${escapeHTML(day.shortLabel)}</span><strong>${escapeHTML(day.shortDate)}</strong></div>`).join('')}</div>
+        <div class="rest-week-strip">${analysis.days.slice(0, 7).reverse().map((day) => `<div class="rest-day ${day.kind} ${day.loggedRest ? 'logged-rest' : ''}"><span>${escapeHTML(day.shortLabel)}</span><strong>${escapeHTML(day.shortDate)}</strong></div>`).join('')}</div>
         ${analysis.signals.length ? `<div class="card list-card smart-rest-signal-list" style="margin-top:12px">${analysis.signals.slice(0, 4).map((signal) => `<div class="list-row"><div class="list-row-main"><div class="list-row-title">${escapeHTML(signal.title)}</div><div class="list-row-sub">${escapeHTML(signal.label)}</div></div></div>`).join('')}</div>` : ''}
       </div>
       <div class="button-row smart-rest-modal-actions" style="margin-top:14px">
@@ -1685,8 +1693,8 @@
       training: { label: 'Тренировка', short: 'Т', icon: '🏋️', className: 'training' },
       light: { label: 'Лёгкая активность', short: 'Л', icon: '🚶', className: 'light' },
       recovery: { label: 'Восстановление', short: 'В', icon: '◷', className: 'recovery' },
-      rest: { label: 'Полный отдых', short: '—', icon: '○', className: 'rest' },
-    }[kind] || { label: 'Полный отдых', short: '—', icon: '○', className: 'rest' };
+      rest: { label: 'Полный отдых', short: 'О', icon: '○', className: 'rest' },
+    }[kind] || { label: 'Полный отдых', short: 'О', icon: '○', className: 'rest' };
   }
 
   function showPastActivityCalendarModal() {
@@ -1696,8 +1704,12 @@
       const dateObj = new Date(today.getTime() - index * 86400000);
       const date = localDateISO(dateObj);
       const kind = activityKindForDate(date);
-      const meta = manualDayKindMeta(kind);
-      return { date, dateObj, kind, meta };
+      const loggedRest = manualDayEntryForDate(date)?.manualDay?.kind === 'rest';
+      const baseMeta = manualDayKindMeta(kind);
+      const meta = kind === 'rest' && !loggedRest
+        ? { ...baseMeta, short: '·', label: 'Не отмечено' }
+        : baseMeta;
+      return { date, dateObj, kind, meta, loggedRest };
     });
     showModal(`
       <div class="modal-head"><div><div class="eyebrow">Журнал активности</div><h2>Изменить прошлые дни</h2></div><button class="modal-close" data-close>×</button></div>
@@ -1708,7 +1720,7 @@
       </div>
       <div class="help" style="margin-top:8px">Можно выбрать любую прошедшую дату. Ниже — последние 42 дня для быстрого доступа.</div>
       <div class="past-activity-calendar">
-        ${days.map((day) => `<button class="past-activity-date ${day.meta.className}" data-date="${day.date}" type="button"><span>${escapeHTML(day.meta.short)}</span><strong>${escapeHTML(formatTinyDate(day.date))}</strong><small>${escapeHTML(day.meta.label)}</small></button>`).join('')}
+        ${days.map((day) => `<button class="past-activity-date ${day.meta.className} ${day.loggedRest ? 'logged-rest' : ''}" data-date="${day.date}" type="button"><span>${escapeHTML(day.meta.short)}</span><strong>${escapeHTML(formatTinyDate(day.date))}</strong><small>${escapeHTML(day.meta.label)}</small></button>`).join('')}
       </div>
     `);
     el.modalRoot.querySelectorAll('.past-activity-date').forEach((button) => button.addEventListener('click', () => showEditActivityDayModal(button.dataset.date)));
@@ -4173,48 +4185,361 @@
     });
   }
 
-  function showNewProgramModal() {
-    showModal(`
-      <div class="modal-head"><h2>Конструктор программы</h2><button class="modal-close" data-close>×</button></div>
-      <div class="form-grid">
-        <div class="field"><label>Название</label><input id="new-program-name" value="Моя программа"></div>
-        <div class="field"><label>Описание</label><textarea id="new-program-description" placeholder="Например: 4 дня, упор на форму, пресс и спину"></textarea></div>
-        <div class="field">
-          <label>Сколько тренировочных дней в цикле</label>
-          <div class="day-count-picker" id="day-count-picker">
-            ${[1,2,3,4,5,6,7].map((n) => `<button class="day-count-option ${n === 4 ? 'active' : ''}" type="button" data-value="${n}">${n}</button>`).join('')}
-          </div>
-          <input id="new-program-days" type="hidden" value="4">
-          <div class="help">После создания откроется пустой план. На каждом дне нажимаешь ✎ и собираешь упражнения, подходы, повторы, вес и отдых.</div>
-        </div>
-      </div>
-      <button class="button primary full" id="create-program" style="margin-top:14px">Создать и открыть план</button>
-    `);
-    el.modalRoot.querySelectorAll('.day-count-option').forEach((button) => {
-      button.addEventListener('click', () => {
-        el.modalRoot.querySelectorAll('.day-count-option').forEach((item) => item.classList.toggle('active', item === button));
-        document.getElementById('new-program-days').value = button.dataset.value;
-      });
-    });
-    document.getElementById('create-program').addEventListener('click', async () => {
-      const count = Math.max(1, Math.min(7, Number(document.getElementById('new-program-days').value || 4)));
-      const now = new Date().toISOString();
-      const program = {
-        id: uid('program'),
-        name: document.getElementById('new-program-name').value.trim() || 'Моя программа',
-        description: document.getElementById('new-program-description').value.trim() || `${count} тренировочных дн. · собери упражнения под себя`,
-        ownerProfileId: state.activeProfileId,
-        createdAt: now,
-        updatedAt: now,
-        days: Array.from({ length: count }, (_, i) => ({ id: uid('day'), name: `День ${i + 1}`, durationMin: 45, focus: '', exercises: [], short: [] })),
+  function programBuilderGroupPatterns(count) {
+    const patterns = {
+      1: [['legs', 'chest', 'back', 'abs']],
+      2: [['chest', 'back', 'shoulders', 'triceps'], ['legs', 'glutes', 'abs']],
+      3: [['chest', 'back', 'shoulders', 'triceps'], ['legs', 'glutes', 'abs'], ['back', 'chest', 'biceps', 'abs']],
+      4: [['chest', 'shoulders', 'triceps'], ['legs', 'glutes', 'abs'], ['back', 'biceps', 'shoulders'], ['legs', 'chest', 'triceps', 'abs']],
+      5: [['chest', 'shoulders', 'triceps'], ['back', 'biceps'], ['legs', 'glutes', 'abs'], ['chest', 'back', 'shoulders'], ['glutes', 'legs', 'biceps', 'triceps']],
+      6: [['chest', 'shoulders', 'triceps'], ['back', 'biceps'], ['legs', 'glutes', 'abs'], ['chest', 'shoulders', 'triceps'], ['back', 'biceps', 'abs'], ['legs', 'glutes']],
+      7: [['chest', 'shoulders', 'triceps'], ['back', 'biceps'], ['legs', 'glutes', 'abs'], ['chest', 'back'], ['shoulders', 'biceps', 'triceps'], ['legs', 'glutes'], ['abs', 'back', 'chest']],
+    };
+    return patterns[count] || patterns[4];
+  }
+
+  function programBuilderDefaultDuration() {
+    const allowed = [20, 30, 45, 60, 75, 90];
+    const preferred = Number(state.profile?.trainingPreferences?.durationMin || state.settings.workoutDurationMin || 45);
+    return allowed.reduce((best, value) => Math.abs(value - preferred) < Math.abs(best - preferred) ? value : best, 45);
+  }
+
+  function createProgramBuilderDay(index, count, duration = programBuilderDefaultDuration()) {
+    const pattern = programBuilderGroupPatterns(count);
+    return {
+      name: '',
+      groups: [...(pattern[index] || ['legs', 'chest', 'back', 'abs'])],
+      customizedGroups: false,
+      duration,
+      intensity: 'normal',
+      energy: 'normal',
+    };
+  }
+
+  function syncProgramBuilderDays(draft, count) {
+    const nextCount = Math.max(1, Math.min(7, Number(count) || 4));
+    const previous = Array.isArray(draft.days) ? draft.days : [];
+    draft.dayCount = nextCount;
+    draft.days = Array.from({ length: nextCount }, (_, index) => {
+      const current = previous[index];
+      const defaults = createProgramBuilderDay(index, nextCount, draft.defaultDuration);
+      if (!current) return defaults;
+      return {
+        ...defaults,
+        ...current,
+        groups: current.customizedGroups ? [...(current.groups || [])] : defaults.groups,
       };
-      await DB.put('programs', program);
-      state.programs.push(program);
-      state.allPrograms.push(program);
-      closeModal();
-      await switchProgram(program.id);
-      toast('Программа создана. Нажимай ✎ и собирай дни.');
     });
+    draft.step = Math.min(Number(draft.step || 0), nextCount + 1);
+  }
+
+  function defaultProgramBuilderDraft() {
+    const dayCount = 4;
+    const defaultDuration = programBuilderDefaultDuration();
+    return {
+      step: 0,
+      name: 'Моя программа',
+      description: '',
+      dayCount,
+      defaultDuration,
+      days: Array.from({ length: dayCount }, (_, index) => createProgramBuilderDay(index, dayCount, defaultDuration)),
+    };
+  }
+
+  function programBuilderEnergyLabel(value) {
+    return ({ fresh: 'бодр', normal: 'нормально', tired: 'устал' })[value] || 'нормально';
+  }
+
+  function programBuilderSuggestedDayName(day, index) {
+    const labels = (day.groups || []).map(muscleGroupLabel).filter(Boolean);
+    return labels.length ? `День ${index + 1}: ${labels.slice(0, 3).join(' + ')}` : `День ${index + 1}`;
+  }
+
+  function buildProgramFromBuilderDraft(draft, preview = false) {
+    const now = new Date().toISOString();
+    const proposals = draft.days.map((dayConfig, index) => {
+      const proposal = buildSmartWorkoutProposal({
+        target: 'custom',
+        selectedGroups: [...(dayConfig.groups || [])],
+        duration: Number(dayConfig.duration || draft.defaultDuration || 45),
+        intensity: dayConfig.intensity || 'normal',
+        energy: dayConfig.energy || 'normal',
+      }, index + 11);
+      const day = clone(proposal.day);
+      day.id = preview ? `program-preview-day-${index + 1}` : uid('day');
+      day.name = String(dayConfig.name || '').trim() || programBuilderSuggestedDayName(dayConfig, index);
+      day.focus = (dayConfig.groups || []).map(muscleGroupLabel).join(', ');
+      day.durationMin = Number(dayConfig.duration || 45);
+      day.short = (day.exercises || []).slice(0, Math.min(5, day.exercises.length)).map((entry) => entry.exerciseId);
+      day.builderSettings = {
+        groups: [...(dayConfig.groups || [])],
+        durationMin: day.durationMin,
+        intensity: dayConfig.intensity || 'normal',
+        energy: dayConfig.energy || 'normal',
+      };
+      return { day, proposal };
+    });
+    const days = proposals.map((item) => item.day);
+    const averageDuration = days.length ? Math.round(days.reduce((sum, day) => sum + Number(day.durationMin || 0), 0) / days.length) : 0;
+    const program = {
+      id: preview ? 'program-builder-preview' : uid('program'),
+      name: String(draft.name || '').trim() || 'Моя программа',
+      description: String(draft.description || '').trim() || `${draft.dayCount} дн. в свободном цикле · в среднем ${averageDuration} мин`,
+      ownerProfileId: state.activeProfileId,
+      generatedBy: 'program-builder-v2',
+      scheduleMode: 'cycle',
+      daysPerWeek: null,
+      createdAt: now,
+      updatedAt: now,
+      builderSettings: {
+        version: 2,
+        dayCount: draft.dayCount,
+        days: draft.days.map((day) => ({
+          name: String(day.name || '').trim(),
+          groups: [...(day.groups || [])],
+          duration: Number(day.duration || 45),
+          intensity: day.intensity || 'normal',
+          energy: day.energy || 'normal',
+        })),
+      },
+      days,
+    };
+    return {
+      program,
+      proposals,
+      warnings: programRecoveryWarnings(days),
+      canSave: proposals.every((item) => item.proposal.canStart && item.day.exercises.length >= 4),
+    };
+  }
+
+  function readProgramBuilderInputs(root = el.modalRoot) {
+    const draft = state.programBuilder;
+    if (!draft) return;
+    if (draft.step === 0) {
+      draft.name = root.querySelector('#program-builder-name')?.value.trim() || draft.name;
+      draft.description = root.querySelector('#program-builder-description')?.value.trim() || '';
+      return;
+    }
+    if (draft.step >= 1 && draft.step <= draft.dayCount) {
+      const day = draft.days[draft.step - 1];
+      day.name = root.querySelector('#program-builder-day-name')?.value.trim() || '';
+    }
+  }
+
+  function renderProgramBuilderBasics(draft) {
+    return `
+      <div class="program-builder-stack">
+        <div class="notice success"><strong>Это именно программа, а не разовая тренировка.</strong><br>Сначала выбери число дней цикла, затем отдельно настрой каждый день.</div>
+        <div class="field"><label>Название программы</label><input id="program-builder-name" value="${escapeAttr(draft.name)}" maxlength="80"></div>
+        <div class="field"><label>Описание, необязательно</label><textarea id="program-builder-description" maxlength="300" placeholder="Например: свободный цикл с упором на форму и пресс">${escapeHTML(draft.description || '')}</textarea></div>
+        <div class="profile-builder-question"><strong>Сколько тренировочных дней в цикле</strong><span>от 1 до 7</span></div>
+        <div class="day-count-picker program-day-count-picker" id="program-day-count-picker">
+          ${[1,2,3,4,5,6,7].map((count) => `<button class="day-count-option ${count === draft.dayCount ? 'active' : ''}" data-program-day-count="${count}" type="button">${count}</button>`).join('')}
+        </div>
+        <div class="help">Программа будет идти свободным циклом: день 1 → день 2 → дальше по порядку. Пропуск ничего не ломает.</div>
+      </div>`;
+  }
+
+  function renderProgramBuilderDay(draft, index) {
+    const day = draft.days[index];
+    const fullBody = ['legs', 'chest', 'back', 'abs'];
+    const fullSelected = fullBody.every((groupId) => day.groups.includes(groupId)) && day.groups.length === fullBody.length;
+    return `
+      <div class="program-builder-stack">
+        <div class="program-builder-day-heading">
+          <span class="day-badge">${index + 1}</span>
+          <div><strong>Настрой день ${index + 1} из ${draft.dayCount}</strong><small>После создания упражнения и подходы можно будет менять обычным редактором.</small></div>
+        </div>
+        <div class="field"><label>Название дня, необязательно</label><input id="program-builder-day-name" value="${escapeAttr(day.name || '')}" placeholder="${escapeAttr(programBuilderSuggestedDayName(day, index))}" maxlength="80"></div>
+        <div class="smart-builder-label"><strong>Какие мышцы тренируем</strong><span>можно несколько</span></div>
+        <button class="smart-target-auto program-builder-full-body ${fullSelected ? 'active' : ''}" id="program-builder-full-body" type="button"><span>◎</span><div><strong>Всё тело</strong><small>Ноги, грудь, спина и пресс</small></div><b>✓</b></button>
+        <div class="smart-muscle-multi-grid program-builder-muscles" role="group" aria-label="Мышцы дня ${index + 1}">
+          ${muscleGroups.map((group) => `<button class="smart-muscle-option ${day.groups.includes(group.id) ? 'active' : ''}" data-program-muscle="${group.id}" type="button"><strong>${escapeHTML(group.label)}</strong><small>${escapeHTML(group.hint)}</small><span>✓</span></button>`).join('')}
+        </div>
+        <div class="smart-selection-summary"><strong>Выбрано: ${day.groups.length}</strong><span>${escapeHTML(day.groups.map(muscleGroupLabel).join(' + ') || 'Выбери хотя бы одну группу')}</span></div>
+        <div class="smart-builder-section">
+          <div class="smart-builder-label"><strong>Сколько времени</strong><span>для этого дня</span></div>
+          <div class="smart-option-row duration-long" data-program-options="duration">
+            ${[20,30,45,60,75,90].map((value) => `<button class="smart-option ${value === Number(day.duration) ? 'active' : ''}" data-value="${value}" type="button">${value} мин</button>`).join('')}
+          </div>
+        </div>
+        <div class="smart-builder-section">
+          <div class="smart-builder-label"><strong>Интенсивность</strong><span>объём и плотность</span></div>
+          <div class="smart-option-row" data-program-options="intensity">
+            <button class="smart-option ${day.intensity === 'light' ? 'active' : ''}" data-value="light" type="button">Лёгкая</button>
+            <button class="smart-option ${day.intensity === 'normal' ? 'active' : ''}" data-value="normal" type="button">Обычная</button>
+            <button class="smart-option ${day.intensity === 'dense' ? 'active' : ''}" data-value="dense" type="button">Плотная</button>
+          </div>
+        </div>
+        <div class="smart-builder-section">
+          <div class="smart-builder-label"><strong>На какое состояние рассчитан день</strong><span>как в умной тренировке</span></div>
+          <div class="smart-option-row" data-program-options="energy">
+            <button class="smart-option ${day.energy === 'fresh' ? 'active' : ''}" data-value="fresh" type="button">Бодр</button>
+            <button class="smart-option ${day.energy === 'normal' ? 'active' : ''}" data-value="normal" type="button">Нормально</button>
+            <button class="smart-option ${day.energy === 'tired' ? 'active' : ''}" data-value="tired" type="button">Устал</button>
+          </div>
+        </div>
+        <div class="notice"><strong>Оборудование берём из профиля.</strong><br>Боль и фактическое самочувствие приложение ещё раз проверит перед запуском тренировки.</div>
+      </div>`;
+  }
+
+  function renderProgramBuilderPreview(draft) {
+    const built = buildProgramFromBuilderDraft(draft, true);
+    const unavailable = built.proposals.filter((item) => !item.proposal.canStart).length;
+    return `
+      <div class="program-builder-preview">
+        <div class="profile-builder-summary">
+          <div><span>Программа</span><strong>${escapeHTML(built.program.name)}</strong></div>
+          <div><span>Дней</span><strong>${built.program.days.length} в цикле</strong></div>
+          <div><span>Режим</span><strong>Свободный цикл</strong></div>
+          <div><span>Проверка</span><strong>${built.warnings.length ? `${built.warnings.length} предупрежд.` : 'Всё спокойно'}</strong></div>
+        </div>
+        ${built.warnings.length
+          ? `<div class="notice warning program-builder-preview-warning"><strong>Есть повторная нагрузка в соседние дни.</strong><br>При сохранении приложение покажет мышцы и позволит либо вернуться, либо сохранить всё равно.</div>`
+          : '<div class="notice success program-builder-preview-warning"><strong>Явной перетренированности по соседним дням не найдено.</strong><br>После создания программа останется полностью редактируемой.</div>'}
+        ${unavailable ? `<div class="notice danger"><strong>Не все дни удалось собрать.</strong><br>Вернись к проблемному дню и выбери другие мышцы либо большую длительность.</div>` : ''}
+        <div class="profile-builder-days program-builder-preview-days">
+          ${built.program.days.map((day, index) => {
+            const config = draft.days[index];
+            return `<article class="program-builder-preview-day">
+              <details class="profile-builder-day" ${index === 0 ? 'open' : ''}>
+                <summary><span class="day-badge small-badge">${index + 1}</span><span><strong>${escapeHTML(day.name)}</strong><small>≈ ${day.durationMin} мин · ${day.exercises.length} упр. · ${escapeHTML(smartIntensityLabel(config.intensity))} · ${escapeHTML(programBuilderEnergyLabel(config.energy))}</small></span><b>⌄</b></summary>
+                <div>${day.exercises.map((entry, exerciseIndex) => { const exercise = getExercise(entry.exerciseId); return `<p><span>${exerciseIndex + 1}</span><strong>${escapeHTML(exercise?.name || entry.exerciseId)}</strong><small>${escapeHTML(workPrescription(exercise, entry))}</small></p>`; }).join('')}</div>
+              </details>
+              <button class="button ghost small full edit-program-builder-day" data-index="${index}" type="button">Изменить день ${index + 1}</button>
+            </article>`;
+          }).join('')}
+        </div>
+      </div>`;
+  }
+
+  function renderProgramBuilderModal() {
+    const draft = state.programBuilder || defaultProgramBuilderDraft();
+    state.programBuilder = draft;
+    const totalSteps = draft.dayCount + 2;
+    const isPreview = draft.step === draft.dayCount + 1;
+    const title = draft.step === 0 ? 'Основа программы' : isPreview ? 'Проверь готовую программу' : `Тренировочный день ${draft.step}`;
+    const subtitle = draft.step === 0
+      ? 'Название и количество дней'
+      : isPreview
+        ? 'Упражнения уже подобраны, но всё можно изменить'
+        : 'Мышцы, время, интенсивность и состояние';
+    const content = draft.step === 0
+      ? renderProgramBuilderBasics(draft)
+      : isPreview
+        ? renderProgramBuilderPreview(draft)
+        : renderProgramBuilderDay(draft, draft.step - 1);
+    showModal(`
+      <div class="modal-head"><div><div class="eyebrow">Своя программа · шаг ${draft.step + 1} из ${totalSteps}</div><h2>${escapeHTML(title)}</h2></div><button class="modal-close" data-close>×</button></div>
+      <div class="profile-builder-progress" aria-label="Шаг ${draft.step + 1} из ${totalSteps}"><span style="width:${Math.round(((draft.step + 1) / totalSteps) * 100)}%"></span></div>
+      <p class="muted program-builder-subtitle">${escapeHTML(subtitle)}</p>
+      ${content}
+      <div class="profile-builder-actions program-builder-actions">
+        ${draft.step > 0 ? '<button class="button ghost" id="program-builder-back" type="button">Назад</button>' : ''}
+        <button class="button primary" id="${isPreview ? 'save-program-builder' : 'program-builder-next'}" type="button">${isPreview ? 'Сохранить программу' : 'Далее'}</button>
+      </div>
+    `);
+    el.modalRoot.querySelector('.modal')?.classList.add('program-builder-modal');
+    bindProgramBuilderEvents();
+  }
+
+  function bindProgramBuilderEvents() {
+    const draft = state.programBuilder;
+    if (!draft) return;
+    el.modalRoot.querySelectorAll('[data-program-day-count]').forEach((button) => button.addEventListener('click', () => {
+      readProgramBuilderInputs();
+      syncProgramBuilderDays(draft, Number(button.dataset.programDayCount));
+      renderProgramBuilderModal();
+    }));
+    if (draft.step >= 1 && draft.step <= draft.dayCount) {
+      const day = draft.days[draft.step - 1];
+      document.getElementById('program-builder-full-body')?.addEventListener('click', () => {
+        readProgramBuilderInputs();
+        day.groups = ['legs', 'chest', 'back', 'abs'];
+        day.customizedGroups = true;
+        renderProgramBuilderModal();
+      });
+      el.modalRoot.querySelectorAll('[data-program-muscle]').forEach((button) => button.addEventListener('click', () => {
+        readProgramBuilderInputs();
+        const groupId = button.dataset.programMuscle;
+        const selected = new Set(day.groups || []);
+        selected.has(groupId) ? selected.delete(groupId) : selected.add(groupId);
+        day.groups = [...selected];
+        day.customizedGroups = true;
+        renderProgramBuilderModal();
+      }));
+      el.modalRoot.querySelectorAll('[data-program-options]').forEach((row) => {
+        row.querySelectorAll('.smart-option').forEach((button) => button.addEventListener('click', () => {
+          readProgramBuilderInputs();
+          const key = row.dataset.programOptions;
+          day[key] = key === 'duration' ? Number(button.dataset.value) : button.dataset.value;
+          renderProgramBuilderModal();
+        }));
+      });
+    }
+    document.getElementById('program-builder-back')?.addEventListener('click', () => {
+      readProgramBuilderInputs();
+      draft.step = Math.max(0, draft.step - 1);
+      renderProgramBuilderModal();
+    });
+    document.getElementById('program-builder-next')?.addEventListener('click', () => {
+      readProgramBuilderInputs();
+      if (draft.step === 0 && !String(draft.name || '').trim()) return toast('Введи название программы');
+      if (draft.step >= 1 && draft.step <= draft.dayCount && !draft.days[draft.step - 1].groups.length) return toast('Выбери хотя бы одну мышечную группу');
+      draft.step = Math.min(draft.dayCount + 1, draft.step + 1);
+      renderProgramBuilderModal();
+    });
+    el.modalRoot.querySelectorAll('.edit-program-builder-day').forEach((button) => button.addEventListener('click', () => {
+      draft.step = Number(button.dataset.index) + 1;
+      renderProgramBuilderModal();
+    }));
+    document.getElementById('save-program-builder')?.addEventListener('click', saveProgramBuilder);
+  }
+
+  async function saveProgramBuilder() {
+    const draft = state.programBuilder;
+    if (!draft) return;
+    readProgramBuilderInputs();
+    const built = buildProgramFromBuilderDraft(draft, false);
+    if (!built.canSave) {
+      toast('Не все дни удалось собрать. Вернись и проверь выбранные мышцы.');
+      return;
+    }
+    const commit = async () => {
+      const program = built.program;
+      await DB.put('programs', program);
+      state.programs = state.programs.filter((item) => item.id !== program.id);
+      state.programs.push(program);
+      state.allPrograms = state.allPrograms.filter((item) => item.id !== program.id);
+      state.allPrograms.push(program);
+      state.settings.activeProgramId = program.id;
+      state.settings.currentDayIndex = 0;
+      await DB.setSettingsObject({ activeProgramId: program.id, currentDayIndex: 0 }, state.activeProfileId);
+      state.programBuilder = null;
+      closeModal();
+      if (state.route === 'plan') renderPlan();
+      else if (state.route === 'home') renderHome();
+      else render();
+      toast(`Программа «${program.name}» сохранена`);
+    };
+    if (!built.warnings.length) {
+      await commit();
+      return;
+    }
+    showProgramRecoveryWarningModal({
+      warnings: built.warnings,
+      title: 'В программе мышцы идут подряд',
+      detail: 'В соседних днях есть заметная повторная нагрузка. Это не запрет: можно вернуться и изменить дни либо сохранить программу как есть.',
+      confirmLabel: 'Сохранить всё равно',
+      cancelLabel: 'Вернуться к программе',
+      onConfirm: commit,
+      onCancel: renderProgramBuilderModal,
+    });
+  }
+
+  function showNewProgramModal() {
+    state.programBuilder = defaultProgramBuilderDraft();
+    renderProgramBuilderModal();
   }
 
   function showEditDayModal(index, draftDay = null) {
@@ -5015,7 +5340,7 @@
     const statusClass = analysis.status;
     const open = homePanelOpen('rest', false);
     const calendar = analysis.days.slice(0, 7).reverse().map((day) => `
-      <div class="rest-day ${day.kind}" title="${escapeAttr(day.label)}"><span>${escapeHTML(day.shortLabel)}</span><strong>${escapeHTML(day.shortDate)}</strong></div>`).join('');
+      <div class="rest-day ${day.kind} ${day.loggedRest ? 'logged-rest' : ''}" title="${escapeAttr(day.label)}"><span>${escapeHTML(day.shortLabel)}</span><strong>${escapeHTML(day.shortDate)}</strong></div>`).join('');
     const signals = analysis.signals.length ? analysis.signals.slice(0, 3).map((signal) => signal.title).join(' · ') : analysis.modeNote;
     const todayKind = activityKindForDate(todayISO());
     const todayRestLogged = todayKind === 'recovery';
@@ -5109,7 +5434,7 @@
         <div class="card smart-rest-card ${rest.status}">
           <div class="section-head"><h2>${escapeHTML(rest.title)}</h2><span class="chip ${rest.status === 'ok' ? 'success' : 'warning'}">${escapeHTML(rest.statusLabel)}</span></div>
           <p>${escapeHTML(rest.detailText)}</p>
-          <div class="rest-week-strip" style="margin-top:12px">${rest.days.slice(0, 14).reverse().map((day) => `<div class="rest-day ${day.kind}"><span>${escapeHTML(day.shortLabel)}</span><strong>${escapeHTML(day.shortDate)}</strong></div>`).join('')}</div>
+          <div class="rest-week-strip" style="margin-top:12px">${rest.days.slice(0, 14).reverse().map((day) => `<div class="rest-day ${day.kind} ${day.loggedRest ? 'logged-rest' : ''}"><span>${escapeHTML(day.shortLabel)}</span><strong>${escapeHTML(day.shortDate)}</strong></div>`).join('')}</div>
           <div class="stats-grid" style="margin-top:12px">
             <div class="stat"><div class="stat-value">${rest.trainingDays7}</div><div class="stat-label">трен. за 7 дней</div></div>
             <div class="stat"><div class="stat-value">${rest.potentialConsecutiveTrainingDays}</div><div class="stat-label">подряд, если сегодня</div></div>
@@ -7139,9 +7464,18 @@
       const d = new Date(today.getTime() - index * 86400000);
       const iso = localDateISO(d);
       const kind = activityKindForDate(iso);
-      const label = kind === 'training' ? 'Тренировка' : kind === 'light' ? 'Лёгкая активность' : kind === 'recovery' ? 'Восстановление' : 'Полный отдых';
-      const shortLabel = kind === 'training' ? 'Т' : kind === 'light' ? 'Л' : kind === 'recovery' ? 'В' : '—';
-      return { date: iso, dateObj: d, kind, label, shortLabel, shortDate: formatTinyDate(iso) };
+      const loggedRest = manualDayEntryForDate(iso)?.manualDay?.kind === 'rest';
+      const label = kind === 'training'
+        ? 'Тренировка'
+        : kind === 'light'
+          ? 'Лёгкая активность'
+          : kind === 'recovery'
+            ? 'Восстановление'
+            : loggedRest
+              ? 'Полный отдых отмечен'
+              : 'Нет тренировки';
+      const shortLabel = kind === 'training' ? 'Т' : kind === 'light' ? 'Л' : kind === 'recovery' ? 'В' : loggedRest ? 'О' : '·';
+      return { date: iso, dateObj: d, kind, label, shortLabel, shortDate: formatTinyDate(iso), loggedRest };
     });
   }
 
