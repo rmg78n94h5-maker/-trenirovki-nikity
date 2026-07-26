@@ -5150,3 +5150,100 @@ body[data-route="home"] .today-hub-section {
   .premium-day-order-actions { gap: 3px; }
   .premium-day-order-actions .mini-button { width: 31px; min-width: 31px; height: 31px; }
 }
+
+/* v1.21.0 — завершённый редактор программ и нижняя safe area */
+.past-activity-jump {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 9px;
+  margin-top: 14px;
+}
+.past-activity-jump .button { min-height: 46px; }
+
+.program-recovery-banner {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0 10px;
+  padding: 11px 12px;
+  border: 1px solid rgba(255,190,61,.42);
+  border-radius: 16px;
+  background: rgba(255,190,61,.075);
+  color: var(--text);
+  text-align: left;
+}
+.program-recovery-banner > span {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: rgba(255,190,61,.15);
+}
+.program-recovery-banner > div { min-width: 0; display: grid; gap: 3px; }
+.program-recovery-banner strong { font-size: 13px; }
+.program-recovery-banner small { color: var(--muted); font-size: 10px; line-height: 1.3; }
+.program-recovery-banner > b { color: var(--warning); font-size: 22px; }
+.program-warning-row { align-items: flex-start; }
+.program-warning-row .chip { flex: 0 0 auto; }
+
+:root {
+  --bottom-nav-content-height: 52px;
+  --bottom-nav-safe: env(safe-area-inset-bottom, 0px);
+}
+
+html {
+  min-height: 100%;
+  background: #0b0e11;
+}
+
+body {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--bg);
+}
+
+/* Фон панели доходит до физического края, а кнопки остаются над home indicator. */
+.app-shell {
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding-bottom: calc(var(--bottom-nav-content-height) + var(--bottom-nav-safe)) !important;
+}
+
+.bottom-nav {
+  bottom: 0 !important;
+  height: calc(var(--bottom-nav-content-height) + var(--bottom-nav-safe)) !important;
+  min-height: calc(var(--bottom-nav-content-height) + var(--bottom-nav-safe)) !important;
+  padding: 2px 6px var(--bottom-nav-safe) !important;
+  background: #0b0e11 !important;
+  border-radius: 12px 12px 0 0 !important;
+  overflow: hidden !important;
+  transform: none !important;
+}
+.bottom-nav::after { display: none !important; }
+
+/* Запасной слой для старых WebKit, где fixed-элемент заканчивался над safe area. */
+body::after {
+  content: '';
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 29;
+  height: var(--bottom-nav-safe);
+  background: #0b0e11;
+  pointer-events: none;
+}
+
+.toast {
+  bottom: calc(62px + var(--bottom-nav-safe)) !important;
+}
+
+@media (max-width: 390px) {
+  .past-activity-jump { grid-template-columns: 1fr; }
+  .past-activity-jump .button { width: 100%; }
+  .program-recovery-banner { padding-left: 10px; padding-right: 10px; }
+}

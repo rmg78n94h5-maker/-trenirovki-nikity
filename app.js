@@ -1691,7 +1691,8 @@
 
   function showPastActivityCalendarModal() {
     const today = startOfDay(new Date());
-    const days = Array.from({ length: 21 }, (_, index) => {
+    const todayValue = localDateISO(today);
+    const days = Array.from({ length: 42 }, (_, index) => {
       const dateObj = new Date(today.getTime() - index * 86400000);
       const date = localDateISO(dateObj);
       const kind = activityKindForDate(date);
@@ -1701,11 +1702,22 @@
     showModal(`
       <div class="modal-head"><div><div class="eyebrow">Журнал активности</div><h2>Изменить прошлые дни</h2></div><button class="modal-close" data-close>×</button></div>
       <p class="muted">Выбери дату и укажи, что было на самом деле. Рекомендации и умный отдых пересчитаются сразу.</p>
+      <div class="past-activity-jump">
+        <div class="field"><label>Нужная дата</label><input id="past-activity-date-input" type="date" value="${todayValue}" max="${todayValue}"></div>
+        <button class="button secondary" id="open-past-activity-date" type="button">Открыть дату</button>
+      </div>
+      <div class="help" style="margin-top:8px">Можно выбрать любую прошедшую дату. Ниже — последние 42 дня для быстрого доступа.</div>
       <div class="past-activity-calendar">
         ${days.map((day) => `<button class="past-activity-date ${day.meta.className}" data-date="${day.date}" type="button"><span>${escapeHTML(day.meta.short)}</span><strong>${escapeHTML(formatTinyDate(day.date))}</strong><small>${escapeHTML(day.meta.label)}</small></button>`).join('')}
       </div>
     `);
     el.modalRoot.querySelectorAll('.past-activity-date').forEach((button) => button.addEventListener('click', () => showEditActivityDayModal(button.dataset.date)));
+    document.getElementById('open-past-activity-date')?.addEventListener('click', () => {
+      const selectedDate = document.getElementById('past-activity-date-input')?.value;
+      if (!selectedDate) return toast('Выбери дату');
+      if (selectedDate > todayValue) return toast('Будущий день пока нельзя заполнять');
+      showEditActivityDayModal(selectedDate);
+    });
   }
 
   function showEditActivityDayModal(date) {
@@ -3868,6 +3880,7 @@
     const totalExercises = days.reduce((sum, day) => sum + ((day.exercises || []).length), 0);
     const totalMinutes = days.reduce((sum, day) => sum + Number(day.durationMin || 0), 0);
     const recoveryDays = days.filter((day) => day.recovery).length;
+    const programWarnings = programRecoveryWarnings(days);
     const cycleProgress = days.length ? Math.round(((currentIndex + 1) / days.length) * 100) : 0;
     setTopbar('Недельный план', active.name);
     el.main.innerHTML = `
@@ -3901,12 +3914,20 @@
             </div>
           ` : `<div class="notice">В программе пока нет дней. Добавь первый день и собери тренировку под себя.</div>`}
 
+          ${programWarnings.length ? `
+            <button class="program-recovery-banner" id="open-program-warnings" type="button">
+              <span>⚠️</span>
+              <div><strong>Проверь восстановление мышц</strong><small>${programWarnings.length} совпаден${programWarnings.length === 1 ? 'ие' : programWarnings.length < 5 ? 'ия' : 'ий'} нагрузки в соседних днях · это не блокировка</small></div>
+              <b>›</b>
+            </button>
+          ` : ''}
+
           <div class="premium-plan-actions">
-            <button class="button secondary" id="duplicate-program" type="button">Дублировать</button>
+            <button class="button secondary" id="edit-program" type="button">Редактировать / копия</button>
             <button class="button secondary" id="add-program-day" type="button">Добавить день</button>
-            <button class="button primary" id="new-program" type="button">Создать программу</button>
+            <button class="button primary" id="new-program" type="button">Создать программу с нуля</button>
           </div>
-          <div class="help premium-plan-help">Стандартные программы не размножаются в ленте. Все изменения сохраняются в твоей личной копии профиля.</div>
+          <div class="help premium-plan-help">Карандаш редактирует день. В «Редактировать / копия» можно переименовать программу или сохранить её отдельным новым вариантом.</div>
         </div>
       </section>
 
@@ -3925,10 +3946,17 @@
     el.main.querySelectorAll('.start-specific').forEach((button) => button.addEventListener('click', async () => { await setCurrentDay(Number(button.dataset.index), false); startWorkout(false); }));
     el.main.querySelectorAll('.edit-day').forEach((button) => button.addEventListener('click', () => showEditDayModal(Number(button.dataset.index))));
     el.main.querySelectorAll('.move-program-day').forEach((button) => button.addEventListener('click', () => requestMoveProgramDay(Number(button.dataset.index), Number(button.dataset.delta))));
-    document.getElementById('duplicate-program').addEventListener('click', duplicateActiveProgram);
+    document.getElementById('edit-program').addEventListener('click', showEditProgramModal);
     document.getElementById('add-program-day').addEventListener('click', addProgramDay);
     document.getElementById('new-program').addEventListener('click', showNewProgramModal);
     document.getElementById('open-program-builder').addEventListener('click', showNewProgramModal);
+    document.getElementById('open-program-warnings')?.addEventListener('click', () => showProgramRecoveryWarningModal({
+      warnings: programWarnings,
+      title: 'Проверка соседних дней',
+      detail: 'Программа нашла повторную нагрузку на одни и те же мышцы без отдельного дня отдыха.',
+      confirmLabel: 'Понятно',
+      cancelLabel: '',
+    }));
   }
 
   async function switchProgram(id) {
@@ -3954,42 +3982,108 @@
 
   function programDayMuscleSets(day) {
     const totals = new Map();
+    if (!day || day.recovery) return totals;
     for (const entry of day?.exercises || []) {
       const exercise = getExercise(entry.exerciseId);
       if (!exercise) continue;
       const sets = Math.max(1, Number(entry.sets ?? exercise.defaults?.sets ?? 1));
-      const group = String(exercise.group || '').toLowerCase();
-      const labels = [
-        ['Грудь', ['груд']], ['Спина', ['спин','широч','трапец']], ['Плечи', ['плеч','дельт']],
-        ['Бицепс', ['бицеп']], ['Трицепс', ['трицеп']], ['Ноги', ['ног','квадрицеп','икр']],
-        ['Ягодицы', ['ягод','задняя цепь']], ['Пресс', ['пресс','кор','живот','бока']],
-      ];
-      labels.forEach(([label, needles]) => { if (needles.some((word) => group.includes(word))) totals.set(label, (totals.get(label) || 0) + sets); });
+      for (const groupId of getMuscleGroupsForExercise(exercise, entry)) {
+        totals.set(groupId, (totals.get(groupId) || 0) + sets);
+      }
     }
     return totals;
   }
 
-  function programMoveWarnings(days, movedIndex) {
+  function programRecoveryWarnings(days = []) {
     const warnings = [];
-    const current = programDayMuscleSets(days[movedIndex]);
-    [movedIndex - 1, movedIndex + 1].forEach((neighborIndex) => {
-      if (neighborIndex < 0 || neighborIndex >= days.length) return;
-      const neighbor = programDayMuscleSets(days[neighborIndex]);
-      for (const [muscle, sets] of current.entries()) {
-        const adjacentSets = neighbor.get(muscle) || 0;
-        if (sets >= 6 && adjacentSets >= 6) warnings.push(`${muscle}: ${sets} + ${adjacentSets} подходов в соседних днях`);
+    const pairs = [];
+    for (let index = 0; index < days.length - 1; index += 1) pairs.push([index, index + 1, false]);
+    if (days.length > 2) pairs.push([days.length - 1, 0, true]);
+
+    for (const [leftIndex, rightIndex, cycleBoundary] of pairs) {
+      const leftDay = days[leftIndex];
+      const rightDay = days[rightIndex];
+      const left = programDayMuscleSets(leftDay);
+      const right = programDayMuscleSets(rightDay);
+      for (const [groupId, leftSets] of left.entries()) {
+        const rightSets = right.get(groupId) || 0;
+        if (leftSets < 3 || rightSets < 3) continue;
+        warnings.push({
+          key: `${leftIndex}:${rightIndex}:${groupId}`,
+          groupId,
+          label: muscleGroupLabel(groupId),
+          leftIndex,
+          rightIndex,
+          leftDay: leftDay?.name || `День ${leftIndex + 1}`,
+          rightDay: rightDay?.name || `День ${rightIndex + 1}`,
+          leftSets,
+          rightSets,
+          cycleBoundary,
+          severity: leftSets >= 6 && rightSets >= 6 ? 'high' : 'watch',
+        });
       }
+    }
+    return warnings;
+  }
+
+  function programMoveWarnings(days, movedIndexes = []) {
+    const affected = new Set(movedIndexes);
+    return programRecoveryWarnings(days).filter((warning) => affected.has(warning.leftIndex) || affected.has(warning.rightIndex));
+  }
+
+  function renderProgramWarningRows(warnings) {
+    return warnings.map((warning) => `
+      <div class="list-row program-warning-row">
+        <div class="list-row-main">
+          <div class="list-row-title">⚠️ ${escapeHTML(warning.label)} два дня подряд</div>
+          <div class="list-row-sub">${escapeHTML(warning.leftDay)} — ${warning.leftSets} подх. · ${escapeHTML(warning.rightDay)} — ${warning.rightSets} подх.${warning.cycleBoundary ? '<br>Эти дни соседствуют при повторении цикла.' : ''}</div>
+        </div>
+        <span class="chip ${warning.severity === 'high' ? 'warning' : ''}">${warning.severity === 'high' ? 'высокая' : 'проверить'}</span>
+      </div>
+    `).join('');
+  }
+
+  function showProgramRecoveryWarningModal({
+    warnings,
+    title = 'Есть риск недовосстановления',
+    detail = 'Одна и та же мышечная группа получает заметную нагрузку два тренировочных дня подряд.',
+    confirmLabel = 'Сохранить всё равно',
+    cancelLabel = 'Вернуться',
+    onConfirm = null,
+    onCancel = null,
+  }) {
+    if (!warnings?.length) return;
+    showModal(`
+      <div class="modal-head"><div><div class="eyebrow">Проверка программы</div><h2>${escapeHTML(title)}</h2></div><button class="modal-close" id="close-program-warning" type="button">×</button></div>
+      <div class="notice warning"><strong>Это предупреждение, а не запрет.</strong><br>${escapeHTML(detail)}</div>
+      <div class="card list-card program-warning-list" style="margin-top:12px">${renderProgramWarningRows(warnings)}</div>
+      <div class="${cancelLabel ? 'button-row' : ''}" style="margin-top:14px">
+        ${cancelLabel ? `<button class="button ghost" id="cancel-program-warning" type="button">${escapeHTML(cancelLabel)}</button>` : ''}
+        <button class="button primary ${cancelLabel ? '' : 'full'}" id="confirm-program-warning" type="button">${escapeHTML(confirmLabel)}</button>
+      </div>
+      <div class="help" style="margin-top:10px">Если оставляешь дни рядом, снизь объём или интенсивность во второй день и следи за самочувствием.</div>
+    `);
+    document.getElementById('close-program-warning')?.addEventListener('click', () => {
+      closeModal();
+      if (onCancel) onCancel();
     });
-    return [...new Set(warnings)];
+    document.getElementById('cancel-program-warning')?.addEventListener('click', () => {
+      closeModal();
+      if (onCancel) onCancel();
+    });
+    document.getElementById('confirm-program-warning')?.addEventListener('click', async () => {
+      if (onConfirm) await onConfirm();
+      else closeModal();
+    });
   }
 
   async function requestMoveProgramDay(index, delta) {
-    const program = getActiveProgram();
+    const program = await ensurePersonalActiveProgram();
     const target = index + delta;
     if (target < 0 || target >= program.days.length) return;
     const nextDays = [...program.days];
     [nextDays[index], nextDays[target]] = [nextDays[target], nextDays[index]];
-    const warnings = programMoveWarnings(nextDays, target);
+    const warnings = programMoveWarnings(nextDays, [index, target]);
     const applyMove = async () => {
       program.days = nextDays;
       const current = Number(state.settings.currentDayIndex || 0);
@@ -4002,28 +4096,31 @@
       toast(`День перемещён на позицию ${target + 1}`);
     };
     if (!warnings.length) return applyMove();
-    showModal(`
-      <div class="modal-head"><div><div class="eyebrow">Проверка восстановления</div><h2>Есть риск перегруза</h2></div><button class="modal-close" data-close>×</button></div>
-      <div class="notice warning"><strong>После перестановки тяжёлая нагрузка на одну группу окажется в соседних днях.</strong></div>
-      <div class="card list-card" style="margin-top:12px">${warnings.map((warning) => `<div class="list-row"><div class="list-row-main"><div class="list-row-title">⚠️ ${escapeHTML(warning)}</div><div class="list-row-sub">Лучше оставить дополнительный день восстановления или снизить объём.</div></div></div>`).join('')}</div>
-      <div class="button-row" style="margin-top:14px"><button class="button ghost" data-close type="button">Отменить</button><button class="button primary" id="confirm-program-day-move" type="button">Всё равно переместить</button></div>
-    `);
-    document.getElementById('confirm-program-day-move').addEventListener('click', applyMove);
+    showProgramRecoveryWarningModal({
+      warnings,
+      title: 'После перестановки мышцы идут подряд',
+      detail: 'Новый порядок ставит заметную нагрузку на одну и ту же группу в соседние тренировочные дни.',
+      confirmLabel: 'Всё равно переместить',
+      cancelLabel: 'Оставить как было',
+      onConfirm: applyMove,
+    });
   }
 
   async function addProgramDay() {
-    const program = getActiveProgram();
+    const program = await ensurePersonalActiveProgram();
     program.days.push({ id: uid('day'), name: `День ${program.days.length + 1}`, durationMin: 45, focus: '', exercises: [], short: [] });
+    program.updatedAt = new Date().toISOString();
     await DB.put('programs', program);
     renderPlan();
     toast('Новый тренировочный день добавлен');
   }
 
-  async function duplicateActiveProgram() {
+  async function duplicateActiveProgram({ name = '', description = '' } = {}) {
     const active = getActiveProgram();
     const copy = clone(active);
     copy.id = uid('program');
-    copy.name = `${active.name} — копия`;
+    copy.name = name.trim() || `${active.name} — вариант`;
+    copy.description = description.trim() || active.description || '';
     copy.createdAt = new Date().toISOString();
     copy.ownerProfileId = state.activeProfileId;
     copy.sourceTemplateId = active.templateId || active.sourceTemplateId || (isProgramTemplate(active) ? active.id : null);
@@ -4033,8 +4130,47 @@
     await DB.put('programs', copy);
     state.programs.push(copy);
     state.allPrograms.push(copy);
+    closeModal();
     await switchProgram(copy.id);
-    toast('Копия программы создана');
+    toast(`Новая программа «${copy.name}» сохранена`);
+  }
+
+  function showEditProgramModal() {
+    const active = getActiveProgram();
+    const suggestedCopyName = `${active.name} — вариант`;
+    showModal(`
+      <div class="modal-head"><div><div class="eyebrow">Редактор программы</div><h2>${escapeHTML(active.name)}</h2></div><button class="modal-close" data-close>×</button></div>
+      <div class="notice"><strong>Дни и упражнения остаются как в плане.</strong><br>Здесь можно изменить название текущей программы или сохранить весь план отдельной новой программой.</div>
+      <div class="form-grid" style="margin-top:14px">
+        <div class="field"><label>Название текущей программы</label><input id="edit-program-name" value="${escapeAttr(active.name)}" maxlength="80"></div>
+        <div class="field"><label>Описание</label><textarea id="edit-program-description" maxlength="300">${escapeHTML(active.description || '')}</textarea></div>
+        <div class="field"><label>Название нового варианта</label><input id="copy-program-name" value="${escapeAttr(suggestedCopyName)}" maxlength="80"></div>
+      </div>
+      <div class="button-row" style="margin-top:14px">
+        <button class="button secondary" id="save-program-info" type="button">Сохранить изменения</button>
+        <button class="button primary" id="save-program-copy" type="button">Сохранить как новую</button>
+      </div>
+      <div class="help" style="margin-top:10px">«Сохранить как новую» не удаляет и не перезаписывает текущую программу: появится отдельный вариант, и приложение сразу откроет его.</div>
+    `);
+    document.getElementById('save-program-info').addEventListener('click', async () => {
+      const name = document.getElementById('edit-program-name').value.trim();
+      if (!name) return toast('Введи название программы');
+      active.name = name;
+      active.description = document.getElementById('edit-program-description').value.trim();
+      active.updatedAt = new Date().toISOString();
+      await DB.put('programs', active);
+      closeModal();
+      renderPlan();
+      toast('Изменения программы сохранены');
+    });
+    document.getElementById('save-program-copy').addEventListener('click', async () => {
+      const name = document.getElementById('copy-program-name').value.trim();
+      if (!name) return toast('Введи название нового варианта');
+      await duplicateActiveProgram({
+        name,
+        description: document.getElementById('edit-program-description').value.trim(),
+      });
+    });
   }
 
   function showNewProgramModal() {
@@ -4081,9 +4217,9 @@
     });
   }
 
-  function showEditDayModal(index) {
+  function showEditDayModal(index, draftDay = null) {
     const program = getActiveProgram();
-    const day = program.days[index];
+    const day = draftDay || clone(program.days[index]);
     showModal(`
       <div class="modal-head"><h2>Редактор дня ${index + 1}</h2><button class="modal-close" data-close>×</button></div>
       <div class="form-grid">
@@ -4101,12 +4237,13 @@
     document.getElementById('add-day-exercise').addEventListener('click', () => showExercisePicker((id) => {
       day.exercises.push({ exerciseId: id });
       closeModal();
-      showEditDayModal(index);
+      showEditDayModal(index, day);
     }));
     document.getElementById('delete-day').addEventListener('click', async () => {
       if (program.days.length <= 1) return toast('В программе должен остаться хотя бы один день');
       program.days.splice(index, 1);
       state.settings.currentDayIndex = Math.min(Number(state.settings.currentDayIndex || 0), program.days.length - 1);
+      program.updatedAt = new Date().toISOString();
       await Promise.all([DB.put('programs', program), DB.setSettingsObject({ currentDayIndex: state.settings.currentDayIndex }, state.activeProfileId)]);
       closeModal();
       renderPlan();
@@ -4116,10 +4253,26 @@
       day.name = document.getElementById('edit-day-name').value.trim() || `День ${index + 1}`;
       day.durationMin = Number(document.getElementById('edit-day-duration').value || 45);
       day.focus = document.getElementById('edit-day-focus').value.trim();
-      await DB.put('programs', program);
-      closeModal();
-      renderPlan();
-      toast('День сохранён');
+      const nextDays = program.days.map((item, dayIndex) => dayIndex === index ? day : item);
+      const saveDay = async () => {
+        program.days = nextDays;
+        program.updatedAt = new Date().toISOString();
+        await DB.put('programs', program);
+        closeModal();
+        renderPlan();
+        toast('День сохранён');
+      };
+      const warnings = programRecoveryWarnings(nextDays).filter((warning) => warning.leftIndex === index || warning.rightIndex === index);
+      if (!warnings.length) return saveDay();
+      showProgramRecoveryWarningModal({
+        warnings,
+        title: 'Мышцы повторяются в соседних днях',
+        detail: 'После сохранения этого дня одна и та же группа будет получать рабочие подходы два тренировочных дня подряд.',
+        confirmLabel: 'Сохранить всё равно',
+        cancelLabel: 'Вернуться к дню',
+        onConfirm: saveDay,
+        onCancel: () => showEditDayModal(index, day),
+      });
     });
   }
 
@@ -4136,7 +4289,7 @@
       const index = Number(row.dataset.entryIndex);
       row.querySelector('.move-up').addEventListener('click', () => moveDayEntry(day, dayIndex, index, -1));
       row.querySelector('.move-down').addEventListener('click', () => moveDayEntry(day, dayIndex, index, 1));
-      row.querySelector('.remove-entry').addEventListener('click', () => { day.exercises.splice(index, 1); closeModal(); showEditDayModal(dayIndex); });
+      row.querySelector('.remove-entry').addEventListener('click', () => { day.exercises.splice(index, 1); closeModal(); showEditDayModal(dayIndex, day); });
       row.querySelector('.edit-entry').addEventListener('click', () => showEditEntryModal(day, dayIndex, index));
     });
   }
@@ -4146,7 +4299,7 @@
     if (target < 0 || target >= day.exercises.length) return;
     [day.exercises[index], day.exercises[target]] = [day.exercises[target], day.exercises[index]];
     closeModal();
-    showEditDayModal(dayIndex);
+    showEditDayModal(dayIndex, day);
   }
 
   function showEditEntryModal(day, dayIndex, entryIndex) {
@@ -4170,7 +4323,7 @@
         restSec: Number(document.getElementById('entry-rest').value || 0),
       });
       closeModal();
-      showEditDayModal(dayIndex);
+      showEditDayModal(dayIndex, day);
     });
   }
 
@@ -4963,7 +5116,10 @@
             <div class="stat"><div class="stat-value">${rest.fullRestDays7}</div><div class="stat-label">полный отдых</div></div>
             <div class="stat"><div class="stat-value">${rest.daysWithoutFullRest}</div><div class="stat-label">дней без отдыха</div></div>
           </div>
-          <div class="button-row" style="margin-top:12px"><button class="button secondary" id="log-rest-progress" type="button" ${hasRecoveryDayForDate(todayISO()) ? 'disabled' : ''}>${hasRecoveryDayForDate(todayISO()) ? 'Сегодня отдых уже записан' : 'Записать отдых сегодня'}</button></div>
+          <div class="button-row" style="margin-top:12px">
+            <button class="button secondary" id="log-rest-progress" type="button" ${hasRecoveryDayForDate(todayISO()) ? 'disabled' : ''}>${hasRecoveryDayForDate(todayISO()) ? 'Сегодня отдых уже записан' : 'Записать отдых сегодня'}</button>
+            <button class="button ghost" id="edit-past-activity-progress" type="button">Изменить прошлые дни</button>
+          </div>
         </div>
       </section>
       <section class="section"><div class="section-head"><h2>Сигналы умного отдыха</h2><span class="muted">календарь + нагрузка</span></div><div class="card list-card">${restRows}</div></section>
@@ -5046,6 +5202,7 @@
     document.getElementById('measurement-history')?.addEventListener('click', showMeasurementsModal);
     document.getElementById('measurement-history-inline')?.addEventListener('click', showMeasurementsModal);
     document.getElementById('log-rest-progress')?.addEventListener('click', () => recordRecoveryDay({ source: 'progress' }));
+    document.getElementById('edit-past-activity-progress')?.addEventListener('click', showPastActivityCalendarModal);
     el.main.querySelectorAll('.body-metric').forEach((button) => button.addEventListener('click', async () => {
       state.bodyProgressMetric = button.dataset.metric;
       state.settings.bodyProgressMetric = state.bodyProgressMetric;
@@ -5890,7 +6047,7 @@
 
             <div class="more-subsection storage-subsection">
               <div class="more-subsection-head"><div><span class="eyebrow">На этом iPhone</span><h3>Хранилище приложения</h3></div></div>
-              <div class="card"><p class="muted more-storage-copy">Профили, тренировки, замеры и фотографии хранятся локально в IndexedDB.</p><button class="button secondary full" id="storage-info" type="button">Проверить хранилище</button><div class="help" style="margin-top:10px">Версия приложения ${escapeHTML(APP_VERSION)} · база IndexedDB v3</div></div>
+              <div class="card"><p class="muted more-storage-copy">Профили, тренировки, замеры и фотографии хранятся локально в IndexedDB.</p><button class="button secondary full" id="storage-info" type="button">Проверить хранилище</button><div class="help" style="margin-top:10px">Версия приложения ${escapeHTML(APP_VERSION)} · база IndexedDB v4</div></div>
               <div class="notice warning more-storage-warning"><strong>Важно.</strong> Данные PWA могут исчезнуть после удаления иконки, очистки данных Safari или при критической нехватке памяти. Экспорт — обязательная страховка.</div>
             </div>
           </div>
