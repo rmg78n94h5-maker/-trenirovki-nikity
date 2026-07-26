@@ -5064,3 +5064,89 @@ body[data-route="home"] .today-hub-section {
   .bottom-nav { padding-left: 4px !important; padding-right: 4px !important; }
   .nav-item { font-size: 8px !important; }
 }
+
+
+/* v1.20.0 — журнал прошлого, перестановка дней и физический низ iPhone */
+.past-activity-calendar {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 14px;
+}
+.past-activity-date {
+  min-width: 0;
+  min-height: 78px;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 4px;
+  padding: 9px 5px;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  background: var(--surface-2);
+  color: var(--text);
+}
+.past-activity-date > span {
+  width: 29px;
+  height: 29px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(255,255,255,.06);
+  font-weight: 950;
+}
+.past-activity-date strong { font-size: 12px; }
+.past-activity-date small { max-width: 100%; color: var(--muted); font-size: 9px; line-height: 1.15; text-align: center; }
+.past-activity-date.training { border-color: rgba(199,255,47,.34); }
+.past-activity-date.training > span { background: var(--accent); color: #080a0c; }
+.past-activity-date.light { border-color: rgba(87,227,137,.34); }
+.past-activity-date.light > span { background: rgba(87,227,137,.18); color: var(--success); }
+.past-activity-date.recovery { border-color: rgba(255,190,61,.34); }
+.past-activity-date.recovery > span { background: rgba(255,190,61,.18); color: var(--warning); }
+
+.activity-kind-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 9px; }
+.activity-kind-option {
+  min-width: 0;
+  min-height: 116px;
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 17px;
+  background: rgba(255,255,255,.025);
+  color: var(--text);
+  text-align: left;
+}
+.activity-kind-option b { font-size: 23px; }
+.activity-kind-option strong { font-size: 14px; }
+.activity-kind-option span { color: var(--muted); font-size: 10px; line-height: 1.35; }
+.activity-kind-option.active { border-color: var(--accent); background: rgba(199,255,47,.08); box-shadow: inset 0 0 0 1px rgba(199,255,47,.13); }
+.manual-day-summary { border-left: 4px solid var(--line); }
+.manual-day-summary.training { border-left-color: var(--accent); }
+.manual-day-summary.light { border-left-color: var(--success); }
+.manual-day-summary.recovery { border-left-color: var(--warning); }
+
+.premium-day-order-actions { display: flex; align-items: center; gap: 5px; flex: 0 0 auto; }
+.premium-day-order-actions .mini-button { width: 34px; min-width: 34px; height: 34px; }
+.premium-day-order-actions .mini-button:disabled { opacity: .28; }
+
+/* Панель занимает системную нижнюю область, а не висит над ней. */
+.app-shell { padding-bottom: 52px !important; }
+.bottom-nav {
+  bottom: calc(-1 * env(safe-area-inset-bottom, 0px)) !important;
+  height: calc(52px + env(safe-area-inset-bottom, 0px)) !important;
+  min-height: calc(52px + env(safe-area-inset-bottom, 0px)) !important;
+  padding: 2px 6px env(safe-area-inset-bottom, 0px) !important;
+  box-sizing: border-box !important;
+  transform: translateZ(0);
+}
+.bottom-nav::after { display: none !important; }
+
+@media (max-width: 390px) {
+  .past-activity-calendar { grid-template-columns: repeat(3, minmax(0,1fr)); gap: 6px; }
+  .activity-kind-grid { grid-template-columns: 1fr; }
+  .activity-kind-option { min-height: 88px; }
+  .premium-day-order-actions { gap: 3px; }
+  .premium-day-order-actions .mini-button { width: 31px; min-width: 31px; height: 31px; }
+}

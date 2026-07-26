@@ -1002,6 +1002,7 @@
     document.getElementById('open-deload-progress-home')?.addEventListener('click', () => { state.progressTab = 'recovery'; navigate('progress'); });
     document.getElementById('open-rest-progress-home')?.addEventListener('click', () => { state.progressTab = 'recovery'; navigate('progress'); });
     document.getElementById('log-rest-home')?.addEventListener('click', () => recordRecoveryDay({ source: 'home' }));
+    document.getElementById('edit-past-activity-home')?.addEventListener('click', showPastActivityCalendarModal);
     document.getElementById('start-light-home')?.addEventListener('click', () => startWorkout({ shortMode: true, startMode: 'cycle', shouldAdvanceCycle: false, recoveryCheckDone: true }));
 
     document.getElementById('toggle-extra-exercises')?.addEventListener('click', (event) => {
@@ -1668,6 +1669,90 @@
     if (state.route === 'home') renderHome();
     else if (state.route === 'progress') renderProgress();
     else if (state.route === 'history') renderHistory();
+  }
+
+
+  function isManualDayEntry(workout) {
+    return workout?.type === 'manual_day' && Boolean(workout?.manualDay?.kind);
+  }
+
+  function manualDayEntryForDate(date) {
+    return state.workouts.find((workout) => workout?.status === 'completed' && isManualDayEntry(workout) && localDateISO(new Date(workout.startedAt || workout.date)) === date) || null;
+  }
+
+  function manualDayKindMeta(kind) {
+    return {
+      training: { label: 'Тренировка', short: 'Т', icon: '🏋️', className: 'training' },
+      light: { label: 'Лёгкая активность', short: 'Л', icon: '🚶', className: 'light' },
+      recovery: { label: 'Восстановление', short: 'В', icon: '◷', className: 'recovery' },
+      rest: { label: 'Полный отдых', short: '—', icon: '○', className: 'rest' },
+    }[kind] || { label: 'Полный отдых', short: '—', icon: '○', className: 'rest' };
+  }
+
+  function showPastActivityCalendarModal() {
+    const today = startOfDay(new Date());
+    const days = Array.from({ length: 21 }, (_, index) => {
+      const dateObj = new Date(today.getTime() - index * 86400000);
+      const date = localDateISO(dateObj);
+      const kind = activityKindForDate(date);
+      const meta = manualDayKindMeta(kind);
+      return { date, dateObj, kind, meta };
+    });
+    showModal(`
+      <div class="modal-head"><div><div class="eyebrow">Журнал активности</div><h2>Изменить прошлые дни</h2></div><button class="modal-close" data-close>×</button></div>
+      <p class="muted">Выбери дату и укажи, что было на самом деле. Рекомендации и умный отдых пересчитаются сразу.</p>
+      <div class="past-activity-calendar">
+        ${days.map((day) => `<button class="past-activity-date ${day.meta.className}" data-date="${day.date}" type="button"><span>${escapeHTML(day.meta.short)}</span><strong>${escapeHTML(formatTinyDate(day.date))}</strong><small>${escapeHTML(day.meta.label)}</small></button>`).join('')}
+      </div>
+    `);
+    el.modalRoot.querySelectorAll('.past-activity-date').forEach((button) => button.addEventListener('click', () => showEditActivityDayModal(button.dataset.date)));
+  }
+
+  function showEditActivityDayModal(date) {
+    const existingManual = manualDayEntryForDate(date);
+    const currentKind = existingManual?.manualDay?.kind || activityKindForDate(date);
+    const realRows = state.workouts.filter((workout) => workout?.status === 'completed' && !isManualDayEntry(workout) && localDateISO(new Date(workout.startedAt || workout.date)) === date);
+    showModal(`
+      <div class="modal-head"><div><div class="eyebrow">${escapeHTML(formatDate(new Date(`${date}T12:00:00`), { day:'numeric', month:'long', year:'numeric' }))}</div><h2>Что было в этот день?</h2></div><button class="modal-close" data-close>×</button></div>
+      ${realRows.length ? '<div class="notice warning">На эту дату уже есть сохранённая запись тренировки. Ручная отметка изменит календарный статус, но не удалит саму тренировку.</div>' : ''}
+      <div class="activity-kind-grid" style="margin-top:12px">
+        ${['training','light','recovery','rest'].map((kind) => { const meta = manualDayKindMeta(kind); return `<button class="activity-kind-option ${kind === currentKind ? 'active' : ''}" data-kind="${kind}" type="button"><b>${meta.icon}</b><strong>${escapeHTML(meta.label)}</strong><span>${kind === 'training' ? 'Силовая или полноценная тренировка' : kind === 'light' ? 'Прогулка, степпер, короткая активность' : kind === 'recovery' ? 'Осознанный день восстановления' : 'Никакой тренировочной активности'}</span></button>`; }).join('')}
+      </div>
+      <div class="field" style="margin-top:14px"><label>Комментарий, необязательно</label><textarea id="manual-day-comment" placeholder="Например: много ходил по судну, но без тренировки">${escapeHTML(existingManual?.comment || '')}</textarea></div>
+      <button class="button primary full" id="save-manual-day" style="margin-top:14px">Сохранить день</button>
+      ${existingManual ? '<button class="button danger full" id="delete-manual-day" style="margin-top:10px">Убрать ручную отметку</button>' : ''}
+    `);
+    let selectedKind = currentKind;
+    el.modalRoot.querySelectorAll('.activity-kind-option').forEach((button) => button.addEventListener('click', () => {
+      selectedKind = button.dataset.kind;
+      el.modalRoot.querySelectorAll('.activity-kind-option').forEach((item) => item.classList.toggle('active', item === button));
+    }));
+    document.getElementById('save-manual-day').addEventListener('click', async () => {
+      const now = new Date().toISOString();
+      const startedAt = `${date}T12:00:00`;
+      const meta = manualDayKindMeta(selectedKind);
+      const entry = {
+        id: existingManual?.id || uid('manual-day'), profileId: state.activeProfileId, type: 'manual_day', date,
+        startedAt, finishedAt: startedAt, status: 'completed', durationSec: 0, completionPct: 100, totalLoadKg: 0,
+        programId: state.settings.activeProgramId || null, dayId: 'manual-day', dayIndex: null,
+        dayName: meta.label, shortMode: selectedKind === 'light', startMode: 'manual_history', shouldAdvanceCycle: false,
+        manualDay: { kind: selectedKind, updatedAt: now }, exercises: [], comment: document.getElementById('manual-day-comment').value.trim(),
+      };
+      await DB.put('workouts', entry);
+      state.workouts = state.workouts.filter((row) => row.id !== entry.id);
+      state.workouts.push(entry);
+      state.workouts.sort((a,b) => new Date(b.startedAt || b.date) - new Date(a.startedAt || a.date));
+      closeModal();
+      if (state.route === 'home') renderHome(); else if (state.route === 'progress') renderProgress(); else if (state.route === 'history') renderHistory();
+      toast(`${meta.label} сохранён${selectedKind === 'rest' ? '' : 'а'} за ${formatTinyDate(date)}`);
+    });
+    document.getElementById('delete-manual-day')?.addEventListener('click', async () => {
+      await DB.remove('workouts', existingManual.id);
+      state.workouts = state.workouts.filter((row) => row.id !== existingManual.id);
+      closeModal();
+      if (state.route === 'home') renderHome(); else if (state.route === 'progress') renderProgress(); else if (state.route === 'history') renderHistory();
+      toast('Ручная отметка удалена');
+    });
   }
 
   function workPrescription(exercise, entry = {}) {
@@ -3747,7 +3832,11 @@
               </div>
             </div>
           </div>
-          <button class="mini-button edit-day" data-index="${index}" type="button" aria-label="Редактировать день ${index + 1}">✎</button>
+          <div class="premium-day-order-actions">
+            <button class="mini-button move-program-day" data-index="${index}" data-delta="-1" type="button" aria-label="Поднять день ${index + 1}" ${index === 0 ? 'disabled' : ''}>↑</button>
+            <button class="mini-button move-program-day" data-index="${index}" data-delta="1" type="button" aria-label="Опустить день ${index + 1}" ${index === (getActiveProgram()?.days?.length || 1) - 1 ? 'disabled' : ''}>↓</button>
+            <button class="mini-button edit-day" data-index="${index}" type="button" aria-label="Редактировать день ${index + 1}">✎</button>
+          </div>
         </div>
 
         ${exercises.length ? `
@@ -3835,6 +3924,7 @@
     el.main.querySelectorAll('.set-current-day').forEach((button) => button.addEventListener('click', () => setCurrentDay(Number(button.dataset.index))));
     el.main.querySelectorAll('.start-specific').forEach((button) => button.addEventListener('click', async () => { await setCurrentDay(Number(button.dataset.index), false); startWorkout(false); }));
     el.main.querySelectorAll('.edit-day').forEach((button) => button.addEventListener('click', () => showEditDayModal(Number(button.dataset.index))));
+    el.main.querySelectorAll('.move-program-day').forEach((button) => button.addEventListener('click', () => requestMoveProgramDay(Number(button.dataset.index), Number(button.dataset.delta))));
     document.getElementById('duplicate-program').addEventListener('click', duplicateActiveProgram);
     document.getElementById('add-program-day').addEventListener('click', addProgramDay);
     document.getElementById('new-program').addEventListener('click', showNewProgramModal);
@@ -3860,6 +3950,66 @@
     toast(`Текущий день: ${index + 1}`);
   }
 
+
+
+  function programDayMuscleSets(day) {
+    const totals = new Map();
+    for (const entry of day?.exercises || []) {
+      const exercise = getExercise(entry.exerciseId);
+      if (!exercise) continue;
+      const sets = Math.max(1, Number(entry.sets ?? exercise.defaults?.sets ?? 1));
+      const group = String(exercise.group || '').toLowerCase();
+      const labels = [
+        ['Грудь', ['груд']], ['Спина', ['спин','широч','трапец']], ['Плечи', ['плеч','дельт']],
+        ['Бицепс', ['бицеп']], ['Трицепс', ['трицеп']], ['Ноги', ['ног','квадрицеп','икр']],
+        ['Ягодицы', ['ягод','задняя цепь']], ['Пресс', ['пресс','кор','живот','бока']],
+      ];
+      labels.forEach(([label, needles]) => { if (needles.some((word) => group.includes(word))) totals.set(label, (totals.get(label) || 0) + sets); });
+    }
+    return totals;
+  }
+
+  function programMoveWarnings(days, movedIndex) {
+    const warnings = [];
+    const current = programDayMuscleSets(days[movedIndex]);
+    [movedIndex - 1, movedIndex + 1].forEach((neighborIndex) => {
+      if (neighborIndex < 0 || neighborIndex >= days.length) return;
+      const neighbor = programDayMuscleSets(days[neighborIndex]);
+      for (const [muscle, sets] of current.entries()) {
+        const adjacentSets = neighbor.get(muscle) || 0;
+        if (sets >= 6 && adjacentSets >= 6) warnings.push(`${muscle}: ${sets} + ${adjacentSets} подходов в соседних днях`);
+      }
+    });
+    return [...new Set(warnings)];
+  }
+
+  async function requestMoveProgramDay(index, delta) {
+    const program = getActiveProgram();
+    const target = index + delta;
+    if (target < 0 || target >= program.days.length) return;
+    const nextDays = [...program.days];
+    [nextDays[index], nextDays[target]] = [nextDays[target], nextDays[index]];
+    const warnings = programMoveWarnings(nextDays, target);
+    const applyMove = async () => {
+      program.days = nextDays;
+      const current = Number(state.settings.currentDayIndex || 0);
+      if (current === index) state.settings.currentDayIndex = target;
+      else if (current === target) state.settings.currentDayIndex = index;
+      program.updatedAt = new Date().toISOString();
+      await Promise.all([DB.put('programs', program), DB.setSettingsObject({ currentDayIndex: state.settings.currentDayIndex }, state.activeProfileId)]);
+      closeModal();
+      renderPlan();
+      toast(`День перемещён на позицию ${target + 1}`);
+    };
+    if (!warnings.length) return applyMove();
+    showModal(`
+      <div class="modal-head"><div><div class="eyebrow">Проверка восстановления</div><h2>Есть риск перегруза</h2></div><button class="modal-close" data-close>×</button></div>
+      <div class="notice warning"><strong>После перестановки тяжёлая нагрузка на одну группу окажется в соседних днях.</strong></div>
+      <div class="card list-card" style="margin-top:12px">${warnings.map((warning) => `<div class="list-row"><div class="list-row-main"><div class="list-row-title">⚠️ ${escapeHTML(warning)}</div><div class="list-row-sub">Лучше оставить дополнительный день восстановления или снизить объём.</div></div></div>`).join('')}</div>
+      <div class="button-row" style="margin-top:14px"><button class="button ghost" data-close type="button">Отменить</button><button class="button primary" id="confirm-program-day-move" type="button">Всё равно переместить</button></div>
+    `);
+    document.getElementById('confirm-program-day-move').addEventListener('click', applyMove);
+  }
 
   async function addProgramDay() {
     const program = getActiveProgram();
@@ -4412,6 +4562,10 @@
   }
 
   function workoutSummaryCard(workout) {
+    if (isManualDayEntry(workout)) {
+      const meta = manualDayKindMeta(workout.manualDay.kind);
+      return `<div class="card manual-day-summary ${meta.className}"><div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div><div class="eyebrow">${formatDate(new Date(workout.startedAt), { day:'numeric', month:'long', year:'numeric' })}</div><h3 style="margin:5px 0 4px">${meta.icon} ${escapeHTML(meta.label)}</h3><div class="muted">ручная отметка календаря${workout.comment ? ` · ${escapeHTML(workout.comment)}` : ''}</div></div><button class="mini-button view-workout" data-id="${workout.id}">›</button></div></div>`;
+    }
     if (isRecoveryWorkout(workout)) {
       const reason = workout.recoveryDay?.reason || 'восстановление';
       return `<div class="card recovery-summary-card">
@@ -4427,6 +4581,7 @@
   function showWorkoutDetails(id) {
     const workout = state.workouts.find((w) => w.id === id);
     if (!workout) return;
+    if (isManualDayEntry(workout)) return showEditActivityDayModal(localDateISO(new Date(workout.startedAt || workout.date)));
     if (isRecoveryWorkout(workout)) return showRecoveryDayDetails(workout);
     showModal(`
       <div class="modal-head"><div><div class="eyebrow">${formatDate(new Date(workout.startedAt), { day:'numeric', month:'long', year:'numeric' })}</div><h2>${escapeHTML(workout.dayName)}</h2></div><button class="modal-close" data-close>×</button></div>
@@ -4715,7 +4870,7 @@
     const restButtonText = todayRestLogged ? 'Отдых записан' : todayHasTraining ? 'Сегодня была активность' : 'Отдохнуть сегодня';
     return `<section class="section compact-home-section"><details class="card home-disclosure smart-rest-card ${statusClass}" data-home-panel="rest" ${open ? 'open' : ''}>
       <summary><span class="home-disclosure-icon">◷</span><span class="home-disclosure-copy"><strong>Умный отдых</strong><small>${escapeHTML(analysis.homeText)}</small></span><span class="chip ${analysis.status === 'ok' ? 'success' : 'warning'}">${escapeHTML(analysis.statusLabel)}</span><span class="home-disclosure-chevron" aria-hidden="true">⌄</span></summary>
-      <div class="home-disclosure-body"><p>${escapeHTML(analysis.homeText)}</p><div class="rest-week-strip" aria-label="Календарь активности за 7 дней">${calendar}</div><div class="help">${escapeHTML(signals)}</div><div class="button-row smart-rest-actions home-panel-actions"><button class="button secondary small" id="open-rest-progress-home" type="button">Подробнее</button><button class="button ghost small" id="start-light-home" type="button">Лёгкая</button><button class="button ${analysis.shouldRest ? 'primary' : 'ghost'} small" id="log-rest-home" type="button" ${todayRestLogged || todayHasTraining ? 'disabled' : ''}>${escapeHTML(restButtonText)}</button></div></div>
+      <div class="home-disclosure-body"><p>${escapeHTML(analysis.homeText)}</p><div class="rest-week-strip" aria-label="Календарь активности за 7 дней">${calendar}</div><div class="help">${escapeHTML(signals)}</div><div class="button-row smart-rest-actions home-panel-actions"><button class="button secondary small" id="open-rest-progress-home" type="button">Подробнее</button><button class="button ghost small" id="start-light-home" type="button">Лёгкая</button><button class="button ${analysis.shouldRest ? 'primary' : 'ghost'} small" id="log-rest-home" type="button" ${todayRestLogged || todayHasTraining ? 'disabled' : ''}>${escapeHTML(restButtonText)}</button></div><button class="button ghost small full" id="edit-past-activity-home" type="button" style="margin-top:8px">✎ Изменить прошлые дни</button></div>
     </details></section>`;
   }
 
@@ -6812,6 +6967,8 @@
 
   function activityKindForDate(date, workouts = state.workouts) {
     const rows = workouts.filter((workout) => workout?.status === 'completed' && localDateISO(new Date(workout.startedAt || workout.date)) === date);
+    const manual = rows.filter(isManualDayEntry).sort((a,b) => new Date(b.manualDay?.updatedAt || b.finishedAt || 0) - new Date(a.manualDay?.updatedAt || a.finishedAt || 0))[0];
+    if (manual?.manualDay?.kind) return manual.manualDay.kind;
     if (rows.some(isTrainingWorkout)) {
       return rows.some((workout) => !workoutHasOnlyLightActivity(workout)) ? 'training' : 'light';
     }
