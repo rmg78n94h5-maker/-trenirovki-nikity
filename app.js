@@ -6995,13 +6995,21 @@
       food?.brand,
       food?.barcode,
       food?.category,
+      food?.subcategory,
       food?.search,
     ].filter(Boolean).join(' '));
   }
 
   function foodTypeLabel(food) {
-    if (food?.custom) return food.type === 'dish' ? 'Своё блюдо' : 'Свой продукт';
+    if (food?.custom) {
+      if (food.type === 'dish') return 'Своё блюдо';
+      if (food.type === 'beverage') return 'Свой напиток';
+      if (food.type === 'supplement') return 'Свой спортпит';
+      return 'Свой продукт';
+    }
     if (food?.type === 'dish') return 'Готовое блюдо';
+    if (food?.type === 'beverage') return food.subcategory || 'Напиток';
+    if (food?.type === 'supplement') return food.subcategory || 'Спортивное питание';
     if (food?.type === 'branded') return food.brand || 'Магазинный товар';
     return food?.category || 'Продукт';
   }
@@ -7044,6 +7052,7 @@
       brand: food.brand || null,
       barcode: food.barcode || null,
       category: food.category || 'Другое',
+      subcategory: food.subcategory || null,
       nutrition: {
         basis: Number(food.nutrition?.basis || 100),
         unit: food.nutrition?.unit || 'g',
@@ -7051,6 +7060,11 @@
         protein: Number(food.nutrition?.protein || 0),
         fat: Number(food.nutrition?.fat || 0),
         carbs: Number(food.nutrition?.carbs || 0),
+        fiber: food.nutrition?.fiber !== null && food.nutrition?.fiber !== undefined && Number.isFinite(Number(food.nutrition.fiber)) ? Number(food.nutrition.fiber) : null,
+        sugar: food.nutrition?.sugar !== null && food.nutrition?.sugar !== undefined && Number.isFinite(Number(food.nutrition.sugar)) ? Number(food.nutrition.sugar) : null,
+        sodiumMg: food.nutrition?.sodiumMg !== null && food.nutrition?.sodiumMg !== undefined && Number.isFinite(Number(food.nutrition.sodiumMg)) ? Number(food.nutrition.sodiumMg) : null,
+        caffeineMg: food.nutrition?.caffeineMg !== null && food.nutrition?.caffeineMg !== undefined && Number.isFinite(Number(food.nutrition.caffeineMg)) ? Number(food.nutrition.caffeineMg) : null,
+        alcoholG: food.nutrition?.alcoholG !== null && food.nutrition?.alcoholG !== undefined && Number.isFinite(Number(food.nutrition.alcoholG)) ? Number(food.nutrition.alcoholG) : null,
       },
       portions: (Array.isArray(food.portions) ? food.portions : [])
         .filter((portion) => Number(portion?.grams) > 0)
@@ -7120,6 +7134,29 @@
       seen.add(food.id);
       return true;
     });
+  }
+
+  function balancedFoodsBySubcategory(foods, limit = 180) {
+    const groups = new Map();
+    for (const food of foods) {
+      const key = food.subcategory || food.category || 'Другое';
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(food);
+    }
+    const queues = [...groups.entries()]
+      .sort(([a], [b]) => a.localeCompare(b, 'ru'))
+      .map(([, rows]) => rows.sort((a, b) => a.name.localeCompare(b.name, 'ru')));
+    const result = [];
+    let hasRows = true;
+    while (result.length < limit && hasRows) {
+      hasRows = false;
+      for (const queue of queues) {
+        if (!queue.length || result.length >= limit) continue;
+        hasRows = true;
+        result.push(queue.shift());
+      }
+    }
+    return result;
   }
 
   function nutritionCatalog() {
@@ -7212,12 +7249,33 @@
   function calculateFoodNutrition(food, grams) {
     const basis = Math.max(1, Number(food?.nutrition?.basis || 100));
     const factor = Math.max(0, Number(grams || 0)) / basis;
-    return {
+    const values = {
       kcal: roundNutrition(Number(food?.nutrition?.kcal || 0) * factor, 0),
       protein: roundNutrition(Number(food?.nutrition?.protein || 0) * factor),
       fat: roundNutrition(Number(food?.nutrition?.fat || 0) * factor),
       carbs: roundNutrition(Number(food?.nutrition?.carbs || 0) * factor),
     };
+    for (const key of ['fiber', 'sugar', 'sodiumMg', 'caffeineMg', 'alcoholG']) {
+      const raw = food?.nutrition?.[key];
+      const source = Number(raw);
+      values[key] = raw !== null && raw !== undefined && Number.isFinite(source)
+        ? roundNutrition(source * factor)
+        : null;
+    }
+    return values;
+  }
+
+  function nutritionUnitCode(foodOrNutrition) {
+    const nutrition = foodOrNutrition?.nutrition || foodOrNutrition || {};
+    return nutrition.unit === 'ml' ? 'ml' : 'g';
+  }
+
+  function nutritionUnitLabel(foodOrNutrition) {
+    return nutritionUnitCode(foodOrNutrition) === 'ml' ? 'мл' : 'г';
+  }
+
+  function foodEntryUnitLabel(entry) {
+    return nutritionUnitLabel(entry?.foodSnapshot?.nutrition || entry?.per100 || { unit: entry?.amountUnit });
   }
 
   function nutritionTargetForDate(date) {
@@ -7273,11 +7331,12 @@
   function renderNutritionEntry(entry) {
     const values = entry.nutrition || {};
     const brand = entry.foodSnapshot?.brand || entry.brand || '';
+    const unitLabel = foodEntryUnitLabel(entry);
     return `
       <div class="nutrition-entry">
         <button class="nutrition-entry-main edit-food-entry" data-entry-id="${escapeAttr(entry.id)}" type="button">
           <span class="nutrition-entry-name">${escapeHTML(entry.name || entry.foodSnapshot?.name || 'Продукт')}</span>
-          <small>${brand ? `${escapeHTML(brand)} · ` : ''}${formatNutritionValue(entry.grams, ' г')}${entry.portionLabel ? ` · ${escapeHTML(entry.portionLabel)}` : ''}</small>
+          <small>${brand ? `${escapeHTML(brand)} · ` : ''}${formatNutritionValue(entry.grams, ` ${unitLabel}`)}${entry.portionLabel ? ` · ${escapeHTML(entry.portionLabel)}` : ''}</small>
         </button>
         <div class="nutrition-entry-values"><strong>${formatNutritionValue(values.kcal)} ккал</strong><small>Б ${formatNutritionValue(values.protein)} · Ж ${formatNutritionValue(values.fat)} · У ${formatNutritionValue(values.carbs)}</small></div>
         <button class="nutrition-entry-delete delete-food-entry" data-entry-id="${escapeAttr(entry.id)}" type="button" aria-label="Удалить ${escapeAttr(entry.name || 'продукт')}">×</button>
@@ -7296,7 +7355,7 @@
           <button class="nutrition-meal-add add-food-to-meal" data-meal="${meal.id}" type="button" aria-label="Добавить в ${meal.label.toLowerCase()}">＋</button>
         </div>
         <div class="nutrition-entry-list">
-          ${rows.length ? rows.map(renderNutritionEntry).join('') : `<button class="nutrition-empty-meal add-food-to-meal" data-meal="${meal.id}" type="button">Добавить продукт или блюдо</button>`}
+          ${rows.length ? rows.map(renderNutritionEntry).join('') : `<button class="nutrition-empty-meal add-food-to-meal" data-meal="${meal.id}" type="button">Добавить еду или напиток</button>`}
         </div>
       </article>
     `;
@@ -7321,6 +7380,8 @@
     const remaining = Math.round(target.calories - totals.kcal);
     const isToday = state.nutritionDate === todayISO();
     const databaseTotal = Number(state.foodDatabaseInfo?.stats?.total || state.foodDatabase.length || 0);
+    const databaseBeverages = Number(state.foodDatabaseInfo?.stats?.beverages || state.foodDatabase.filter((food) => food.type === 'beverage').length || 0);
+    const databaseSportNutrition = Number(state.foodDatabaseInfo?.stats?.sportNutrition || state.foodDatabase.filter((food) => food.type === 'supplement' || food.category === 'Спортивное питание').length || 0);
 
     setTopbar('Питание', `Профиль: ${state.profile.name}`);
     el.main.innerHTML = `
@@ -7357,7 +7418,7 @@
 
         <button class="nutrition-search-launch" id="open-food-search" type="button">
           <span aria-hidden="true">⌕</span>
-          <span><strong>Найти продукт или блюдо</strong><small>${databaseTotal ? `${databaseTotal} позиций · названия, бренды и штрихкоды` : 'Свои продукты доступны даже без встроенной базы'}</small></span>
+          <span><strong>Найти еду или напиток</strong><small>${databaseTotal ? `${databaseTotal} позиций · названия, бренды и штрихкоды` : 'Свои продукты доступны даже без встроенной базы'}</small></span>
           <b aria-hidden="true">›</b>
         </button>
 
@@ -7368,13 +7429,13 @@
         </div>
 
         <div class="nutrition-own-actions">
-          <button class="button secondary" id="nutrition-own-food" type="button">＋ Свой продукт</button>
+          <button class="button secondary" id="nutrition-own-food" type="button">＋ Своя позиция</button>
           <button class="button ghost" id="nutrition-open-favorites" type="button">★ Избранное</button>
         </div>
 
         <div class="nutrition-database-note ${state.foodDatabaseStatus === 'error' ? 'warning' : ''}">
           <strong>${state.foodDatabaseStatus === 'error' ? 'Встроенная база пока не загрузилась' : `Русская офлайн-база · ${databaseTotal} позиций`}</strong>
-          <span>${state.foodDatabaseStatus === 'error' ? 'Дневник и свои продукты работают. Подключись к интернету один раз после обновления, чтобы скачать справочник.' : 'USDA FoodData Central (CC0), Open Food Facts (ODbL) и ориентировочные расчёты домашних блюд. Для упаковочных товаров сверяй КБЖУ с этикеткой.'}</span>
+          <span>${state.foodDatabaseStatus === 'error' ? 'Дневник и свои продукты работают. Подключись к интернету один раз после обновления, чтобы скачать справочник.' : `${databaseBeverages} напитков · ${databaseSportNutrition} позиций спортпита. USDA FoodData Central (CC0), Open Food Facts (ODbL) и справочные расчёты. Для упаковочных товаров сверяй КБЖУ с этикеткой.`}</span>
         </div>
       </section>
     `;
@@ -7404,12 +7465,13 @@
   function foodPickerRow(food, key) {
     const nutrition = food.nutrition || {};
     const detail = [food.brand, food.category].filter(Boolean).join(' · ');
+    const unitLabel = nutritionUnitLabel(nutrition);
     return `
       <div class="food-picker-row">
         <button class="food-picker-main choose-food" data-food-key="${escapeAttr(key)}" type="button">
           <span class="food-picker-type">${escapeHTML(foodTypeLabel(food))}</span>
           <strong>${escapeHTML(food.name)}</strong>
-          <small>${detail ? `${escapeHTML(detail)} · ` : ''}${formatNutritionValue(nutrition.kcal)} ккал · Б ${formatNutritionValue(nutrition.protein)} · Ж ${formatNutritionValue(nutrition.fat)} · У ${formatNutritionValue(nutrition.carbs)}</small>
+          <small>${detail ? `${escapeHTML(detail)} · ` : ''}${formatNutritionValue(nutrition.kcal)} ккал · Б ${formatNutritionValue(nutrition.protein)} · Ж ${formatNutritionValue(nutrition.fat)} · У ${formatNutritionValue(nutrition.carbs)} на 100 ${unitLabel}</small>
         </button>
         <button class="food-favorite-toggle ${isFoodFavorite(food) ? 'active' : ''}" data-food-key="${escapeAttr(key)}" type="button" aria-label="${isFoodFavorite(food) ? 'Убрать из избранного' : 'Добавить в избранное'}">★</button>
         ${food.custom ? `<button class="food-custom-edit edit-custom-food" data-food-id="${escapeAttr(food.id)}" type="button" aria-label="Изменить свой продукт">✎</button>` : ''}
@@ -7420,19 +7482,21 @@
   function showFoodPicker(meal = defaultNutritionMeal(), initialView = 'all') {
     const picker = { meal, view: initialView, query: '', visible: new Map() };
     showModal(`
-      <div class="modal-head"><div><span class="eyebrow">${escapeHTML(nutritionMealMeta(meal).label)}</span><h2>Добавить еду</h2></div><button class="modal-close" data-close>×</button></div>
-      <div class="food-search-box"><span aria-hidden="true">⌕</span><input id="food-search-input" type="search" inputmode="search" autocomplete="off" placeholder="Например: творог 5%, борщ или штрихкод"></div>
+      <div class="modal-head"><div><span class="eyebrow">${escapeHTML(nutritionMealMeta(meal).label)}</span><h2>Добавить в дневник</h2></div><button class="modal-close" data-close>×</button></div>
+      <div class="food-search-box"><span aria-hidden="true">⌕</span><input id="food-search-input" type="search" inputmode="search" autocomplete="off" placeholder="Творог, кофе, протеин или штрихкод"></div>
       <div class="food-picker-tabs" role="tablist">
         ${[
           ['all', 'Все'],
+          ['beverages', 'Напитки'],
+          ['sport', 'Спортпит'],
           ['favorites', '★ Избранное'],
           ['recent', 'Недавние'],
           ['custom', 'Свои'],
         ].map(([id, label]) => `<button class="food-picker-tab ${picker.view === id ? 'active' : ''}" data-food-view="${id}" type="button">${label}</button>`).join('')}
       </div>
-      <button class="food-create-own" id="food-create-own" type="button"><span>＋</span><strong>Создать свой продукт или блюдо</strong><b>›</b></button>
+      <button class="food-create-own" id="food-create-own" type="button"><span>＋</span><strong>Создать свою позицию</strong><b>›</b></button>
       <div id="food-picker-results" class="food-picker-results"></div>
-      <div class="help food-picker-help">КБЖУ указано на 100 г. Для магазинного товара сверяй цифры с текущей упаковкой.</div>
+      <div class="help food-picker-help">КБЖУ указано на 100 г продукта или порошка и на 100 мл готового напитка. Для магазинного товара сверяй цифры с текущей упаковкой.</div>
     `);
 
     const input = document.getElementById('food-search-input');
@@ -7454,16 +7518,32 @@
         rows = recentFoods(30);
         emptyTitle = 'Недавних пока нет';
         emptyText = 'После первой записи сюда попадут последние продукты.';
+      } else if (picker.view === 'beverages') {
+        rows = balancedFoodsBySubcategory(
+          nutritionCatalog().filter((food) => food.type === 'beverage' || food.category === 'Напитки'),
+          180,
+        );
+        emptyTitle = 'Напитки не найдены';
+        emptyText = 'Попробуй поиск по названию или бренду.';
+      } else if (picker.view === 'sport') {
+        rows = balancedFoodsBySubcategory(
+          nutritionCatalog().filter((food) => food.type === 'supplement' || food.category === 'Спортивное питание'),
+          120,
+        );
+        emptyTitle = 'Спортпит не найден';
+        emptyText = 'Попробуй поиск: протеин, гейнер, изотоник или креатин.';
       } else if (picker.view === 'custom') {
         rows = customFoods();
-        emptyTitle = 'Своих продуктов пока нет';
-        emptyText = 'Создай продукт или блюдо с КБЖУ на 100 г.';
+        emptyTitle = 'Своих позиций пока нет';
+        emptyText = 'Создай продукт, блюдо, напиток или спортпит со своими КБЖУ.';
       } else {
         rows = uniqueFoods([
           ...favoriteFoods(),
           ...recentFoods(10),
           ...nutritionCatalog().filter((food) => food.type === 'dish').slice(0, 18),
           ...nutritionCatalog().filter((food) => food.type === 'generic').slice(0, 18),
+          ...nutritionCatalog().filter((food) => food.type === 'beverage').slice(0, 10),
+          ...nutritionCatalog().filter((food) => food.type === 'supplement').slice(0, 8),
         ]).slice(0, 42);
       }
       resultsRoot.innerHTML = rows.length
@@ -7508,21 +7588,27 @@
     const initialMode = entry ? 'grams' : portions.length ? 'portion' : 'grams';
     const initialGrams = Number(entry?.grams || portions[0]?.grams || 100);
     const selectedPortionId = portions.find((portion) => Math.abs(Number(portion.grams) - initialGrams) < 0.01)?.id || portions[0]?.id || '';
+    const unitLabel = nutritionUnitLabel(food);
+    const directModeLabel = unitLabel === 'мл' ? 'В миллилитрах' : 'В граммах';
+    const amountFieldLabel = unitLabel === 'мл' ? 'Объём, мл' : 'Вес, г';
+    const per100Extra = Number(food.nutrition?.caffeineMg) > 0
+      ? ` · кофеин ${formatNutritionValue(food.nutrition.caffeineMg)} мг`
+      : '';
     showModal(`
       <div class="modal-head"><div><span class="eyebrow">${escapeHTML(foodTypeLabel(food))}</span><h2>${escapeHTML(food.name)}</h2></div><button class="modal-close" data-close>×</button></div>
       ${food.brand ? `<div class="food-amount-brand">${escapeHTML(food.brand)}${food.barcode ? ` · ${escapeHTML(food.barcode)}` : ''}</div>` : ''}
-      <div class="food-amount-per100">На 100 г: <strong>${formatNutritionValue(food.nutrition?.kcal)} ккал</strong> · Б ${formatNutritionValue(food.nutrition?.protein)} · Ж ${formatNutritionValue(food.nutrition?.fat)} · У ${formatNutritionValue(food.nutrition?.carbs)}</div>
+      <div class="food-amount-per100">На 100 ${unitLabel}: <strong>${formatNutritionValue(food.nutrition?.kcal)} ккал</strong> · Б ${formatNutritionValue(food.nutrition?.protein)} · Ж ${formatNutritionValue(food.nutrition?.fat)} · У ${formatNutritionValue(food.nutrition?.carbs)}${per100Extra}</div>
       <div class="field" style="margin-top:14px"><label>Приём пищи</label><select id="food-entry-meal">${nutritionMealOptions().map((item) => `<option value="${item.id}" ${item.id === meal ? 'selected' : ''}>${item.label}</option>`).join('')}</select></div>
       <div class="food-amount-modes" role="group" aria-label="Способ ввода количества">
-        <button class="food-amount-mode ${initialMode === 'grams' ? 'active' : ''}" data-amount-mode="grams" type="button">В граммах</button>
+        <button class="food-amount-mode ${initialMode === 'grams' ? 'active' : ''}" data-amount-mode="grams" type="button">${directModeLabel}</button>
         <button class="food-amount-mode ${initialMode === 'portion' ? 'active' : ''}" data-amount-mode="portion" type="button" ${portions.length ? '' : 'disabled'}>Обычной порцией</button>
       </div>
       <div class="food-grams-fields ${initialMode === 'grams' ? '' : 'hidden'}">
-        <div class="field"><label>Вес, г</label><input id="food-entry-grams" type="number" inputmode="decimal" min="1" max="5000" step="1" value="${initialGrams}"></div>
+        <div class="field"><label>${amountFieldLabel}</label><input id="food-entry-grams" type="number" inputmode="decimal" min="1" max="5000" step="1" value="${initialGrams}"></div>
       </div>
       <div class="food-portion-fields ${initialMode === 'portion' ? '' : 'hidden'}">
         <div class="inline-fields">
-          <div class="field"><label>Порция</label><select id="food-entry-portion">${portions.map((portion) => `<option value="${escapeAttr(portion.id)}" ${portion.id === selectedPortionId ? 'selected' : ''}>${escapeHTML(portion.label)} · ${formatNutritionValue(portion.grams)} г</option>`).join('')}</select></div>
+          <div class="field"><label>Порция</label><select id="food-entry-portion">${portions.map((portion) => `<option value="${escapeAttr(portion.id)}" ${portion.id === selectedPortionId ? 'selected' : ''}>${escapeHTML(portion.label)} · ${formatNutritionValue(portion.grams)} ${unitLabel}</option>`).join('')}</select></div>
           <div class="field"><label>Количество</label><input id="food-entry-portions-count" type="number" inputmode="decimal" min="0.25" max="20" step="0.25" value="1"></div>
         </div>
       </div>
@@ -7552,7 +7638,8 @@
     const refresh = () => {
       const amount = readAmount();
       const values = calculateFoodNutrition(food, amount.grams);
-      result.innerHTML = `<div><span>${formatNutritionValue(amount.grams)} г</span><strong>${formatNutritionValue(values.kcal)} ккал</strong></div><small>Белки ${formatNutritionValue(values.protein)} г · жиры ${formatNutritionValue(values.fat)} г · углеводы ${formatNutritionValue(values.carbs)} г</small>`;
+      const caffeine = Number(values.caffeineMg) > 0 ? ` · кофеин ${formatNutritionValue(values.caffeineMg)} мг` : '';
+      result.innerHTML = `<div><span>${formatNutritionValue(amount.grams)} ${unitLabel}</span><strong>${formatNutritionValue(values.kcal)} ккал</strong></div><small>Белки ${formatNutritionValue(values.protein)} г · жиры ${formatNutritionValue(values.fat)} г · углеводы ${formatNutritionValue(values.carbs)} г${caffeine}</small>`;
     };
 
     el.modalRoot.querySelectorAll('.food-amount-mode').forEach((button) => button.addEventListener('click', () => {
@@ -7572,7 +7659,7 @@
     document.getElementById('save-food-entry')?.addEventListener('click', async () => {
       const amount = readAmount();
       if (!Number.isFinite(amount.grams) || amount.grams <= 0) return toast('Укажи количество больше нуля');
-      if (amount.grams > 5000) return toast('Проверь вес: максимум 5000 г за одну запись');
+      if (amount.grams > 5000) return toast(`Проверь количество: максимум 5000 ${unitLabel} за одну запись`);
       await saveFoodEntry(food, {
         existing: entry,
         meal: document.getElementById('food-entry-meal').value,
@@ -7595,6 +7682,7 @@
       name: snapshot.name,
       brand: snapshot.brand,
       grams: roundNutrition(grams),
+      amountUnit: snapshot.nutrition.unit,
       portionLabel: String(portionLabel || ''),
       per100: clone(snapshot.nutrition),
       nutrition: calculateFoodNutrition(snapshot, grams),
@@ -7625,16 +7713,18 @@
     const existing = foodId ? customRecordForFood(foodId) : null;
     const food = existing?.food || {};
     const portion = food.portions?.[0] || {};
+    const existingUnit = nutritionUnitCode(food.nutrition || { unit: food.type === 'beverage' ? 'ml' : 'g' });
     showModal(`
-      <div class="modal-head"><div><span class="eyebrow">Личная база</span><h2>${existing ? 'Изменить продукт' : 'Свой продукт или блюдо'}</h2></div><button class="modal-close" data-close>×</button></div>
+      <div class="modal-head"><div><span class="eyebrow">Личная база</span><h2>${existing ? 'Изменить позицию' : 'Своя позиция'}</h2></div><button class="modal-close" data-close>×</button></div>
       <div class="form-grid">
         <div class="inline-fields">
-          <div class="field"><label>Тип</label><select id="custom-food-type"><option value="generic" ${food.type !== 'dish' ? 'selected' : ''}>Продукт</option><option value="dish" ${food.type === 'dish' ? 'selected' : ''}>Готовое блюдо</option></select></div>
+          <div class="field"><label>Тип</label><select id="custom-food-type"><option value="generic" ${!['dish', 'beverage', 'supplement'].includes(food.type) ? 'selected' : ''}>Продукт</option><option value="dish" ${food.type === 'dish' ? 'selected' : ''}>Готовое блюдо</option><option value="beverage" ${food.type === 'beverage' ? 'selected' : ''}>Напиток</option><option value="supplement" ${food.type === 'supplement' ? 'selected' : ''}>Спортпит</option></select></div>
           <div class="field"><label>Категория</label><input id="custom-food-category" value="${escapeAttr(food.category || '')}" placeholder="Например, молочка"></div>
         </div>
         <div class="field"><label>Название *</label><input id="custom-food-name" value="${escapeAttr(food.name || '')}" maxlength="100" placeholder="Например, запеканка Лёхи"></div>
         <div class="field"><label>Бренд, необязательно</label><input id="custom-food-brand" value="${escapeAttr(food.brand || '')}" maxlength="80" placeholder="Производитель или домашнее"></div>
-        <div class="custom-food-nutrition-label"><strong>КБЖУ на 100 г</strong><span>Перепиши с упаковки или рецепта</span></div>
+        <div class="field"><label>Единица учёта</label><select id="custom-food-unit"><option value="g" ${existingUnit === 'g' ? 'selected' : ''}>Граммы — на 100 г</option><option value="ml" ${existingUnit === 'ml' ? 'selected' : ''}>Миллилитры — на 100 мл</option></select></div>
+        <div class="custom-food-nutrition-label"><strong id="custom-food-nutrition-basis">КБЖУ на 100 ${existingUnit === 'ml' ? 'мл' : 'г'}</strong><span>Перепиши с упаковки или рецепта</span></div>
         <div class="inline-fields">
           <div class="field"><label>Калории</label><input id="custom-food-kcal" type="number" inputmode="decimal" min="0" max="1000" step="1" value="${food.nutrition?.kcal ?? ''}"></div>
           <div class="field"><label>Белки, г</label><input id="custom-food-protein" type="number" inputmode="decimal" min="0" max="100" step="0.1" value="${food.nutrition?.protein ?? ''}"></div>
@@ -7644,40 +7734,67 @@
         <div class="custom-food-nutrition-label"><strong>Привычная порция</strong><span>Можно оставить пустой</span></div>
         <div class="inline-fields">
           <div class="field"><label>Название порции</label><input id="custom-food-portion-label" value="${escapeAttr(portion.label || '')}" placeholder="штука, тарелка, стакан"></div>
-          <div class="field"><label>Вес порции, г</label><input id="custom-food-portion-grams" type="number" inputmode="decimal" min="1" max="5000" step="1" value="${portion.grams ?? ''}"></div>
+          <div class="field"><label id="custom-food-portion-amount-label">${existingUnit === 'ml' ? 'Объём порции, мл' : 'Вес порции, г'}</label><input id="custom-food-portion-grams" type="number" inputmode="decimal" min="1" max="5000" step="1" value="${portion.grams ?? ''}"></div>
         </div>
       </div>
       <div class="custom-food-actions">
         ${existing ? '<button class="button danger" id="delete-custom-food" type="button">Удалить</button>' : '<span></span>'}
-        <button class="button primary" id="save-custom-food" type="button">${existing ? 'Сохранить' : 'Создать продукт'}</button>
+        <button class="button primary" id="save-custom-food" type="button">${existing ? 'Сохранить' : 'Создать'}</button>
       </div>
-      <div class="help" style="margin-top:10px">Свой продукт хранится только в текущем профиле и входит в резервную копию.</div>
+      <div class="help" style="margin-top:10px">Своя позиция хранится только в текущем профиле и входит в резервную копию.</div>
     `);
+    const customType = document.getElementById('custom-food-type');
+    const customUnit = document.getElementById('custom-food-unit');
+    const customCategory = document.getElementById('custom-food-category');
+    const refreshCustomUnit = () => {
+      const isMl = customUnit?.value === 'ml';
+      const basis = document.getElementById('custom-food-nutrition-basis');
+      const portionAmountLabel = document.getElementById('custom-food-portion-amount-label');
+      if (basis) basis.textContent = `КБЖУ на 100 ${isMl ? 'мл' : 'г'}`;
+      if (portionAmountLabel) portionAmountLabel.textContent = isMl ? 'Объём порции, мл' : 'Вес порции, г';
+    };
+    customType?.addEventListener('change', () => {
+      if (customType.value === 'beverage') {
+        if (customUnit) customUnit.value = 'ml';
+        if (customCategory && !customCategory.value.trim()) customCategory.value = 'Мои напитки';
+      } else if (customType.value === 'supplement') {
+        if (customUnit) customUnit.value = 'g';
+        if (customCategory && !customCategory.value.trim()) customCategory.value = 'Мой спортпит';
+      } else if (customUnit) {
+        customUnit.value = 'g';
+      }
+      refreshCustomUnit();
+    });
+    customUnit?.addEventListener('change', refreshCustomUnit);
     document.getElementById('save-custom-food')?.addEventListener('click', async () => {
       const name = document.getElementById('custom-food-name').value.trim();
+      const type = document.getElementById('custom-food-type').value;
+      const unit = document.getElementById('custom-food-unit').value === 'ml' ? 'ml' : 'g';
+      const unitLabel = unit === 'ml' ? 'мл' : 'г';
       const kcal = Number(document.getElementById('custom-food-kcal').value);
       const protein = Number(document.getElementById('custom-food-protein').value);
       const fat = Number(document.getElementById('custom-food-fat').value);
       const carbs = Number(document.getElementById('custom-food-carbs').value);
       if (!name) return toast('Введи название');
       if (![kcal, protein, fat, carbs].every((value) => Number.isFinite(value) && value >= 0)) return toast('Заполни КБЖУ числами от нуля');
-      if (kcal > 1000 || protein > 100 || fat > 100 || carbs > 100) return toast('Проверь КБЖУ на 100 г');
+      if (kcal > 1000 || protein > 100 || fat > 100 || carbs > 100) return toast(`Проверь КБЖУ на 100 ${unitLabel}`);
       const portionLabel = document.getElementById('custom-food-portion-label').value.trim();
       const portionGrams = Number(document.getElementById('custom-food-portion-grams').value);
-      if ((portionLabel && !(portionGrams > 0)) || (!portionLabel && portionGrams > 0)) return toast('Для порции укажи и название, и вес');
+      if ((portionLabel && !(portionGrams > 0)) || (!portionLabel && portionGrams > 0)) return toast('Для порции укажи и название, и размер');
       const now = new Date().toISOString();
       const customFood = {
         id: food.id || uid('custom-food'),
-        type: document.getElementById('custom-food-type').value === 'dish' ? 'dish' : 'generic',
+        type: ['dish', 'beverage', 'supplement'].includes(type) ? type : 'generic',
         custom: true,
         name,
         aliases: [],
         brand: document.getElementById('custom-food-brand').value.trim() || null,
         barcode: null,
-        category: document.getElementById('custom-food-category').value.trim() || 'Мои продукты',
+        category: document.getElementById('custom-food-category').value.trim()
+          || (type === 'beverage' ? 'Мои напитки' : type === 'supplement' ? 'Мой спортпит' : 'Мои продукты'),
         nutrition: {
           basis: 100,
-          unit: 'g',
+          unit,
           kcal: roundNutrition(kcal),
           protein: roundNutrition(protein),
           fat: roundNutrition(fat),
@@ -7704,7 +7821,7 @@
       else state.savedFoods.unshift(record);
       closeModal();
       if (state.route === 'nutrition') renderNutrition();
-      toast(existing ? 'Свой продукт обновлён' : 'Свой продукт создан');
+      toast(existing ? 'Своя позиция обновлена' : 'Своя позиция создана');
     });
     document.getElementById('delete-custom-food')?.addEventListener('click', async () => {
       if (!existing || !window.confirm(`Удалить «${existing.food.name}» из личной базы? Записи в дневнике останутся.`)) return;
@@ -7712,7 +7829,7 @@
       state.savedFoods = state.savedFoods.filter((record) => record.id !== existing.id);
       closeModal();
       if (state.route === 'nutrition') renderNutrition();
-      toast('Продукт удалён из личной базы');
+      toast('Позиция удалена из личной базы');
     });
   }
 
