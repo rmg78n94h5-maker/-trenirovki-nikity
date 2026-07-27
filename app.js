@@ -40,6 +40,12 @@
     measurements: [],
     photos: [],
     painEntries: [],
+    foodEntries: [],
+    savedFoods: [],
+    foodDatabase: [],
+    foodDatabaseInfo: null,
+    foodDatabaseStatus: 'loading',
+    nutritionDate: null,
     currentWorkout: null,
     historyFilter: 'month',
     progressTab: 'body',
@@ -415,7 +421,10 @@
       bindGlobalEvents();
       registerServiceWorker();
       updateOnlineStatus();
-      await loadState();
+      await Promise.all([
+        loadState(),
+        loadFoodDatabase(),
+      ]);
       if (!state.profiles.length) {
         showProfileOnboarding();
         hideSplash();
@@ -455,6 +464,30 @@
     }, delay);
   }
 
+  async function loadFoodDatabase() {
+    state.foodDatabaseStatus = 'loading';
+    try {
+      const response = await fetch('./foods-ru-v1.json', { cache: 'default' });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const database = await response.json();
+      if (!Array.isArray(database?.foods) || !database.foods.length) throw new Error('Файл базы пуст');
+      state.foodDatabase = database.foods;
+      state.foodDatabaseInfo = {
+        databaseId: database.databaseId || 'foods-ru',
+        version: database.databaseVersion || database.schemaVersion || 1,
+        stats: database.stats || { total: database.foods.length },
+        license: database.license || null,
+        usageNotes: Array.isArray(database.usageNotes) ? database.usageNotes : [],
+      };
+      state.foodDatabaseStatus = 'ready';
+    } catch (error) {
+      console.warn('Food database load failed', error);
+      state.foodDatabase = [];
+      state.foodDatabaseInfo = null;
+      state.foodDatabaseStatus = 'error';
+    }
+  }
+
   async function loadState() {
     const [profiles, activeProfileId, exercises, programs] = await Promise.all([
       DB.getProfiles(),
@@ -477,6 +510,8 @@
       state.measurements = [];
       state.photos = [];
       state.painEntries = [];
+      state.foodEntries = [];
+      state.savedFoods = [];
       updateProfileButton();
       return;
     }
@@ -488,7 +523,7 @@
 
   async function loadActiveProfileData() {
     const profileId = state.activeProfileId;
-    const [profile, nutrition, settings, workouts, measurements, photos, painEntries] = await Promise.all([
+    const [profile, nutrition, settings, workouts, measurements, photos, painEntries, foodEntries, savedFoods] = await Promise.all([
       DB.get('profile', profileId),
       DB.get('nutrition', profileId),
       DB.getSettingsObject(profileId),
@@ -496,6 +531,8 @@
       DB.getAllForProfile('measurements', profileId),
       DB.getAllForProfile('photos', profileId),
       DB.getAllForProfile('painEntries', profileId).catch(() => []),
+      DB.getAllForProfile('foodEntries', profileId).catch(() => []),
+      DB.getAllForProfile('savedFoods', profileId).catch(() => []),
     ]);
     state.profile = profile;
     state.nutrition = nutrition || { id: profileId, ...clone(window.NIKITA_SEED.nutrition) };
@@ -506,6 +543,9 @@
     state.measurements = measurements.sort((a, b) => b.date.localeCompare(a.date));
     state.photos = photos.sort((a, b) => b.date.localeCompare(a.date));
     state.painEntries = painEntries.sort((a, b) => String(b.createdAt || b.date || '').localeCompare(String(a.createdAt || a.date || '')));
+    state.foodEntries = foodEntries.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+    state.savedFoods = savedFoods.sort((a, b) => String(b.updatedAt || b.createdAt || '').localeCompare(String(a.updatedAt || a.createdAt || '')));
+    state.nutritionDate = state.nutritionDate || todayISO();
     state.programBuilder = null;
     updateProfileButton();
   }
@@ -513,13 +553,24 @@
   function bindGlobalEvents() {
     el.nav.forEach((button) => button.addEventListener('click', () => navigate(button.dataset.route)));
     el.quickAdd.addEventListener('click', showQuickAdd);
-    el.profileSwitch.addEventListener('click', showProfileSwitcher);
+    el.profileSwitch.addEventListener('click', () => {
+      if (!state.profile) return showProfileOnboarding();
+      navigate('more');
+    });
     window.addEventListener('hashchange', () => navigate(routeFromHash(), false));
     window.addEventListener('online', updateOnlineStatus);
     window.addEventListener('offline', updateOnlineStatus);
     window.addEventListener('scroll', scheduleWorkoutStickyOffsetSync, { passive: true });
-    window.addEventListener('resize', scheduleWorkoutStickyOffsetSync);
-    window.addEventListener('orientationchange', scheduleWorkoutStickyOffsetSync);
+    window.addEventListener('resize', () => {
+      scheduleWorkoutStickyOffsetSync();
+      scheduleBottomNavigationSync();
+    });
+    window.addEventListener('orientationchange', () => {
+      scheduleWorkoutStickyOffsetSync();
+      scheduleBottomNavigationSync();
+    });
+    window.visualViewport?.addEventListener('resize', scheduleBottomNavigationSync);
+    window.visualViewport?.addEventListener('scroll', scheduleBottomNavigationSync);
     el.timerMinus.addEventListener('click', () => adjustTimer(-15));
     el.timerPlus.addEventListener('click', () => adjustTimer(15));
     el.timerSkip.addEventListener('click', stopRestTimer);
@@ -537,6 +588,37 @@
       flushDraftSave().catch((error) => console.warn('Workout draft save on pagehide failed', error));
       flushProgramBuilderDraftSave().catch((error) => console.warn('Program draft save on pagehide failed', error));
     });
+    scheduleBottomNavigationSync();
+  }
+
+  let bottomNavigationSyncFrame = 0;
+
+  function scheduleBottomNavigationSync() {
+    if (bottomNavigationSyncFrame) cancelAnimationFrame(bottomNavigationSyncFrame);
+    bottomNavigationSyncFrame = requestAnimationFrame(() => {
+      bottomNavigationSyncFrame = 0;
+      const root = document.documentElement;
+      const nav = document.querySelector('.bottom-nav');
+      if (!root || !nav) return;
+      let gap = 0;
+      if (isIOSDevice()) {
+        const viewport = window.visualViewport;
+        const screenHeight = Number(window.screen?.height || 0);
+        const viewportBottom = Number(viewport?.offsetTop || 0) + Number(viewport?.height || window.innerHeight || 0);
+        const measuredGap = screenHeight - viewportBottom;
+        // 0–72 px — системная нижняя область. Большая разница означает
+        // открытую клавиатуру или браузерную панель, в неё навигацию не двигаем.
+        if (Number.isFinite(measuredGap) && measuredGap > 0 && measuredGap <= 72) {
+          gap = Math.round(measuredGap * 10) / 10;
+        }
+      }
+      root.style.setProperty('--bottom-nav-viewport-gap', `${gap}px`);
+      // Инлайн-геометрия страхует от старого закэшированного каскада styles.css.
+      nav.style.setProperty('bottom', 'calc(0px - var(--bottom-nav-viewport-gap, 0px))', 'important');
+      nav.style.setProperty('height', 'var(--bottom-nav-content-height)', 'important');
+      nav.style.setProperty('min-height', 'var(--bottom-nav-content-height)', 'important');
+      nav.style.setProperty('padding', '2px 6px 1px', 'important');
+    });
   }
 
   function routeFromHash() {
@@ -544,7 +626,7 @@
   }
 
   function navigate(route, updateHash = true) {
-    const allowed = ['home', 'plan', 'history', 'progress', 'more', 'guide', 'workout'];
+    const allowed = ['home', 'plan', 'history', 'nutrition', 'progress', 'more', 'guide', 'workout'];
     state.route = allowed.includes(route) ? route : 'home';
     if (updateHash && location.hash !== `#/${state.route}`) history.pushState(null, '', `#/${state.route}`);
     const activeNavRoute = state.route === 'guide' ? 'more' : state.route;
@@ -564,6 +646,7 @@
       case 'home': renderHome(); break;
       case 'plan': renderPlan(); break;
       case 'history': renderHistory(); break;
+      case 'nutrition': renderNutrition(); break;
       case 'progress': renderProgress(); break;
       case 'more': renderMore(); break;
       case 'guide': renderOfflineGuide(); break;
@@ -6875,8 +6958,766 @@
     });
   }
 
+  function nutritionMealOptions() {
+    return [
+      { id: 'breakfast', label: 'Завтрак', icon: '☀', note: 'Начало дня' },
+      { id: 'lunch', label: 'Обед', icon: '◐', note: 'Основной приём' },
+      { id: 'dinner', label: 'Ужин', icon: '◒', note: 'Вечером' },
+      { id: 'snack', label: 'Перекусы', icon: '◇', note: 'Между приёмами' },
+    ];
+  }
+
+  function nutritionMealMeta(mealId) {
+    return nutritionMealOptions().find((meal) => meal.id === mealId) || nutritionMealOptions()[3];
+  }
+
+  function defaultNutritionMeal() {
+    const hour = new Date().getHours();
+    if (hour < 11) return 'breakfast';
+    if (hour < 16) return 'lunch';
+    if (hour < 21) return 'dinner';
+    return 'snack';
+  }
+
+  function normalizeFoodSearch(value = '') {
+    return String(value)
+      .toLocaleLowerCase('ru-RU')
+      .replace(/ё/g, 'е')
+      .replace(/[^a-zа-я0-9]+/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function foodSearchText(food) {
+    return normalizeFoodSearch([
+      food?.name,
+      ...(Array.isArray(food?.aliases) ? food.aliases : []),
+      food?.brand,
+      food?.barcode,
+      food?.category,
+      food?.search,
+    ].filter(Boolean).join(' '));
+  }
+
+  function foodTypeLabel(food) {
+    if (food?.custom) return food.type === 'dish' ? 'Своё блюдо' : 'Свой продукт';
+    if (food?.type === 'dish') return 'Готовое блюдо';
+    if (food?.type === 'branded') return food.brand || 'Магазинный товар';
+    return food?.category || 'Продукт';
+  }
+
+  function customFoodRecords() {
+    return state.savedFoods.filter((record) => record.recordType === 'custom' && record.food?.id);
+  }
+
+  function customFoods() {
+    return customFoodRecords().map((record) => ({
+      ...record.food,
+      custom: true,
+      savedRecordId: record.id,
+      favorite: record.favorite !== false,
+    }));
+  }
+
+  function favoriteRecordForFood(foodId) {
+    return state.savedFoods.find((record) => record.recordType === 'favorite' && record.foodId === foodId) || null;
+  }
+
+  function customRecordForFood(foodId) {
+    return customFoodRecords().find((record) => record.food.id === foodId) || null;
+  }
+
+  function isFoodFavorite(food) {
+    if (!food?.id) return false;
+    const customRecord = customRecordForFood(food.id);
+    if (customRecord) return customRecord.favorite !== false;
+    return Boolean(favoriteRecordForFood(food.id));
+  }
+
+  function foodSnapshot(food) {
+    return {
+      id: food.id,
+      type: food.type || 'generic',
+      custom: Boolean(food.custom),
+      name: String(food.name || 'Без названия'),
+      aliases: Array.isArray(food.aliases) ? food.aliases.slice(0, 12) : [],
+      brand: food.brand || null,
+      barcode: food.barcode || null,
+      category: food.category || 'Другое',
+      nutrition: {
+        basis: Number(food.nutrition?.basis || 100),
+        unit: food.nutrition?.unit || 'g',
+        kcal: Number(food.nutrition?.kcal || 0),
+        protein: Number(food.nutrition?.protein || 0),
+        fat: Number(food.nutrition?.fat || 0),
+        carbs: Number(food.nutrition?.carbs || 0),
+      },
+      portions: (Array.isArray(food.portions) ? food.portions : [])
+        .filter((portion) => Number(portion?.grams) > 0)
+        .slice(0, 20)
+        .map((portion, index) => ({
+          id: portion.id || `p${index + 1}`,
+          label: String(portion.label || 'порция'),
+          grams: Number(portion.grams),
+        })),
+      source: food.source ? clone(food.source) : null,
+      note: food.note || null,
+      search: foodSearchText(food),
+    };
+  }
+
+  function foodFromEntry(entry) {
+    if (entry?.foodSnapshot?.id) return { ...entry.foodSnapshot, custom: Boolean(entry.foodSnapshot.custom) };
+    const found = findNutritionFood(entry?.foodId);
+    if (found) return found;
+    return {
+      id: entry?.foodId || uid('missing-food'),
+      type: 'generic',
+      name: entry?.name || 'Продукт',
+      brand: entry?.brand || null,
+      category: 'Другое',
+      nutrition: entry?.per100 || { basis: 100, unit: 'g', kcal: 0, protein: 0, fat: 0, carbs: 0 },
+      portions: [],
+    };
+  }
+
+  function findNutritionFood(foodId) {
+    if (!foodId) return null;
+    return customFoods().find((food) => food.id === foodId)
+      || state.foodDatabase.find((food) => food.id === foodId)
+      || state.savedFoods.find((record) => record.recordType === 'favorite' && record.foodId === foodId)?.food
+      || null;
+  }
+
+  function favoriteFoods() {
+    const rows = [];
+    for (const record of state.savedFoods) {
+      if (record.recordType === 'custom' && record.favorite !== false && record.food?.id) {
+        rows.push({ ...record.food, custom: true, savedRecordId: record.id });
+      } else if (record.recordType === 'favorite' && record.food?.id) {
+        rows.push(record.food);
+      }
+    }
+    return uniqueFoods(rows);
+  }
+
+  function recentFoods(limit = 12) {
+    const rows = [];
+    const seen = new Set();
+    for (const entry of [...state.foodEntries].sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))) {
+      if (!entry.foodId || seen.has(entry.foodId)) continue;
+      seen.add(entry.foodId);
+      rows.push(foodFromEntry(entry));
+      if (rows.length >= limit) break;
+    }
+    return rows;
+  }
+
+  function uniqueFoods(foods) {
+    const seen = new Set();
+    return foods.filter((food) => {
+      if (!food?.id || seen.has(food.id)) return false;
+      seen.add(food.id);
+      return true;
+    });
+  }
+
+  function nutritionCatalog() {
+    return uniqueFoods([...customFoods(), ...state.foodDatabase]);
+  }
+
+  function foodMatchScore(food, query) {
+    const normalized = normalizeFoodSearch(query);
+    if (!normalized) return 0;
+    const name = normalizeFoodSearch(food.name);
+    const brand = normalizeFoodSearch(food.brand);
+    const barcode = String(food.barcode || '');
+    if (barcode && barcode === normalized.replace(/\s/g, '')) return 1000;
+    if (name === normalized) return 900;
+    if (name.startsWith(normalized)) return 700;
+    if (brand && brand.startsWith(normalized)) return 500;
+    return 100;
+  }
+
+  function searchNutritionFoods(query) {
+    const normalized = normalizeFoodSearch(query);
+    if (!normalized) return [];
+    const tokens = normalized.split(' ').filter(Boolean);
+    return nutritionCatalog()
+      .filter((food) => {
+        const haystack = foodSearchText(food);
+        return tokens.every((token) => haystack.includes(token));
+      })
+      .sort((a, b) => foodMatchScore(b, normalized) - foodMatchScore(a, normalized)
+        || Number(isFoodFavorite(b)) - Number(isFoodFavorite(a))
+        || a.name.localeCompare(b.name, 'ru'))
+      .slice(0, 60);
+  }
+
+  async function toggleFoodFavorite(food) {
+    if (!food?.id) return;
+    const now = new Date().toISOString();
+    const customRecord = customRecordForFood(food.id);
+    if (customRecord) {
+      const next = { ...customRecord, favorite: customRecord.favorite === false, updatedAt: now };
+      await DB.put('savedFoods', next);
+      state.savedFoods = state.savedFoods.map((record) => record.id === next.id ? next : record);
+      return;
+    }
+    const existing = favoriteRecordForFood(food.id);
+    if (existing) {
+      await DB.remove('savedFoods', existing.id);
+      state.savedFoods = state.savedFoods.filter((record) => record.id !== existing.id);
+      return;
+    }
+    const record = {
+      id: `favorite:${state.activeProfileId}:${food.id}`,
+      profileId: state.activeProfileId,
+      recordType: 'favorite',
+      foodId: food.id,
+      food: foodSnapshot(food),
+      createdAt: now,
+      updatedAt: now,
+    };
+    await DB.put('savedFoods', record);
+    state.savedFoods.unshift(record);
+  }
+
+  function nutritionEntriesForDate(date = state.nutritionDate || todayISO()) {
+    return state.foodEntries.filter((entry) => entry.date === date);
+  }
+
+  function nutritionTotals(entries) {
+    return entries.reduce((total, entry) => {
+      const values = entry.nutrition || {};
+      total.kcal += Number(values.kcal || 0);
+      total.protein += Number(values.protein || 0);
+      total.fat += Number(values.fat || 0);
+      total.carbs += Number(values.carbs || 0);
+      return total;
+    }, { kcal: 0, protein: 0, fat: 0, carbs: 0 });
+  }
+
+  function roundNutrition(value, precision = 1) {
+    const scale = 10 ** precision;
+    return Math.round((Number(value) || 0) * scale) / scale;
+  }
+
+  function formatNutritionValue(value, suffix = '') {
+    const rounded = roundNutrition(value, 1);
+    const text = Number.isInteger(rounded) ? String(rounded) : String(rounded).replace('.', ',');
+    return `${text}${suffix}`;
+  }
+
+  function calculateFoodNutrition(food, grams) {
+    const basis = Math.max(1, Number(food?.nutrition?.basis || 100));
+    const factor = Math.max(0, Number(grams || 0)) / basis;
+    return {
+      kcal: roundNutrition(Number(food?.nutrition?.kcal || 0) * factor, 0),
+      protein: roundNutrition(Number(food?.nutrition?.protein || 0) * factor),
+      fat: roundNutrition(Number(food?.nutrition?.fat || 0) * factor),
+      carbs: roundNutrition(Number(food?.nutrition?.carbs || 0) * factor),
+    };
+  }
+
+  function nutritionTargetForDate(date) {
+    const rows = state.workouts.filter((workout) => (
+      workout?.status === 'completed'
+      && localDateISO(new Date(workout.startedAt || workout.date || Date.now())) === date
+    ));
+    let recovery = rows.length ? !rows.some((workout) => !isRecoveryWorkout(workout) && !isManualDayEntry(workout)) : true;
+    if (date === todayISO() && !rows.length) {
+      const current = getCurrentDay();
+      recovery = Boolean(current?.day?.recovery || current?.day?.restDay);
+    }
+    const nutrition = state.nutrition || window.NIKITA_SEED.nutrition;
+    return recovery ? {
+      mode: 'recovery',
+      label: 'день восстановления',
+      calories: Number(nutrition.recoveryCalories || 0),
+      protein: Number(nutrition.proteinG || 0),
+      fat: Number(nutrition.recoveryFatG || 0),
+      carbs: Number(nutrition.recoveryCarbsG || 0),
+    } : {
+      mode: 'training',
+      label: 'тренировочный день',
+      calories: Number(nutrition.trainingCalories || 0),
+      protein: Number(nutrition.proteinG || 0),
+      fat: Number(nutrition.trainingFatG || 0),
+      carbs: Number(nutrition.trainingCarbsG || 0),
+    };
+  }
+
+  function nutritionProgress(value, target) {
+    if (!target) return 0;
+    return Math.max(0, Math.round((Number(value || 0) / Number(target)) * 100));
+  }
+
+  function nutritionDateLabel(date) {
+    if (date === todayISO()) return 'Сегодня';
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (date === localDateISO(yesterday)) return 'Вчера';
+    return formatDate(new Date(`${date}T12:00:00`), { weekday: 'short', day: 'numeric', month: 'long' });
+  }
+
+  function shiftNutritionDate(delta) {
+    const current = new Date(`${state.nutritionDate || todayISO()}T12:00:00`);
+    current.setDate(current.getDate() + delta);
+    const next = localDateISO(current);
+    if (next > todayISO()) return;
+    state.nutritionDate = next;
+    renderNutrition();
+  }
+
+  function renderNutritionEntry(entry) {
+    const values = entry.nutrition || {};
+    const brand = entry.foodSnapshot?.brand || entry.brand || '';
+    return `
+      <div class="nutrition-entry">
+        <button class="nutrition-entry-main edit-food-entry" data-entry-id="${escapeAttr(entry.id)}" type="button">
+          <span class="nutrition-entry-name">${escapeHTML(entry.name || entry.foodSnapshot?.name || 'Продукт')}</span>
+          <small>${brand ? `${escapeHTML(brand)} · ` : ''}${formatNutritionValue(entry.grams, ' г')}${entry.portionLabel ? ` · ${escapeHTML(entry.portionLabel)}` : ''}</small>
+        </button>
+        <div class="nutrition-entry-values"><strong>${formatNutritionValue(values.kcal)} ккал</strong><small>Б ${formatNutritionValue(values.protein)} · Ж ${formatNutritionValue(values.fat)} · У ${formatNutritionValue(values.carbs)}</small></div>
+        <button class="nutrition-entry-delete delete-food-entry" data-entry-id="${escapeAttr(entry.id)}" type="button" aria-label="Удалить ${escapeAttr(entry.name || 'продукт')}">×</button>
+      </div>
+    `;
+  }
+
+  function renderNutritionMeal(meal, entries) {
+    const rows = entries.filter((entry) => entry.meal === meal.id);
+    const totals = nutritionTotals(rows);
+    return `
+      <article class="card nutrition-meal-card">
+        <div class="nutrition-meal-head">
+          <div class="nutrition-meal-icon" aria-hidden="true">${meal.icon}</div>
+          <div><h3>${meal.label}</h3><p>${rows.length ? `${formatNutritionValue(totals.kcal)} ккал · ${rows.length} поз.` : meal.note}</p></div>
+          <button class="nutrition-meal-add add-food-to-meal" data-meal="${meal.id}" type="button" aria-label="Добавить в ${meal.label.toLowerCase()}">＋</button>
+        </div>
+        <div class="nutrition-entry-list">
+          ${rows.length ? rows.map(renderNutritionEntry).join('') : `<button class="nutrition-empty-meal add-food-to-meal" data-meal="${meal.id}" type="button">Добавить продукт или блюдо</button>`}
+        </div>
+      </article>
+    `;
+  }
+
+  function renderNutritionQuickFoods() {
+    const rows = uniqueFoods([...favoriteFoods(), ...recentFoods(8)]).slice(0, 8);
+    if (!rows.length) return '';
+    return `
+      <div class="nutrition-quick-foods" aria-label="Быстрый выбор">
+        ${rows.map((food) => `<button class="nutrition-quick-food quick-add-food" data-food-id="${escapeAttr(food.id)}" type="button"><span>${isFoodFavorite(food) ? '★' : '◷'}</span><strong>${escapeHTML(food.name)}</strong></button>`).join('')}
+      </div>
+    `;
+  }
+
+  function renderNutrition() {
+    state.nutritionDate = state.nutritionDate || todayISO();
+    const entries = nutritionEntriesForDate();
+    const totals = nutritionTotals(entries);
+    const target = nutritionTargetForDate(state.nutritionDate);
+    const caloriePercent = nutritionProgress(totals.kcal, target.calories);
+    const remaining = Math.round(target.calories - totals.kcal);
+    const isToday = state.nutritionDate === todayISO();
+    const databaseTotal = Number(state.foodDatabaseInfo?.stats?.total || state.foodDatabase.length || 0);
+
+    setTopbar('Питание', `Профиль: ${state.profile.name}`);
+    el.main.innerHTML = `
+      <section class="section nutrition-screen">
+        <div class="nutrition-date-nav">
+          <button id="nutrition-date-prev" type="button" aria-label="Предыдущий день">‹</button>
+          <button id="nutrition-date-today" type="button"><strong>${escapeHTML(nutritionDateLabel(state.nutritionDate))}</strong><span>${formatShortDate(state.nutritionDate)}</span></button>
+          <button id="nutrition-date-next" type="button" aria-label="Следующий день" ${isToday ? 'disabled' : ''}>›</button>
+        </div>
+
+        <article class="card nutrition-summary-card">
+          <div class="nutrition-summary-head">
+            <div>
+              <span class="eyebrow">${escapeHTML(target.label)}</span>
+              <h2>${remaining >= 0 ? `Осталось ${formatNutritionValue(remaining)} ккал` : `Перебор ${formatNutritionValue(Math.abs(remaining))} ккал`}</h2>
+              <p>${formatNutritionValue(totals.kcal)} из ${formatNutritionValue(target.calories)} ккал</p>
+            </div>
+            <div class="nutrition-calorie-ring" style="--nutrition-progress:${Math.min(caloriePercent, 100) * 3.6}deg"><strong>${caloriePercent}%</strong><span>ккал</span></div>
+          </div>
+          <div class="nutrition-macro-grid">
+            ${[
+              ['Белки', totals.protein, target.protein, 'protein'],
+              ['Жиры', totals.fat, target.fat, 'fat'],
+              ['Углеводы', totals.carbs, target.carbs, 'carbs'],
+            ].map(([label, value, goal, className]) => `
+              <div class="nutrition-macro ${className}">
+                <div><span>${label}</span><strong>${formatNutritionValue(value)} / ${formatNutritionValue(goal)} г</strong></div>
+                <div class="nutrition-macro-bar"><span style="width:${Math.min(nutritionProgress(value, goal), 100)}%"></span></div>
+              </div>
+            `).join('')}
+          </div>
+          <button class="nutrition-goals-link" id="nutrition-edit-goals" type="button">Изменить дневные цели</button>
+        </article>
+
+        <button class="nutrition-search-launch" id="open-food-search" type="button">
+          <span aria-hidden="true">⌕</span>
+          <span><strong>Найти продукт или блюдо</strong><small>${databaseTotal ? `${databaseTotal} позиций · названия, бренды и штрихкоды` : 'Свои продукты доступны даже без встроенной базы'}</small></span>
+          <b aria-hidden="true">›</b>
+        </button>
+
+        ${renderNutritionQuickFoods()}
+
+        <div class="nutrition-meals">
+          ${nutritionMealOptions().map((meal) => renderNutritionMeal(meal, entries)).join('')}
+        </div>
+
+        <div class="nutrition-own-actions">
+          <button class="button secondary" id="nutrition-own-food" type="button">＋ Свой продукт</button>
+          <button class="button ghost" id="nutrition-open-favorites" type="button">★ Избранное</button>
+        </div>
+
+        <div class="nutrition-database-note ${state.foodDatabaseStatus === 'error' ? 'warning' : ''}">
+          <strong>${state.foodDatabaseStatus === 'error' ? 'Встроенная база пока не загрузилась' : `Русская офлайн-база · ${databaseTotal} позиций`}</strong>
+          <span>${state.foodDatabaseStatus === 'error' ? 'Дневник и свои продукты работают. Подключись к интернету один раз после обновления, чтобы скачать справочник.' : 'USDA FoodData Central (CC0), Open Food Facts (ODbL) и ориентировочные расчёты домашних блюд. Для упаковочных товаров сверяй КБЖУ с этикеткой.'}</span>
+        </div>
+      </section>
+    `;
+
+    document.getElementById('nutrition-date-prev')?.addEventListener('click', () => shiftNutritionDate(-1));
+    document.getElementById('nutrition-date-next')?.addEventListener('click', () => shiftNutritionDate(1));
+    document.getElementById('nutrition-date-today')?.addEventListener('click', () => {
+      state.nutritionDate = todayISO();
+      renderNutrition();
+    });
+    document.getElementById('open-food-search')?.addEventListener('click', () => showFoodPicker(defaultNutritionMeal()));
+    document.getElementById('nutrition-own-food')?.addEventListener('click', () => showCustomFoodModal());
+    document.getElementById('nutrition-open-favorites')?.addEventListener('click', () => showFoodPicker(defaultNutritionMeal(), 'favorites'));
+    document.getElementById('nutrition-edit-goals')?.addEventListener('click', showNutritionModal);
+    el.main.querySelectorAll('.add-food-to-meal').forEach((button) => button.addEventListener('click', () => showFoodPicker(button.dataset.meal)));
+    el.main.querySelectorAll('.quick-add-food').forEach((button) => button.addEventListener('click', () => {
+      const food = findNutritionFood(button.dataset.foodId) || recentFoods(20).find((item) => item.id === button.dataset.foodId);
+      if (food) showFoodAmountModal(food, { meal: defaultNutritionMeal() });
+    }));
+    el.main.querySelectorAll('.edit-food-entry').forEach((button) => button.addEventListener('click', () => {
+      const entry = state.foodEntries.find((item) => item.id === button.dataset.entryId);
+      if (entry) showFoodAmountModal(foodFromEntry(entry), { meal: entry.meal, entry });
+    }));
+    el.main.querySelectorAll('.delete-food-entry').forEach((button) => button.addEventListener('click', () => deleteFoodEntry(button.dataset.entryId)));
+  }
+
+  function foodPickerRow(food, key) {
+    const nutrition = food.nutrition || {};
+    const detail = [food.brand, food.category].filter(Boolean).join(' · ');
+    return `
+      <div class="food-picker-row">
+        <button class="food-picker-main choose-food" data-food-key="${escapeAttr(key)}" type="button">
+          <span class="food-picker-type">${escapeHTML(foodTypeLabel(food))}</span>
+          <strong>${escapeHTML(food.name)}</strong>
+          <small>${detail ? `${escapeHTML(detail)} · ` : ''}${formatNutritionValue(nutrition.kcal)} ккал · Б ${formatNutritionValue(nutrition.protein)} · Ж ${formatNutritionValue(nutrition.fat)} · У ${formatNutritionValue(nutrition.carbs)}</small>
+        </button>
+        <button class="food-favorite-toggle ${isFoodFavorite(food) ? 'active' : ''}" data-food-key="${escapeAttr(key)}" type="button" aria-label="${isFoodFavorite(food) ? 'Убрать из избранного' : 'Добавить в избранное'}">★</button>
+        ${food.custom ? `<button class="food-custom-edit edit-custom-food" data-food-id="${escapeAttr(food.id)}" type="button" aria-label="Изменить свой продукт">✎</button>` : ''}
+      </div>
+    `;
+  }
+
+  function showFoodPicker(meal = defaultNutritionMeal(), initialView = 'all') {
+    const picker = { meal, view: initialView, query: '', visible: new Map() };
+    showModal(`
+      <div class="modal-head"><div><span class="eyebrow">${escapeHTML(nutritionMealMeta(meal).label)}</span><h2>Добавить еду</h2></div><button class="modal-close" data-close>×</button></div>
+      <div class="food-search-box"><span aria-hidden="true">⌕</span><input id="food-search-input" type="search" inputmode="search" autocomplete="off" placeholder="Например: творог 5%, борщ или штрихкод"></div>
+      <div class="food-picker-tabs" role="tablist">
+        ${[
+          ['all', 'Все'],
+          ['favorites', '★ Избранное'],
+          ['recent', 'Недавние'],
+          ['custom', 'Свои'],
+        ].map(([id, label]) => `<button class="food-picker-tab ${picker.view === id ? 'active' : ''}" data-food-view="${id}" type="button">${label}</button>`).join('')}
+      </div>
+      <button class="food-create-own" id="food-create-own" type="button"><span>＋</span><strong>Создать свой продукт или блюдо</strong><b>›</b></button>
+      <div id="food-picker-results" class="food-picker-results"></div>
+      <div class="help food-picker-help">КБЖУ указано на 100 г. Для магазинного товара сверяй цифры с текущей упаковкой.</div>
+    `);
+
+    const input = document.getElementById('food-search-input');
+    const resultsRoot = document.getElementById('food-picker-results');
+
+    const refresh = () => {
+      if (!resultsRoot) return;
+      picker.visible.clear();
+      let rows = [];
+      let emptyTitle = 'Ничего не найдено';
+      let emptyText = 'Попробуй другое название, бренд или цифры штрихкода.';
+      if (picker.query.trim()) {
+        rows = searchNutritionFoods(picker.query);
+      } else if (picker.view === 'favorites') {
+        rows = favoriteFoods();
+        emptyTitle = 'Избранное пустое';
+        emptyText = 'Нажимай звёздочку возле продуктов — они появятся здесь.';
+      } else if (picker.view === 'recent') {
+        rows = recentFoods(30);
+        emptyTitle = 'Недавних пока нет';
+        emptyText = 'После первой записи сюда попадут последние продукты.';
+      } else if (picker.view === 'custom') {
+        rows = customFoods();
+        emptyTitle = 'Своих продуктов пока нет';
+        emptyText = 'Создай продукт или блюдо с КБЖУ на 100 г.';
+      } else {
+        rows = uniqueFoods([
+          ...favoriteFoods(),
+          ...recentFoods(10),
+          ...nutritionCatalog().filter((food) => food.type === 'dish').slice(0, 18),
+          ...nutritionCatalog().filter((food) => food.type === 'generic').slice(0, 18),
+        ]).slice(0, 42);
+      }
+      resultsRoot.innerHTML = rows.length
+        ? rows.map((food, index) => {
+          const key = `${index}:${food.id}`;
+          picker.visible.set(key, food);
+          return foodPickerRow(food, key);
+        }).join('')
+        : `<div class="empty compact-empty food-picker-empty"><strong>${emptyTitle}</strong>${emptyText}</div>`;
+
+      resultsRoot.querySelectorAll('.choose-food').forEach((button) => button.addEventListener('click', () => {
+        const food = picker.visible.get(button.dataset.foodKey);
+        if (food) showFoodAmountModal(food, { meal: picker.meal });
+      }));
+      resultsRoot.querySelectorAll('.food-favorite-toggle').forEach((button) => button.addEventListener('click', async () => {
+        const food = picker.visible.get(button.dataset.foodKey);
+        if (!food) return;
+        await toggleFoodFavorite(food);
+        refresh();
+      }));
+      resultsRoot.querySelectorAll('.edit-custom-food').forEach((button) => button.addEventListener('click', () => showCustomFoodModal(button.dataset.foodId)));
+    };
+
+    input?.addEventListener('input', () => {
+      picker.query = input.value;
+      refresh();
+    });
+    el.modalRoot.querySelectorAll('.food-picker-tab').forEach((button) => button.addEventListener('click', () => {
+      picker.view = button.dataset.foodView;
+      picker.query = '';
+      if (input) input.value = '';
+      el.modalRoot.querySelectorAll('.food-picker-tab').forEach((tab) => tab.classList.toggle('active', tab === button));
+      refresh();
+    }));
+    document.getElementById('food-create-own')?.addEventListener('click', () => showCustomFoodModal());
+    refresh();
+    window.setTimeout(() => input?.focus(), 80);
+  }
+
+  function showFoodAmountModal(food, { meal = defaultNutritionMeal(), entry = null } = {}) {
+    const portions = (Array.isArray(food.portions) ? food.portions : []).filter((portion) => Number(portion.grams) > 0);
+    const initialMode = entry ? 'grams' : portions.length ? 'portion' : 'grams';
+    const initialGrams = Number(entry?.grams || portions[0]?.grams || 100);
+    const selectedPortionId = portions.find((portion) => Math.abs(Number(portion.grams) - initialGrams) < 0.01)?.id || portions[0]?.id || '';
+    showModal(`
+      <div class="modal-head"><div><span class="eyebrow">${escapeHTML(foodTypeLabel(food))}</span><h2>${escapeHTML(food.name)}</h2></div><button class="modal-close" data-close>×</button></div>
+      ${food.brand ? `<div class="food-amount-brand">${escapeHTML(food.brand)}${food.barcode ? ` · ${escapeHTML(food.barcode)}` : ''}</div>` : ''}
+      <div class="food-amount-per100">На 100 г: <strong>${formatNutritionValue(food.nutrition?.kcal)} ккал</strong> · Б ${formatNutritionValue(food.nutrition?.protein)} · Ж ${formatNutritionValue(food.nutrition?.fat)} · У ${formatNutritionValue(food.nutrition?.carbs)}</div>
+      <div class="field" style="margin-top:14px"><label>Приём пищи</label><select id="food-entry-meal">${nutritionMealOptions().map((item) => `<option value="${item.id}" ${item.id === meal ? 'selected' : ''}>${item.label}</option>`).join('')}</select></div>
+      <div class="food-amount-modes" role="group" aria-label="Способ ввода количества">
+        <button class="food-amount-mode ${initialMode === 'grams' ? 'active' : ''}" data-amount-mode="grams" type="button">В граммах</button>
+        <button class="food-amount-mode ${initialMode === 'portion' ? 'active' : ''}" data-amount-mode="portion" type="button" ${portions.length ? '' : 'disabled'}>Обычной порцией</button>
+      </div>
+      <div class="food-grams-fields ${initialMode === 'grams' ? '' : 'hidden'}">
+        <div class="field"><label>Вес, г</label><input id="food-entry-grams" type="number" inputmode="decimal" min="1" max="5000" step="1" value="${initialGrams}"></div>
+      </div>
+      <div class="food-portion-fields ${initialMode === 'portion' ? '' : 'hidden'}">
+        <div class="inline-fields">
+          <div class="field"><label>Порция</label><select id="food-entry-portion">${portions.map((portion) => `<option value="${escapeAttr(portion.id)}" ${portion.id === selectedPortionId ? 'selected' : ''}>${escapeHTML(portion.label)} · ${formatNutritionValue(portion.grams)} г</option>`).join('')}</select></div>
+          <div class="field"><label>Количество</label><input id="food-entry-portions-count" type="number" inputmode="decimal" min="0.25" max="20" step="0.25" value="1"></div>
+        </div>
+      </div>
+      <div class="food-amount-result" id="food-amount-result"></div>
+      <div class="food-amount-actions">
+        <button class="button secondary" id="food-amount-favorite" type="button">${isFoodFavorite(food) ? '★ В избранном' : '☆ В избранное'}</button>
+        <button class="button primary" id="save-food-entry" type="button">${entry ? 'Сохранить изменения' : 'Добавить'}</button>
+      </div>
+    `);
+
+    let mode = initialMode;
+    const gramsInput = document.getElementById('food-entry-grams');
+    const portionSelect = document.getElementById('food-entry-portion');
+    const countInput = document.getElementById('food-entry-portions-count');
+    const result = document.getElementById('food-amount-result');
+    const readAmount = () => {
+      if (mode === 'portion') {
+        const portion = portions.find((item) => item.id === portionSelect?.value) || portions[0];
+        const count = Math.max(0, Number(countInput?.value || 0));
+        return {
+          grams: roundNutrition(Number(portion?.grams || 0) * count),
+          portionLabel: portion ? `${formatNutritionValue(count)} × ${portion.label}` : '',
+        };
+      }
+      return { grams: Math.max(0, Number(gramsInput?.value || 0)), portionLabel: '' };
+    };
+    const refresh = () => {
+      const amount = readAmount();
+      const values = calculateFoodNutrition(food, amount.grams);
+      result.innerHTML = `<div><span>${formatNutritionValue(amount.grams)} г</span><strong>${formatNutritionValue(values.kcal)} ккал</strong></div><small>Белки ${formatNutritionValue(values.protein)} г · жиры ${formatNutritionValue(values.fat)} г · углеводы ${formatNutritionValue(values.carbs)} г</small>`;
+    };
+
+    el.modalRoot.querySelectorAll('.food-amount-mode').forEach((button) => button.addEventListener('click', () => {
+      if (button.disabled) return;
+      mode = button.dataset.amountMode;
+      el.modalRoot.querySelectorAll('.food-amount-mode').forEach((item) => item.classList.toggle('active', item === button));
+      el.modalRoot.querySelector('.food-grams-fields')?.classList.toggle('hidden', mode !== 'grams');
+      el.modalRoot.querySelector('.food-portion-fields')?.classList.toggle('hidden', mode !== 'portion');
+      refresh();
+    }));
+    [gramsInput, portionSelect, countInput].filter(Boolean).forEach((input) => input.addEventListener('input', refresh));
+    document.getElementById('food-amount-favorite')?.addEventListener('click', async () => {
+      await toggleFoodFavorite(food);
+      const button = document.getElementById('food-amount-favorite');
+      if (button) button.textContent = isFoodFavorite(food) ? '★ В избранном' : '☆ В избранное';
+    });
+    document.getElementById('save-food-entry')?.addEventListener('click', async () => {
+      const amount = readAmount();
+      if (!Number.isFinite(amount.grams) || amount.grams <= 0) return toast('Укажи количество больше нуля');
+      if (amount.grams > 5000) return toast('Проверь вес: максимум 5000 г за одну запись');
+      await saveFoodEntry(food, {
+        existing: entry,
+        meal: document.getElementById('food-entry-meal').value,
+        grams: amount.grams,
+        portionLabel: amount.portionLabel,
+      });
+    });
+    refresh();
+  }
+
+  async function saveFoodEntry(food, { existing = null, meal, grams, portionLabel = '' }) {
+    const now = new Date().toISOString();
+    const snapshot = foodSnapshot(food);
+    const record = {
+      id: existing?.id || uid('food-entry'),
+      profileId: state.activeProfileId,
+      date: existing?.date || state.nutritionDate || todayISO(),
+      meal: nutritionMealOptions().some((item) => item.id === meal) ? meal : defaultNutritionMeal(),
+      foodId: snapshot.id,
+      name: snapshot.name,
+      brand: snapshot.brand,
+      grams: roundNutrition(grams),
+      portionLabel: String(portionLabel || ''),
+      per100: clone(snapshot.nutrition),
+      nutrition: calculateFoodNutrition(snapshot, grams),
+      foodSnapshot: snapshot,
+      createdAt: existing?.createdAt || now,
+      updatedAt: now,
+    };
+    await DB.put('foodEntries', record);
+    const index = state.foodEntries.findIndex((entry) => entry.id === record.id);
+    if (index >= 0) state.foodEntries.splice(index, 1, record);
+    else state.foodEntries.unshift(record);
+    closeModal();
+    if (state.route === 'nutrition') renderNutrition();
+    toast(existing ? 'Запись обновлена' : `${record.name} добавлен${record.name.endsWith('а') ? 'а' : ''}`);
+  }
+
+  async function deleteFoodEntry(entryId) {
+    const entry = state.foodEntries.find((item) => item.id === entryId);
+    if (!entry) return;
+    if (!window.confirm(`Удалить «${entry.name || 'продукт'}» из дневника?`)) return;
+    await DB.remove('foodEntries', entry.id);
+    state.foodEntries = state.foodEntries.filter((item) => item.id !== entry.id);
+    renderNutrition();
+    toast('Запись удалена');
+  }
+
+  function showCustomFoodModal(foodId = null) {
+    const existing = foodId ? customRecordForFood(foodId) : null;
+    const food = existing?.food || {};
+    const portion = food.portions?.[0] || {};
+    showModal(`
+      <div class="modal-head"><div><span class="eyebrow">Личная база</span><h2>${existing ? 'Изменить продукт' : 'Свой продукт или блюдо'}</h2></div><button class="modal-close" data-close>×</button></div>
+      <div class="form-grid">
+        <div class="inline-fields">
+          <div class="field"><label>Тип</label><select id="custom-food-type"><option value="generic" ${food.type !== 'dish' ? 'selected' : ''}>Продукт</option><option value="dish" ${food.type === 'dish' ? 'selected' : ''}>Готовое блюдо</option></select></div>
+          <div class="field"><label>Категория</label><input id="custom-food-category" value="${escapeAttr(food.category || '')}" placeholder="Например, молочка"></div>
+        </div>
+        <div class="field"><label>Название *</label><input id="custom-food-name" value="${escapeAttr(food.name || '')}" maxlength="100" placeholder="Например, запеканка Лёхи"></div>
+        <div class="field"><label>Бренд, необязательно</label><input id="custom-food-brand" value="${escapeAttr(food.brand || '')}" maxlength="80" placeholder="Производитель или домашнее"></div>
+        <div class="custom-food-nutrition-label"><strong>КБЖУ на 100 г</strong><span>Перепиши с упаковки или рецепта</span></div>
+        <div class="inline-fields">
+          <div class="field"><label>Калории</label><input id="custom-food-kcal" type="number" inputmode="decimal" min="0" max="1000" step="1" value="${food.nutrition?.kcal ?? ''}"></div>
+          <div class="field"><label>Белки, г</label><input id="custom-food-protein" type="number" inputmode="decimal" min="0" max="100" step="0.1" value="${food.nutrition?.protein ?? ''}"></div>
+          <div class="field"><label>Жиры, г</label><input id="custom-food-fat" type="number" inputmode="decimal" min="0" max="100" step="0.1" value="${food.nutrition?.fat ?? ''}"></div>
+          <div class="field"><label>Углеводы, г</label><input id="custom-food-carbs" type="number" inputmode="decimal" min="0" max="100" step="0.1" value="${food.nutrition?.carbs ?? ''}"></div>
+        </div>
+        <div class="custom-food-nutrition-label"><strong>Привычная порция</strong><span>Можно оставить пустой</span></div>
+        <div class="inline-fields">
+          <div class="field"><label>Название порции</label><input id="custom-food-portion-label" value="${escapeAttr(portion.label || '')}" placeholder="штука, тарелка, стакан"></div>
+          <div class="field"><label>Вес порции, г</label><input id="custom-food-portion-grams" type="number" inputmode="decimal" min="1" max="5000" step="1" value="${portion.grams ?? ''}"></div>
+        </div>
+      </div>
+      <div class="custom-food-actions">
+        ${existing ? '<button class="button danger" id="delete-custom-food" type="button">Удалить</button>' : '<span></span>'}
+        <button class="button primary" id="save-custom-food" type="button">${existing ? 'Сохранить' : 'Создать продукт'}</button>
+      </div>
+      <div class="help" style="margin-top:10px">Свой продукт хранится только в текущем профиле и входит в резервную копию.</div>
+    `);
+    document.getElementById('save-custom-food')?.addEventListener('click', async () => {
+      const name = document.getElementById('custom-food-name').value.trim();
+      const kcal = Number(document.getElementById('custom-food-kcal').value);
+      const protein = Number(document.getElementById('custom-food-protein').value);
+      const fat = Number(document.getElementById('custom-food-fat').value);
+      const carbs = Number(document.getElementById('custom-food-carbs').value);
+      if (!name) return toast('Введи название');
+      if (![kcal, protein, fat, carbs].every((value) => Number.isFinite(value) && value >= 0)) return toast('Заполни КБЖУ числами от нуля');
+      if (kcal > 1000 || protein > 100 || fat > 100 || carbs > 100) return toast('Проверь КБЖУ на 100 г');
+      const portionLabel = document.getElementById('custom-food-portion-label').value.trim();
+      const portionGrams = Number(document.getElementById('custom-food-portion-grams').value);
+      if ((portionLabel && !(portionGrams > 0)) || (!portionLabel && portionGrams > 0)) return toast('Для порции укажи и название, и вес');
+      const now = new Date().toISOString();
+      const customFood = {
+        id: food.id || uid('custom-food'),
+        type: document.getElementById('custom-food-type').value === 'dish' ? 'dish' : 'generic',
+        custom: true,
+        name,
+        aliases: [],
+        brand: document.getElementById('custom-food-brand').value.trim() || null,
+        barcode: null,
+        category: document.getElementById('custom-food-category').value.trim() || 'Мои продукты',
+        nutrition: {
+          basis: 100,
+          unit: 'g',
+          kcal: roundNutrition(kcal),
+          protein: roundNutrition(protein),
+          fat: roundNutrition(fat),
+          carbs: roundNutrition(carbs),
+        },
+        portions: portionLabel && portionGrams > 0 ? [{ id: 'p1', label: portionLabel, grams: roundNutrition(portionGrams) }] : [],
+        source: { provider: 'Пользователь', license: 'private' },
+        note: null,
+        search: normalizeFoodSearch([name, document.getElementById('custom-food-brand').value, document.getElementById('custom-food-category').value].join(' ')),
+      };
+      const record = {
+        id: existing?.id || uid('saved-food'),
+        profileId: state.activeProfileId,
+        recordType: 'custom',
+        foodId: customFood.id,
+        food: customFood,
+        favorite: existing?.favorite !== false,
+        createdAt: existing?.createdAt || now,
+        updatedAt: now,
+      };
+      await DB.put('savedFoods', record);
+      const index = state.savedFoods.findIndex((item) => item.id === record.id);
+      if (index >= 0) state.savedFoods.splice(index, 1, record);
+      else state.savedFoods.unshift(record);
+      closeModal();
+      if (state.route === 'nutrition') renderNutrition();
+      toast(existing ? 'Свой продукт обновлён' : 'Свой продукт создан');
+    });
+    document.getElementById('delete-custom-food')?.addEventListener('click', async () => {
+      if (!existing || !window.confirm(`Удалить «${existing.food.name}» из личной базы? Записи в дневнике останутся.`)) return;
+      await DB.remove('savedFoods', existing.id);
+      state.savedFoods = state.savedFoods.filter((record) => record.id !== existing.id);
+      closeModal();
+      if (state.route === 'nutrition') renderNutrition();
+      toast('Продукт удалён из личной базы');
+    });
+  }
+
   function renderMore() {
-    setTopbar('Ещё', `Профиль: ${state.profile.name}`);
+    setTopbar('Профиль и настройки', `Профиль: ${state.profile.name}`);
     const goals = state.profile.goals?.length ? state.profile.goals : ['Цель пока не указана'];
     const profileInitial = escapeHTML((state.profile.name || '?').trim().charAt(0).toUpperCase() || '?');
     el.main.innerHTML = `
@@ -7647,7 +8488,11 @@
     `);
     document.getElementById('save-nutrition').addEventListener('click', async ()=>{
       Object.assign(state.nutrition,{trainingCalories:Number(document.getElementById('n-train-cal').value),recoveryCalories:Number(document.getElementById('n-rest-cal').value),proteinG:Number(document.getElementById('n-protein').value),trainingFatG:Number(document.getElementById('n-fat-train').value),recoveryFatG:Number(document.getElementById('n-fat-rest').value),trainingCarbsG:Number(document.getElementById('n-carb-train').value),recoveryCarbsG:Number(document.getElementById('n-carb-rest').value),note:document.getElementById('n-note').value.trim()});
-      await DB.put('nutrition',state.nutrition); closeModal(); renderMore(); toast('Питание обновлено');
+      await DB.put('nutrition',state.nutrition);
+      closeModal();
+      if (state.route === 'nutrition') renderNutrition();
+      else renderMore();
+      toast('Питание обновлено');
     });
   }
 
@@ -7818,6 +8663,10 @@
   }
 
   function showQuickAdd() {
+    if (state.route === 'nutrition') {
+      showFoodPicker(defaultNutritionMeal());
+      return;
+    }
     showModal(`
       <div class="modal-head"><h2>Быстро добавить</h2><button class="modal-close" data-close>×</button></div>
       <div class="card list-card"><button class="list-row quick-measure" style="width:100%;background:transparent;border-left:0;border-right:0;border-top:0;color:inherit"><div class="list-row-main"><div class="list-row-title">Замер тела</div><div class="list-row-sub">Вес, талия, живот и объёмы</div></div><span>＋</span></button><button class="list-row quick-photo" style="width:100%;background:transparent;border:0;color:inherit"><div class="list-row-main"><div class="list-row-title">Фото прогресса</div><div class="list-row-sub">Хранится локально</div></div><span>＋</span></button></div>
