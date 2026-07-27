@@ -374,7 +374,7 @@
 
   async function importData(backup, mode = 'replace') {
     if (!backup || backup.format !== 'nikita-workouts-backup' || !backup.data) {
-      throw new Error('Это не резервная копия приложения «Тренировки»');
+      throw new Error('Это не резервная копия приложения «РЕЖИМ»');
     }
     const stores = ['meta', 'settings', 'profile', 'nutrition', 'foodEntries', 'savedFoods', 'exercises', 'programs', 'workouts', 'measurements', 'photos', 'painEntries'];
     await transaction(stores, 'readwrite', async (s) => {

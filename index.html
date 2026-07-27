@@ -3,36 +3,56 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-  <meta name="theme-color" content="#0b0d0f" />
+  <meta name="theme-color" content="#07100e" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Тренировки" />
+  <meta name="apple-mobile-web-app-title" content="РЕЖИМ" />
   <meta name="format-detection" content="telephone=no" />
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
   <link rel="icon" href="./icons/icon-192.png" />
-  <link rel="stylesheet" href="./styles.css?v=1.27.0" />
-  <title>Тренировки</title>
+  <link rel="stylesheet" href="./styles.css?v=2.0.0" />
+  <title>РЕЖИМ</title>
 </head>
 <body>
   <div id="app-splash" class="app-splash" role="status" aria-label="Загрузка приложения">
     <div class="splash-card">
       <div class="splash-mark" aria-hidden="true">
-        <span class="splash-plate"></span>
-        <span class="splash-bar"></span>
-        <span class="splash-plate"></span>
+        <svg viewBox="0 0 72 72" role="img">
+          <g class="splash-ghost">
+            <path d="M18 55V32c0-13 10-23 23-23h3c9 0 17 5 21 13" />
+            <path d="M65 25c2 13-3 25-13 33" />
+            <path d="M48 61c-11 4-22 2-30-4" />
+          </g>
+          <path class="splash-segment splash-segment-green" pathLength="1" d="M18 55V32c0-13 10-23 23-23h3c9 0 17 5 21 13" />
+          <path class="splash-segment splash-segment-blue" pathLength="1" d="M65 25c2 13-3 25-13 33" />
+          <path class="splash-segment splash-segment-orange" pathLength="1" d="M48 61c-11 4-22 2-30-4" />
+        </svg>
+        <span class="splash-pulse"></span>
       </div>
-      <div class="splash-title">Тренировки</div>
-      <div class="splash-subtitle">Загружаем план</div>
-      <div class="splash-loader" aria-hidden="true"><span></span></div>
+      <div class="splash-title">РЕЖИМ</div>
+      <div class="splash-subtitle">Движение · питание · результат</div>
     </div>
   </div>
   <div id="offline-indicator" class="offline-indicator" hidden>Офлайн — данные сохраняются на телефоне</div>
   <div id="app" class="app-shell">
     <header class="topbar">
-      <div>
-        <div class="eyebrow" id="topbar-eyebrow">Тренировки</div>
-        <h1 id="topbar-title">Сегодня</h1>
+      <div class="topbar-leading">
+        <button id="topbar-back-button" class="topbar-back-button" type="button" aria-label="Назад" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
+        </button>
+        <div class="topbar-copy">
+          <div class="brand-lockup" aria-label="РЕЖИМ">
+            <svg class="brand-mark" viewBox="0 0 72 72" aria-hidden="true">
+              <path class="brand-segment brand-segment-green" d="M18 55V32c0-13 10-23 23-23h3c9 0 17 5 21 13" />
+              <path class="brand-segment brand-segment-blue" d="M65 25c2 13-3 25-13 33" />
+              <path class="brand-segment brand-segment-orange" d="M48 61c-11 4-22 2-30-4" />
+            </svg>
+            <span>РЕЖИМ</span>
+          </div>
+          <h1 id="topbar-title">Сегодня</h1>
+          <div class="topbar-context" id="topbar-eyebrow">Твой день</div>
+        </div>
       </div>
       <div class="topbar-actions">
         <button id="profile-switch-button" class="profile-button" type="button" aria-label="Профиль и настройки"><span id="profile-initial">?</span></button>
@@ -44,11 +64,22 @@
   </div>
 
   <nav class="bottom-nav" aria-label="Основная навигация">
-    <button class="nav-item" data-route="plan" type="button"><span class="nav-icon">▦</span><span>План</span></button>
-    <button class="nav-item" data-route="history" type="button"><span class="nav-icon">◷</span><span>История</span></button>
-    <button class="nav-item nav-item-today active" data-route="home" type="button"><span class="nav-icon">⌂</span><span>Сегодня</span></button>
-    <button class="nav-item" data-route="nutrition" type="button"><span class="nav-icon">◉</span><span>Питание</span></button>
-    <button class="nav-item" data-route="progress" type="button"><span class="nav-icon">↗</span><span>Прогресс</span></button>
+    <button class="nav-item nav-item-today active" data-route="home" type="button">
+      <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1z" /></svg>
+      <span>Сегодня</span>
+    </button>
+    <button class="nav-item" data-route="movement" type="button">
+      <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9v6M8 7v10M16 7v10M19 9v6M8 12h8M3 11v2M21 11v2" /></svg>
+      <span>Движение</span>
+    </button>
+    <button class="nav-item" data-route="nutrition" type="button">
+      <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v8M4 3v5a3 3 0 0 0 6 0V3M7 11v10M16 3v18M16 3c3 2 4 5 4 8h-4" /></svg>
+      <span>Питание</span>
+    </button>
+    <button class="nav-item" data-route="progress" type="button">
+      <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5M4 19h16M7 15l4-4 3 2 5-6M16 7h3v3" /></svg>
+      <span>Прогресс</span>
+    </button>
   </nav>
 
   <div id="modal-root"></div>
@@ -68,11 +99,11 @@
     </div>
   </div>
 
-  <script src="./version.js?v=1.27.0"></script>
-  <script src="./seed.js?v=1.27.0"></script>
-  <script src="./db.js?v=1.27.0"></script>
-  <script src="./exercise-guides.js?v=1.27.0"></script>
-  <script src="./offline-guide.js?v=1.27.0"></script>
-  <script src="./app.js?v=1.27.0"></script>
+  <script src="./version.js?v=2.0.0"></script>
+  <script src="./seed.js?v=2.0.0"></script>
+  <script src="./db.js?v=2.0.0"></script>
+  <script src="./exercise-guides.js?v=2.0.0"></script>
+  <script src="./offline-guide.js?v=2.0.0"></script>
+  <script src="./app.js?v=2.0.0"></script>
 </body>
 </html>

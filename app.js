@@ -49,7 +49,7 @@
     nutritionDate: null,
     currentWorkout: null,
     historyFilter: 'month',
-    progressTab: 'body',
+    progressTab: 'overview',
     bodyProgressMetric: null,
     bodyProgressPeriodDays: null,
     musclePeriodDays: null,
@@ -102,6 +102,7 @@
     timerMinus: document.getElementById('timer-minus'),
     timerPlus: document.getElementById('timer-plus'),
     timerSkip: document.getElementById('timer-skip'),
+    topbarBack: document.getElementById('topbar-back-button'),
     profileSwitch: document.getElementById('profile-switch-button'),
     profileInitial: document.getElementById('profile-initial'),
   };
@@ -455,7 +456,7 @@
     const splash = el.splash;
     if (!splash || splash.dataset.state === 'hiding') return;
     splash.dataset.state = 'hiding';
-    const minimumVisibleMs = 650;
+    const minimumVisibleMs = 850;
     const delay = force ? 0 : Math.max(0, minimumVisibleMs - (Date.now() - BOOT_STARTED_AT));
     window.setTimeout(() => {
       splash.classList.add('app-splash-exit');
@@ -557,6 +558,7 @@
   function bindGlobalEvents() {
     el.nav.forEach((button) => button.addEventListener('click', () => navigate(button.dataset.route)));
     el.quickAdd.addEventListener('click', showQuickAdd);
+    el.topbarBack?.addEventListener('click', () => navigate(state.route === 'guide' ? 'more' : 'home'));
     el.profileSwitch.addEventListener('click', () => {
       if (!state.profile) return showProfileOnboarding();
       navigate('more');
@@ -624,15 +626,17 @@
   }
 
   function navigate(route, updateHash = true) {
-    const allowed = ['home', 'plan', 'history', 'nutrition', 'progress', 'more', 'guide', 'workout'];
+    const allowed = ['home', 'movement', 'plan', 'history', 'nutrition', 'progress', 'more', 'guide', 'workout'];
     state.route = allowed.includes(route) ? route : 'home';
     if (updateHash && location.hash !== `#/${state.route}`) history.pushState(null, '', `#/${state.route}`);
-    const activeNavRoute = state.route === 'guide' ? 'more' : state.route;
+    const activeNavRoute = ['movement', 'plan', 'history'].includes(state.route) ? 'movement' : state.route;
+    const secondLevel = state.route === 'more' || state.route === 'guide';
     document.body.dataset.route = state.route;
     el.nav.forEach((button) => button.classList.toggle('active', button.dataset.route === activeNavRoute));
-    document.querySelector('.bottom-nav').classList.toggle('hidden', state.route === 'workout');
-    el.quickAdd.classList.toggle('hidden', state.route === 'workout' || state.route === 'guide');
+    document.querySelector('.bottom-nav').classList.toggle('hidden', state.route === 'workout' || secondLevel);
+    el.quickAdd.classList.toggle('hidden', state.route === 'workout' || secondLevel);
     el.profileSwitch.classList.toggle('hidden', state.route === 'workout');
+    if (el.topbarBack) el.topbarBack.hidden = !secondLevel;
     render();
     document.querySelector('.app-shell')?.scrollTo({ top: 0, behavior: 'auto' });
     scheduleWorkoutStickyOffsetSync();
@@ -642,6 +646,7 @@
     revokePhotoUrls();
     switch (state.route) {
       case 'home': renderHome(); break;
+      case 'movement': renderMovement(); break;
       case 'plan': renderPlan(); break;
       case 'history': renderHistory(); break;
       case 'nutrition': renderNutrition(); break;
@@ -655,7 +660,7 @@
 
   function setTopbar(title, eyebrow = '') {
     el.topbarTitle.textContent = title;
-    el.topbarEyebrow.textContent = eyebrow || (state.profile ? `Профиль: ${state.profile.name}` : 'Тренировки');
+    el.topbarEyebrow.textContent = eyebrow || 'Твой режим';
   }
 
   function updateProfileButton() {
@@ -1113,7 +1118,206 @@
     return { readiness, focusGroups, rows, title, detail, warning };
   }
 
+  function homeInsightData() {
+    const cutoff = startOfDay(new Date(Date.now() - 29 * 86400000));
+    const waist = bodyMeasurementSeries('waistCm').filter((row) => row.dateObj >= cutoff);
+    if (waist.length >= 2) {
+      const diff = waist[waist.length - 1].value - waist[0].value;
+      if (Math.abs(diff) >= 0.1) {
+        return {
+          eyebrow: 'Твой фокус',
+          title: diff < 0 ? 'Талия снижается' : 'Талия растёт',
+          value: `${formatSignedBodyValue(diff)} см`,
+          detail: diff < 0 ? 'Темп хороший — ничего резко не меняем' : 'Проверь питание и общий объём движения',
+          tone: diff < 0 ? 'positive' : 'warning',
+        };
+      }
+    }
+    const rest = smartRestAnalysis({ includeTodayTraining: true });
+    return {
+      eyebrow: 'Твой фокус',
+      title: rest.title || 'Держим спокойный темп',
+      value: rest.status === 'ok' ? 'Режим в норме' : rest.statusLabel,
+      detail: rest.homeText || rest.detailText || 'Больше данных появится после нескольких тренировок и замеров',
+      tone: rest.status === 'ok' ? 'positive' : 'warning',
+    };
+  }
+
+  function showWellbeingModal() {
+    const rest = smartRestAnalysis({ includeTodayTraining: true });
+    const recentPain = (state.painEntries || [])
+      .filter((entry) => Date.now() - painEntryTime(entry) <= 7 * 86400000)
+      .sort((a, b) => painEntryTime(b) - painEntryTime(a));
+    showModal(`
+      <div class="modal-head"><div><div class="eyebrow">Самочувствие</div><h2>${escapeHTML(rest.title || 'Как ты сегодня?')}</h2></div><button class="modal-close" data-close>×</button></div>
+      <div class="notice ${rest.status === 'ok' ? 'success' : 'warning'}"><strong>${escapeHTML(rest.statusLabel || 'нормально')}</strong><br>${escapeHTML(rest.detailText || rest.homeText || 'Приложение учтёт отдых и недавнюю нагрузку.')}</div>
+      <div class="card list-card rezhim-wellbeing-list" style="margin-top:12px">
+        <button class="list-row" id="wellbeing-open-recovery" type="button"><div class="list-row-main"><div class="list-row-title">Восстановление</div><div class="list-row-sub">Нагрузка, отдых и предложение разгрузки</div></div><span>›</span></button>
+        <button class="list-row" id="wellbeing-pain-history" type="button"><div class="list-row-main"><div class="list-row-title">История боли</div><div class="list-row-sub">${recentPain.length ? `${recentPain.length} отметок за 7 дней` : 'За 7 дней отметок нет'}</div></div><span>›</span></button>
+        <button class="list-row" id="wellbeing-log-rest" type="button"><div class="list-row-main"><div class="list-row-title">Отметить день отдыха</div><div class="list-row-sub">Добавить восстановление в календарь</div></div><span>＋</span></button>
+      </div>
+    `);
+    document.getElementById('wellbeing-open-recovery')?.addEventListener('click', () => {
+      closeModal();
+      state.progressTab = 'recovery';
+      navigate('progress');
+    });
+    document.getElementById('wellbeing-pain-history')?.addEventListener('click', () => {
+      closeModal();
+      showPainHistoryModal();
+    });
+    document.getElementById('wellbeing-log-rest')?.addEventListener('click', () => {
+      closeModal();
+      recordRecoveryDay({ source: 'home' });
+    });
+  }
+
   function renderHome() {
+    const { program, day, index } = getCurrentDay();
+    const today = new Date();
+    const draft = state.currentWorkout?.status === 'in_progress' ? state.currentWorkout : null;
+    const programDraft = storedProgramBuilderDraft();
+    const isProgramRestDay = Boolean(day?.restDay);
+    const scheduleStatus = trainingScheduleStatus(program);
+    const target = nutritionTargetForDate(todayISO());
+    const nutritionTotalsToday = nutritionTotals(nutritionEntriesForDate(todayISO()));
+    const caloriePercent = Math.min(100, nutritionProgress(nutritionTotalsToday.kcal, target.calories));
+    const remainingCalories = Math.round(target.calories - nutritionTotalsToday.kcal);
+    const insight = homeInsightData();
+    const rest = smartRestAnalysis({ includeTodayTraining: true });
+    const readiness = rest.status === 'critical' ? 2 : rest.status === 'recommended' ? 4 : rest.status === 'watch' ? 6 : 8;
+    const legacyRestWeek = Array.from({ length: 7 }, (_, offset) => {
+      const date = new Date();
+      date.setDate(date.getDate() - (6 - offset));
+      const iso = localDateISO(date);
+      const loggedRest = state.workouts.some((workout) => (
+        localDateISO(new Date(workout.startedAt || workout.date || 0)) === iso
+        && (isRecoveryWorkout(workout) || (isManualDayEntry(workout) && workout.manualDay?.kind === 'rest'))
+      ));
+      return `<span class="rest-day ${loggedRest ? 'logged-rest' : ''}"><span>${loggedRest ? 'О' : '·'}</span></span>`;
+    }).join('');
+
+    setTopbar('Сегодня', formatDate(today, { weekday: 'long', day: 'numeric', month: 'long' }));
+    el.main.innerHTML = `
+      <div class="rezhim-home">
+        ${draft ? `
+          <section class="section">
+            <article class="card rezhim-draft-card">
+              <div><span class="eyebrow">Незавершённая тренировка</span><h2>${escapeHTML(draft.dayName)}</h2><p>${workoutCompletion(draft)}% выполнено · ${formatDuration(elapsedSeconds(draft.startedAt))}</p></div>
+              <div class="button-row"><button class="button primary" id="resume-draft" type="button">Продолжить</button><button class="button danger" id="delete-draft-home" type="button">Удалить</button></div>
+            </article>
+          </section>
+        ` : ''}
+
+        ${renderScheduledWorkouts()}
+
+        <section class="section">
+          <article class="card rezhim-today-hero today-action-card program ${isProgramRestDay ? 'rest' : ''}">
+            <div class="rezhim-hero-top">
+              <span class="eyebrow">${isProgramRestDay ? 'План восстановления' : 'План на сегодня'}</span>
+              <span class="rezhim-time-chip">${escapeHTML(scheduleStatus.label)}</span>
+            </div>
+            <h2>${escapeHTML(day?.name || 'Тренировка')}</h2>
+            <span class="today-action-copy rezhim-legacy-copy" aria-hidden="true"><strong>${escapeHTML(day?.name || 'Тренировка')}</strong></span>
+            <p>${isProgramRestDay
+              ? `День ${index + 1} из ${program.days.length} · полный отдых по программе`
+              : `${day.exercises.length} упражнений · около ${day.durationMin} минут`}</p>
+            <div class="rezhim-hero-meta">
+              <span>По программе</span>
+              <span class="${readiness >= 7 ? 'ready' : 'watch'}">Готовность ${readiness}/10</span>
+            </div>
+            ${draft
+              ? '<button class="button primary full" id="resume-draft-program" type="button">Продолжить тренировку</button>'
+              : isProgramRestDay
+                ? '<button class="button primary full" id="complete-program-rest" type="button">Отметить отдых и продолжить цикл</button>'
+                : '<button class="button primary full" id="start-cycle" type="button">Начать тренировку</button>'}
+            <div class="rezhim-hero-links">
+              <button id="home-workout-options" type="button">Другой вариант</button>
+              <button data-go="movement" type="button">Управление планом</button>
+            </div>
+          </article>
+        </section>
+
+        <section class="section">
+          <div class="section-head rezhim-section-head"><h2>Баланс дня</h2><button class="link-button" data-go="nutrition" type="button">Открыть питание</button></div>
+          <article class="card rezhim-balance-card" data-go="nutrition">
+            <div class="rezhim-calorie-ring" style="--ring-progress:${caloriePercent * 3.6}deg">
+              <strong>${formatNutritionValue(nutritionTotalsToday.kcal)}</strong><span>из ${formatNutritionValue(target.calories)}</span>
+            </div>
+            <div class="rezhim-balance-copy">
+              <span>Калории</span>
+              <strong>${remainingCalories >= 0 ? `${formatNutritionValue(remainingCalories)} ккал осталось` : `Перебор ${formatNutritionValue(Math.abs(remainingCalories))} ккал`}</strong>
+              <div class="rezhim-macro-row">
+                <span class="protein">Б ${formatNutritionValue(nutritionTotalsToday.protein)}</span>
+                <span class="fat">Ж ${formatNutritionValue(nutritionTotalsToday.fat)}</span>
+                <span class="carbs">У ${formatNutritionValue(nutritionTotalsToday.carbs)}</span>
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <section class="section">
+          <div class="section-head rezhim-section-head"><h2>Твой фокус</h2></div>
+          <button class="card rezhim-focus-card ${insight.tone}" id="open-home-focus" type="button">
+            <span class="rezhim-focus-icon">↗</span>
+            <span class="rezhim-focus-copy"><strong>${escapeHTML(insight.title)}</strong><b>${escapeHTML(insight.value)}</b><small>${escapeHTML(insight.detail)}</small></span>
+            <span class="rezhim-focus-arrow">›</span>
+          </button>
+        </section>
+
+        <section class="section">
+          <div class="section-head rezhim-section-head"><h2>Быстро добавить</h2></div>
+          <div class="rezhim-quick-grid">
+            <button id="home-add-food" type="button"><span class="food">＋</span><strong>Приём пищи</strong></button>
+            <button id="add-measurement-home" type="button"><span class="measure">↗</span><strong>Замеры</strong></button>
+            <button id="home-wellbeing" type="button"><span class="wellbeing">○</span><strong>Самочувствие</strong></button>
+          </div>
+        </section>
+
+        <div class="rezhim-compat-hooks" aria-hidden="true">
+          <button id="today-trainer-workout" type="button" tabindex="-1"></button>
+          <button id="today-muscle-workout" type="button" tabindex="-1"></button>
+          <button id="today-custom-workout" type="button" tabindex="-1"></button>
+          <button id="today-program-builder" type="button" tabindex="-1"><span class="today-action-copy"><strong>${programDraft ? 'Продолжить свою программу' : 'Создать свою программу'}</strong></span></button>
+          <button id="edit-past-activity-home" type="button" tabindex="-1"></button>
+          <button class="nav-item" data-compat-route="plan" data-route="plan" type="button" tabindex="-1"></button>
+          <button class="nav-item" data-compat-route="history" data-route="history" type="button" tabindex="-1"></button>
+          <div class="legacy-rest-week">${legacyRestWeek}</div>
+        </div>
+      </div>
+    `;
+
+    document.getElementById('start-cycle')?.addEventListener('click', () => startWorkout({ shortMode: false, startMode: 'cycle', shouldAdvanceCycle: true }));
+    document.getElementById('complete-program-rest')?.addEventListener('click', () => completeProgramRestDay(index));
+    document.getElementById('home-workout-options')?.addEventListener('click', showHomeWorkoutOptionsModal);
+    document.getElementById('resume-draft')?.addEventListener('click', () => navigate('workout'));
+    document.getElementById('resume-draft-program')?.addEventListener('click', () => navigate('workout'));
+    document.getElementById('delete-draft-home')?.addEventListener('click', discardDraftFromHome);
+    document.getElementById('add-measurement-home')?.addEventListener('click', showMeasurementModal);
+    document.getElementById('home-wellbeing')?.addEventListener('click', showWellbeingModal);
+    document.getElementById('home-add-food')?.addEventListener('click', () => {
+      state.nutritionDate = todayISO();
+      navigate('nutrition');
+      window.setTimeout(() => showFoodPicker(defaultNutritionMeal()), 0);
+    });
+    document.getElementById('open-home-focus')?.addEventListener('click', () => {
+      state.progressTab = 'body';
+      navigate('progress');
+    });
+    document.getElementById('today-trainer-workout')?.addEventListener('click', () => {
+      state.smartWorkoutProposal = buildSmartWorkoutProposal({ target: 'auto', selectedGroups: [], duration: 45, intensity: 'normal', energy: 'normal' }, 0);
+      showSmartWorkoutPreview();
+    });
+    document.getElementById('today-muscle-workout')?.addEventListener('click', () => showSmartWorkoutBuilderModal({ target: 'custom' }));
+    document.getElementById('today-custom-workout')?.addEventListener('click', () => showCustomWorkoutBuilderModal());
+    document.getElementById('today-program-builder')?.addEventListener('click', showNewProgramModal);
+    document.getElementById('edit-past-activity-home')?.addEventListener('click', showPastActivityCalendarModal);
+    el.main.querySelectorAll('[data-compat-route]').forEach((button) => button.addEventListener('click', () => navigate(button.dataset.compatRoute)));
+    bindScheduledWorkoutActions();
+    bindGoButtons();
+  }
+
+  function renderHomeLegacy() {
     const { program, day, index } = getCurrentDay();
     const today = new Date();
     const weekWorkouts = workoutsSince(startOfWeek(today));
@@ -2042,6 +2246,7 @@
       state.settings.currentDayIndex = nextIndex;
       await DB.setSettingsObject({ currentDayIndex: nextIndex }, state.activeProfileId);
       if (state.route === 'plan') renderPlan();
+      else if (state.route === 'movement') renderMovement();
       else renderHome();
       toast(`Отдых отмечен · дальше день ${nextIndex + 1}`);
     } catch (error) {
@@ -4282,6 +4487,130 @@
       </article>`;
   }
 
+  function renderMovementTabs(active = 'overview') {
+    return `
+      <section class="section movement-tabs-section">
+        <div class="movement-tabs" role="tablist" aria-label="Разделы движения">
+          ${[
+            ['overview', 'movement', 'Обзор'],
+            ['plan', 'plan', 'План'],
+            ['history', 'history', 'История'],
+          ].map(([id, route, label]) => `<button class="${active === id ? 'active' : ''}" data-movement-route="${route}" type="button">${label}</button>`).join('')}
+        </div>
+      </section>`;
+  }
+
+  function bindMovementTabs() {
+    el.main.querySelectorAll('[data-movement-route]').forEach((button) => {
+      button.addEventListener('click', () => navigate(button.dataset.movementRoute));
+    });
+  }
+
+  function renderMovementWeek() {
+    const start = startOfWeek(new Date());
+    const labels = ['ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ', 'СБ', 'ВС'];
+    return labels.map((label, offset) => {
+      const date = new Date(start);
+      date.setDate(start.getDate() + offset);
+      const iso = localDateISO(date);
+      const rows = state.workouts.filter((workout) => localDateISO(new Date(workout.startedAt || workout.date || 0)) === iso);
+      const trained = rows.some((workout) => isTrainingWorkout(workout));
+      const recovered = rows.some((workout) => isRecoveryWorkout(workout) || isManualDayEntry(workout));
+      const isToday = iso === todayISO();
+      return `<div class="movement-week-day ${trained ? 'done' : ''} ${recovered ? 'recovery' : ''} ${isToday ? 'today' : ''}"><span>${label}</span><strong>${trained ? '✓' : date.getDate()}</strong></div>`;
+    }).join('');
+  }
+
+  function renderMovement() {
+    const { program, day, index } = getCurrentDay();
+    const choices = getProgramChoices();
+    const draft = state.currentWorkout?.status === 'in_progress' ? state.currentWorkout : null;
+    const programDraft = storedProgramBuilderDraft();
+    const scheduleStatus = trainingScheduleStatus(program);
+    const isProgramRestDay = Boolean(day?.restDay);
+    const cycleProgress = program.days.length ? Math.round(((index + 1) / program.days.length) * 100) : 0;
+
+    setTopbar('Движение', 'Тренировки, план и история');
+    el.main.innerHTML = `
+      <div class="rezhim-movement">
+        ${renderMovementTabs('overview')}
+
+        ${draft ? `
+          <section class="section">
+            <article class="card movement-draft-card">
+              <span class="eyebrow">Тренировка уже идёт</span>
+              <h2>${escapeHTML(draft.dayName)}</h2>
+              <p>${workoutCompletion(draft)}% выполнено · ${formatDuration(elapsedSeconds(draft.startedAt))}</p>
+              <button class="button primary full" id="movement-resume-workout" type="button">Продолжить</button>
+            </article>
+          </section>
+        ` : `
+          <section class="section">
+            <article class="card movement-next-card ${isProgramRestDay ? 'rest' : ''}">
+              <div class="movement-next-top"><span class="eyebrow">${isProgramRestDay ? 'Следующий шаг' : 'Следующая тренировка'}</span><span class="rezhim-time-chip">Цикл ${index + 1}/${program.days.length}</span></div>
+              <h2>${escapeHTML(day?.name || 'Тренировка')}</h2>
+              <p>${isProgramRestDay ? 'Полный отдых по программе' : escapeHTML(day?.focus || program.description || scheduleStatus.detail)}</p>
+              <div class="movement-next-meta"><span>≈ ${Number(day?.durationMin || 0)} мин</span><span>${day?.exercises?.length || 0} упражнений</span><span>${cycleProgress}% цикла</span></div>
+              ${isProgramRestDay
+                ? '<button class="button movement-primary full" id="movement-complete-rest" type="button">Отметить отдых</button>'
+                : '<button class="button movement-primary full" id="movement-start-workout" type="button">Начать</button>'}
+            </article>
+          </section>
+        `}
+
+        <section class="section">
+          <div class="section-head rezhim-section-head"><h2>Эта неделя</h2><button class="link-button" data-movement-route="history" type="button">История</button></div>
+          <div class="card movement-week-card">${renderMovementWeek()}</div>
+        </section>
+
+        <section class="section">
+          <div class="section-head rezhim-section-head"><h2>Быстрый старт</h2></div>
+          <div class="movement-quick-grid">
+            <button id="movement-custom-workout" type="button"><span class="green">＋</span><strong>Своя тренировка</strong><small>Собрать на сегодня</small></button>
+            <button id="movement-smart-workout" type="button"><span class="purple">✦</span><strong>Подобрать</strong><small>По мышцам и времени</small></button>
+            <button id="movement-short-workout" type="button"><span class="orange">⚡</span><strong>Нет сил</strong><small>15–20 минут</small></button>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-head rezhim-section-head"><h2>Мои программы</h2><button class="link-button" data-movement-route="plan" type="button">Все</button></div>
+          <div class="movement-program-list">
+            ${choices.slice(0, 4).map((choice) => {
+              const active = choice.id === program.id;
+              const days = choice.days || [];
+              return `<button class="card movement-program-card ${active ? 'active' : ''}" data-movement-program="${escapeAttr(choice.id)}" type="button">
+                <span class="movement-program-badge">${active ? `${index + 1}/${Math.max(days.length, 1)}` : days.length}</span>
+                <span><strong>${escapeHTML(choice.name)}</strong><small>${active ? 'Текущая программа' : `${days.length} дней в цикле`}</small></span>
+                <b>›</b>
+              </button>`;
+            }).join('')}
+            <button class="movement-create-program ${programDraft ? 'has-draft' : ''}" id="movement-new-program" type="button">
+              <span>＋</span><strong>${programDraft ? 'Продолжить черновик программы' : 'Создать программу'}</strong>
+            </button>
+          </div>
+        </section>
+      </div>
+    `;
+
+    bindMovementTabs();
+    document.getElementById('movement-resume-workout')?.addEventListener('click', () => navigate('workout'));
+    document.getElementById('movement-start-workout')?.addEventListener('click', () => startWorkout({ shortMode: false, startMode: 'cycle', shouldAdvanceCycle: true }));
+    document.getElementById('movement-complete-rest')?.addEventListener('click', () => completeProgramRestDay(index));
+    document.getElementById('movement-custom-workout')?.addEventListener('click', () => showCustomWorkoutBuilderModal());
+    document.getElementById('movement-smart-workout')?.addEventListener('click', () => showSmartWorkoutBuilderModal({ target: 'custom' }));
+    document.getElementById('movement-short-workout')?.addEventListener('click', () => startWorkout({ shortMode: true, startMode: 'cycle', shouldAdvanceCycle: true }));
+    document.getElementById('movement-new-program')?.addEventListener('click', showNewProgramModal);
+    el.main.querySelectorAll('[data-movement-program]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        if (button.dataset.movementProgram === getActiveProgram()?.id) {
+          navigate('plan');
+          return;
+        }
+        await switchProgram(button.dataset.movementProgram);
+      });
+    });
+  }
+
   function renderPlan() {
     const active = getActiveProgram();
     const programChoices = getProgramChoices();
@@ -4294,8 +4623,9 @@
     const recoveryDays = days.filter((day) => day.recovery).length;
     const programWarnings = programRecoveryWarnings(days);
     const cycleProgress = days.length ? Math.round(((currentIndex + 1) / days.length) * 100) : 0;
-    setTopbar('Недельный план', active.name);
+    setTopbar('Движение', 'Тренировки, план и история');
     el.main.innerHTML = `
+      ${renderMovementTabs('plan')}
       <section class="section premium-program-strip">
         <div class="tabs program-tabs premium-program-tabs">
           ${programChoices.map((program) => `<button class="tab ${program.id === active.id ? 'active' : ''} switch-program" data-id="${program.id}" title="${escapeAttr(program.name)}">${escapeHTML(program.name)}</button>`).join('')}
@@ -4353,6 +4683,7 @@
         </div>
       </section>
     `;
+    bindMovementTabs();
     el.main.querySelectorAll('.switch-program').forEach((button) => button.addEventListener('click', () => switchProgram(button.dataset.id)));
     el.main.querySelectorAll('.set-current-day').forEach((button) => button.addEventListener('click', () => setCurrentDay(Number(button.dataset.index))));
     el.main.querySelectorAll('.start-specific').forEach((button) => button.addEventListener('click', async () => {
@@ -4386,13 +4717,17 @@
     state.settings.activeProgramId = program.id;
     state.settings.currentDayIndex = 0;
     await DB.setSettingsObject({ activeProgramId: program.id, currentDayIndex: 0 }, state.activeProfileId);
-    renderPlan();
+    if (state.route === 'movement') renderMovement();
+    else renderPlan();
   }
 
   async function setCurrentDay(index, rerender = true) {
     state.settings.currentDayIndex = index;
     await DB.setSettingsObject({ currentDayIndex: index }, state.activeProfileId);
-    if (rerender) renderPlan();
+    if (rerender) {
+      if (state.route === 'movement') renderMovement();
+      else renderPlan();
+    }
     toast(`Текущий день: ${index + 1}`);
   }
 
@@ -5371,6 +5706,7 @@
     toast(`Черновик «${String(snapshot?.name || 'Моя программа').trim() || 'Без названия'}» сохранён`);
     if (state.route === 'home') renderHome();
     else if (state.route === 'plan') renderPlan();
+    else if (state.route === 'movement') renderMovement();
   }
 
   async function resetProgramBuilderDraft() {
@@ -6142,9 +6478,10 @@
   }
 
   function renderHistory() {
-    setTopbar('История', 'Тренировки и нагрузка');
+    setTopbar('Движение', 'Тренировки, план и история');
     const filtered = filteredHistory();
     el.main.innerHTML = `
+      ${renderMovementTabs('history')}
       <section class="section"><div class="tabs">${[['day','День'],['week','Неделя'],['month','Месяц'],['all','Всё']].map(([value,label]) => `<button class="tab ${state.historyFilter === value ? 'active' : ''} history-filter" data-filter="${value}">${label}</button>`).join('')}</div></section>
       <section class="section">
         <div class="stats-grid">
@@ -6158,6 +6495,7 @@
         ${filtered.length ? filtered.map(workoutSummaryCard).join('') : `<div class="card empty"><strong>Ничего не найдено</strong>В выбранном периоде тренировок нет.</div>`}
       </section>
     `;
+    bindMovementTabs();
     el.main.querySelectorAll('.history-filter').forEach((button) => button.addEventListener('click', () => { state.historyFilter = button.dataset.filter; renderHistory(); }));
     el.main.querySelectorAll('.view-workout').forEach((button) => button.addEventListener('click', () => showWorkoutDetails(button.dataset.id)));
   }
@@ -6248,18 +6586,40 @@
   }
 
   function renderProgress() {
-    setTopbar('Прогресс', 'Без самообмана — только данные');
+    const primaryTabs = [
+      ['overview', 'Обзор'],
+      ['body', 'Тело'],
+      ['strength', 'Сила'],
+      ['photos', 'Фото'],
+      ['more', 'Ещё'],
+    ];
+    const secondaryTabs = [
+      ['training', 'Тренировки'],
+      ['muscles', 'Мышцы'],
+      ['recovery', 'Восстановление'],
+      ['records', 'Рекорды'],
+      ['stepper', 'Степпер'],
+    ];
+    const secondaryActive = secondaryTabs.some(([value]) => value === state.progressTab);
+    setTopbar('Прогресс', 'Последние 30 дней');
     el.main.innerHTML = `
-      <section class="section"><div class="tabs">
-        ${[['body','Тело'],['training','Тренировки'],['muscles','Мышцы'],['recovery','Восстановление'],['records','Рекорды'],['strength','Рабочие веса'],['stepper','Степпер'],['photos','Фото']].map(([value,label]) => `<button class="tab ${state.progressTab === value ? 'active' : ''} progress-tab" data-tab="${value}">${label}</button>`).join('')}
+      <section class="section progress-primary-tabs"><div class="movement-tabs">
+        ${primaryTabs.map(([value,label]) => `<button class="${state.progressTab === value || (value === 'more' && secondaryActive) ? 'active' : ''} progress-tab" data-tab="${value}" type="button">${label}</button>`).join('')}
       </div></section>
+      ${secondaryActive ? `<section class="section progress-secondary-tabs"><div class="tabs">${secondaryTabs.map(([value,label]) => `<button class="tab ${state.progressTab === value ? 'active' : ''} progress-tab" data-tab="${value}" type="button">${label}</button>`).join('')}</div></section>` : ''}
       <div id="progress-content">${renderProgressContent()}</div>
     `;
     el.main.querySelectorAll('.progress-tab').forEach((button) => button.addEventListener('click', () => { state.progressTab = button.dataset.tab; renderProgress(); }));
+    el.main.querySelectorAll('[data-progress-target]').forEach((button) => button.addEventListener('click', () => {
+      state.progressTab = button.dataset.progressTarget;
+      renderProgress();
+    }));
     bindProgressEvents();
   }
 
   function renderProgressContent() {
+    if (state.progressTab === 'overview') return renderProgressOverview();
+    if (state.progressTab === 'more') return renderProgressMore();
     if (state.progressTab === 'body') return renderBodyProgress();
     if (state.progressTab === 'training') return renderTrainingProgress();
     if (state.progressTab === 'muscles') return renderMuscleProgress();
@@ -6268,6 +6628,85 @@
     if (state.progressTab === 'strength') return renderStrengthProgress();
     if (state.progressTab === 'stepper') return renderStepperProgress();
     return renderPhotoProgress();
+  }
+
+  function renderProgressOverview() {
+    const from = startOfDay(new Date(Date.now() - 29 * 86400000));
+    const workouts = completedWorkoutList(state.workouts).filter((workout) => new Date(workout.startedAt || workout.date || 0) >= from);
+    const totalLoad = workouts.reduce((sum, workout) => sum + Number(workout.totalLoadKg || 0), 0);
+    const completion = Math.round(avgCompletion(workouts));
+    const waist = bodyMeasurementSeries('waistCm').filter((row) => row.dateObj >= from);
+    const weight = bodyMeasurementSeries('weightKg').filter((row) => row.dateObj >= from);
+    const waistDiff = waist.length >= 2 ? waist[waist.length - 1].value - waist[0].value : null;
+    const weightDiff = weight.length >= 2 ? weight[weight.length - 1].value - weight[0].value : null;
+    const muscles = muscleLoadSummary(7);
+    const balanced = muscles.rows.filter((row) => row.status === 'normal').slice(0, 3);
+    const attention = muscles.rows.filter((row) => ['high', 'overload', 'low'].includes(row.status)).slice(0, 3);
+    const headline = waistDiff !== null
+      ? `${formatSignedBodyValue(waistDiff)} см`
+      : workouts.length
+        ? `${workouts.length} тренировок`
+        : 'Начинаем отсчёт';
+    const summary = waistDiff === null
+      ? (workouts.length ? 'Тренировки сохраняются — добавь свежий замер талии, чтобы увидеть изменение формы.' : 'Сохрани первую тренировку и добавь замеры — здесь появится человеческий вывод.')
+      : `${waistDiff < -0.1 ? 'Талия уменьшается' : waistDiff > 0.1 ? 'Талия выросла' : 'Талия почти без изменений'}${weightDiff !== null ? `, вес ${Math.abs(weightDiff) < 0.1 ? 'стоит' : weightDiff > 0 ? 'растёт' : 'снижается'}` : ''}.`;
+
+    return `
+      <section class="section">
+        <button class="card progress-result-card" data-progress-target="body" type="button">
+          <span class="eyebrow">Главный результат</span>
+          <strong>${escapeHTML(headline)}</strong>
+          <h2>${escapeHTML(summary)}</h2>
+          <small>Открыть динамику тела <b>›</b></small>
+        </button>
+      </section>
+
+      <section class="section">
+        <div class="section-head rezhim-section-head"><h2>За месяц</h2></div>
+        <div class="progress-month-grid">
+          <button class="card" data-progress-target="training" type="button"><span>Тренировки</span><strong>${workouts.length}</strong><small>${completion}% выполнения</small></button>
+          <button class="card" data-progress-target="strength" type="button"><span>Общий объём</span><strong>${formatCompactLoad(totalLoad)} кг</strong><small>за 30 дней</small></button>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="card progress-balance-card">
+          <div class="section-head"><h2>Баланс нагрузки</h2><button class="link-button" data-progress-target="muscles" type="button">Подробнее</button></div>
+          <div class="progress-balance-tags">
+            ${balanced.map((row) => `<span class="good">${escapeHTML(row.label)} ✓</span>`).join('')}
+            ${attention.map((row) => `<span class="${row.status === 'low' ? 'info' : 'watch'}">${escapeHTML(row.label)} ${escapeHTML(row.statusLabel)}</span>`).join('')}
+            ${!balanced.length && !attention.length ? '<span class="info">Нужны сохранённые тренировки</span>' : ''}
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-head rezhim-section-head"><h2>Все данные</h2></div>
+        <div class="progress-link-grid">
+          <button data-progress-target="records" type="button"><span>★</span><strong>Рекорды</strong></button>
+          <button data-progress-target="recovery" type="button"><span>○</span><strong>Восстановление</strong></button>
+          <button data-progress-target="muscles" type="button"><span>●</span><strong>Мышцы</strong></button>
+          <button data-progress-target="stepper" type="button"><span>↗</span><strong>Степпер</strong></button>
+        </div>
+      </section>`;
+  }
+
+  function renderProgressMore() {
+    return `
+      <section class="section">
+        <div class="card progress-more-intro"><span class="eyebrow">Подробная аналитика</span><h2>Выбери нужный отчёт</h2><p>Все прежние разделы прогресса на месте — они просто убраны со стартовой линии.</p></div>
+      </section>
+      <section class="section">
+        <div class="progress-more-grid">
+          ${[
+            ['training', '▦', 'Тренировки', 'Количество, минуты и объём'],
+            ['muscles', '●', 'Мышцы', 'Нагрузка за 7 и 14 дней'],
+            ['recovery', '○', 'Восстановление', 'Отдых и разгрузочная неделя'],
+            ['records', '★', 'Рекорды', 'Полезные достижения'],
+            ['stepper', '↗', 'Степпер', 'Время и лучшие результаты'],
+          ].map(([target, icon, title, note]) => `<button class="card" data-progress-target="${target}" type="button"><span>${icon}</span><strong>${title}</strong><small>${note}</small><b>›</b></button>`).join('')}
+        </div>
+      </section>`;
   }
 
   function renderBodyProgress() {
@@ -7810,7 +8249,9 @@
     const databaseBeverages = Number(state.foodDatabaseInfo?.stats?.beverages || state.foodDatabase.filter((food) => food.type === 'beverage').length || 0);
     const databaseSportNutrition = Number(state.foodDatabaseInfo?.stats?.sportNutrition || state.foodDatabase.filter((food) => food.type === 'supplement' || food.category === 'Спортивное питание').length || 0);
 
-    setTopbar('Питание', `Профиль: ${state.profile.name}`);
+    setTopbar('Питание', state.nutritionDate === todayISO()
+      ? formatDate(new Date(), { weekday: 'long', day: 'numeric', month: 'long' })
+      : nutritionDateLabel(state.nutritionDate));
     el.main.innerHTML = `
       <section class="section nutrition-screen">
         <div class="nutrition-date-nav">
@@ -8261,7 +8702,7 @@
   }
 
   function renderMore() {
-    setTopbar('Профиль и настройки', `Профиль: ${state.profile.name}`);
+    setTopbar('Профиль', 'Настройки без свалки');
     const goals = state.profile.goals?.length ? state.profile.goals : ['Цель пока не указана'];
     const profileInitial = escapeHTML((state.profile.name || '?').trim().charAt(0).toUpperCase() || '?');
     el.main.innerHTML = `
@@ -8673,8 +9114,8 @@
 
   function getAppShareData() {
     const url = getAppShareUrl();
-    const title = 'Тренировки';
-    const text = 'Тренировки — PWA-приложение для тренировок, прогресса и восстановления.';
+    const title = 'РЕЖИМ';
+    const text = 'РЕЖИМ — офлайн-система тренировок, питания, восстановления и прогресса.';
     return { title, text, url, message: `${text}\n${url}` };
   }
 
@@ -9058,7 +9499,7 @@
     try {
       const backup = JSON.parse(await file.text());
       if (!backup || backup.format !== 'nikita-workouts-backup' || !backup.data) {
-        throw new Error('Это не резервная копия приложения «Тренировки»');
+        throw new Error('Это не резервная копия приложения «РЕЖИМ»');
       }
 
       const existingPhotos = await DB.getAll('photos');
@@ -9245,6 +9686,7 @@
     if (shouldSaveProgramDraft) {
       if (state.route === 'home') renderHome();
       else if (state.route === 'plan') renderPlan();
+      else if (state.route === 'movement') renderMovement();
     }
   }
 
@@ -10189,7 +10631,7 @@
 
     if (state.push.permission === 'denied') {
       state.push.statusText = 'Разрешение запрещено';
-      state.push.detailText = 'Открой Настройки iPhone → Уведомления → Тренировки и разреши уведомления.';
+      state.push.detailText = 'Открой Настройки iPhone → Уведомления → РЕЖИМ и разреши уведомления.';
       refreshPushPanel();
       return state.push;
     }

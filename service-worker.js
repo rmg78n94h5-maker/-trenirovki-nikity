@@ -1,5 +1,5 @@
 // Маркер релиза меняется вместе с version.js, чтобы iPhone точно установил новый Service Worker.
-const SERVICE_WORKER_RELEASE = '1.27.0';
+const SERVICE_WORKER_RELEASE = '2.0.0';
 importScripts(`./version.js?v=${SERVICE_WORKER_RELEASE}`);
 if (self.NIKITA_APP.version !== SERVICE_WORKER_RELEASE) throw new Error('Версии приложения и Service Worker не совпадают');
 const CACHE_NAME = self.NIKITA_APP.cacheName;
@@ -113,7 +113,10 @@ self.addEventListener('push', (event) => {
 
   event.waitUntil((async () => {
     const planned = isWorkoutReminderPayload(payload) ? await readDueScheduledWorkout() : null;
-    const title = planned ? 'Запланированная тренировка' : (payload.title || 'Тренировки');
+    const payloadTitle = String(payload.title || '').trim();
+    const title = planned
+      ? 'Запланированная тренировка'
+      : (payloadTitle === 'Тренировки' ? 'РЕЖИМ' : (payloadTitle || 'РЕЖИМ'));
     const targetUrl = planned ? './#/home' : (payload.targetUrl || './#/more');
     const tag = planned ? `scheduled-workout-${planned.id}` : (payload.tag || `trenirovki-${payload.kind || 'notice'}`);
     const options = {
