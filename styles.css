@@ -6724,6 +6724,13 @@ body::after {
   bottom: 64px !important;
 }
 
+/* v1.26.3 — системные сообщения должны быть видны поверх модального
+   конструктора, иначе блокировка сохранения выглядит как мёртвая кнопка. */
+.toast {
+  z-index: 260 !important;
+  pointer-events: none;
+}
+
 @media (max-width: 370px) {
   .nutrition-entry {
     grid-template-columns: minmax(0, 1fr) 28px;

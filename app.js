@@ -4614,6 +4614,26 @@
     const days = proposals.map((item) => item.day);
     const trainingItems = proposals.filter((item) => item.type === 'training');
     const restCount = proposals.length - trainingItems.length;
+    const trainingDayIssues = trainingItems.map((item) => {
+      const index = proposals.indexOf(item);
+      const exercises = Array.isArray(item.day.exercises) ? item.day.exercises : [];
+      const workExercises = exercises.filter((entry) => entry.exerciseId !== 'warmup-joints');
+      return {
+        index,
+        dayNumber: index + 1,
+        name: item.day.name || `День ${index + 1}`,
+        exerciseCount: exercises.length,
+        workExerciseCount: workExercises.length,
+        customized: Boolean(item.customized),
+        canStart: Boolean(item.customized || item.proposal?.canStart),
+      };
+    });
+    const blockingDays = trainingDayIssues.filter((issue) => issue.workExerciseCount < 1);
+    const shortDays = trainingDayIssues.filter((issue) => (
+      issue.workExerciseCount >= 1
+      && !issue.customized
+      && (!issue.canStart || issue.exerciseCount < 4)
+    ));
     const averageDuration = trainingItems.length
       ? Math.round(trainingItems.reduce((sum, item) => sum + Number(item.day.durationMin || 0), 0) / trainingItems.length)
       : 0;
@@ -4650,10 +4670,9 @@
       warnings: programRecoveryWarnings(days),
       trainingCount: trainingItems.length,
       restCount,
-      canSave: trainingItems.length > 0 && trainingItems.every((item) => (
-        item.day.exercises.length >= 1
-        && (item.customized || (item.proposal?.canStart && item.day.exercises.length >= 4))
-      )),
+      blockingDays,
+      shortDays,
+      canSave: trainingItems.length > 0 && !blockingDays.length,
     };
   }
 
@@ -4764,10 +4783,10 @@
 
   function renderProgramBuilderPreview(draft) {
     const built = buildProgramFromBuilderDraft(draft, true);
-    const unavailable = built.proposals.filter((item) => (
-      item.type === 'training'
-      && (!item.day.exercises.length || (!item.customized && !item.proposal?.canStart))
-    )).length;
+    const blockingText = built.blockingDays.map((issue) => `день ${issue.dayNumber}`).join(', ');
+    const shortText = built.shortDays.map((issue) => (
+      `день ${issue.dayNumber} — ${issue.exerciseCount} упр.`
+    )).join(' · ');
     return `
       <div class="program-builder-preview">
         <div class="profile-builder-summary">
@@ -4780,7 +4799,8 @@
           ? `<div class="notice warning program-builder-preview-warning"><strong>Есть повторная нагрузка в соседние дни.</strong><br>При сохранении приложение покажет мышцы и позволит либо вернуться, либо сохранить всё равно.</div>`
           : '<div class="notice success program-builder-preview-warning"><strong>Явной перетренированности по соседним дням не найдено.</strong><br>После создания программа останется полностью редактируемой.</div>'}
         ${!built.trainingCount ? '<div class="notice danger"><strong>В программе пока только отдых.</strong><br>Вернись хотя бы к одному дню и выбери «Тренировка».</div>' : ''}
-        ${unavailable ? `<div class="notice danger"><strong>Не все дни удалось собрать.</strong><br>Вернись к проблемному дню и выбери другие мышцы либо большую длительность.</div>` : ''}
+        ${built.blockingDays.length ? `<div class="notice danger"><strong>Без рабочих упражнений: ${escapeHTML(blockingText)}.</strong><br>Такой тренировочный день сохранить нельзя. Открой его и добавь упражнение либо сделай днём отдыха.</div>` : ''}
+        ${built.shortDays.length ? `<div class="notice warning"><strong>Некоторые дни получились короче заданного.</strong><br>${escapeHTML(shortText)}. Их можно сохранить как есть — приложение попросит подтверждение.</div>` : ''}
         <div class="profile-builder-days program-builder-preview-days">
           ${built.program.days.map((day, index) => {
             const config = draft.days[index];
@@ -5132,47 +5152,132 @@
     toast('Открыт новый черновик программы');
   }
 
+  function showProgramBuilderBlockingModal(built, draft) {
+    const firstIssue = built.blockingDays?.[0] || null;
+    const hasTraining = built.trainingCount > 0;
+    const issueRows = (built.blockingDays || []).map((issue) => `
+      <div class="list-row">
+        <span class="day-badge small-badge">${issue.dayNumber}</span>
+        <div class="list-row-main">
+          <div class="list-row-title">${escapeHTML(issue.name)}</div>
+          <div class="list-row-sub">Нет ни одного рабочего упражнения</div>
+        </div>
+      </div>
+    `).join('');
+    showModal(`
+      <div class="modal-head"><div><div class="eyebrow">Сохранение программы</div><h2>${hasTraining ? 'Нужно исправить тренировочный день' : 'В программе только отдых'}</h2></div><button class="modal-close" id="close-program-builder-block" type="button">×</button></div>
+      <div class="notice danger"><strong>Программа пока не готова к сохранению.</strong><br>${hasTraining ? 'Хотя бы одно рабочее упражнение нужно в каждом тренировочном дне.' : 'Сделай хотя бы один день тренировочным и добавь упражнения.'}</div>
+      ${issueRows ? `<div class="card list-card" style="margin-top:12px">${issueRows}</div>` : ''}
+      <div class="button-row" style="margin-top:14px">
+        <button class="button ghost" id="back-to-program-builder-preview" type="button">Вернуться</button>
+        <button class="button primary" id="edit-blocked-program-builder-day" type="button">${firstIssue ? `Исправить день ${firstIssue.dayNumber}` : 'Открыть день 1'}</button>
+      </div>
+    `);
+    const back = () => {
+      state.programBuilder = draft;
+      renderProgramBuilderModal();
+    };
+    document.getElementById('close-program-builder-block')?.addEventListener('click', back);
+    document.getElementById('back-to-program-builder-preview')?.addEventListener('click', back);
+    document.getElementById('edit-blocked-program-builder-day')?.addEventListener('click', () => {
+      state.programBuilder = draft;
+      draft.step = firstIssue ? firstIssue.index + 1 : 1;
+      debounceProgramBuilderDraftSave();
+      renderProgramBuilderModal();
+    });
+  }
+
+  function showProgramBuilderSaveConfirmation(built, draft, onConfirm) {
+    const shortRows = (built.shortDays || []).map((issue) => `
+      <div class="list-row">
+        <span class="day-badge small-badge">${issue.dayNumber}</span>
+        <div class="list-row-main">
+          <div class="list-row-title">${escapeHTML(issue.name)}</div>
+          <div class="list-row-sub">${issue.exerciseCount} упр. всего · ${issue.workExerciseCount} рабочих</div>
+        </div>
+        <span class="chip warning">короткий</span>
+      </div>
+    `).join('');
+    showModal(`
+      <div class="modal-head"><div><div class="eyebrow">Проверка программы</div><h2>Сохранить программу как есть?</h2></div><button class="modal-close" id="close-program-builder-confirm" type="button">×</button></div>
+      ${shortRows ? `
+        <div class="notice warning"><strong>Некоторые дни короче выбранной длительности.</strong><br>В них есть рабочие упражнения, поэтому программа сохранится и останется редактируемой.</div>
+        <div class="card list-card program-builder-short-day-list" style="margin-top:12px">${shortRows}</div>
+      ` : ''}
+      ${built.warnings.length ? `
+        <div class="notice warning" style="margin-top:12px"><strong>Есть повторная нагрузка в соседние дни.</strong><br>Это предупреждение, а не запрет.</div>
+        <div class="card list-card program-warning-list" style="margin-top:12px">${renderProgramWarningRows(built.warnings)}</div>
+      ` : ''}
+      <div class="button-row" style="margin-top:14px">
+        <button class="button ghost" id="cancel-program-builder-confirm" type="button">Вернуться</button>
+        <button class="button primary" id="confirm-program-builder-save" type="button">Сохранить всё равно</button>
+      </div>
+      <div class="help" style="margin-top:10px">Позже любой день и его упражнения можно изменить в разделе «План».</div>
+    `);
+    const back = () => {
+      state.programBuilder = draft;
+      renderProgramBuilderModal();
+    };
+    document.getElementById('close-program-builder-confirm')?.addEventListener('click', back);
+    document.getElementById('cancel-program-builder-confirm')?.addEventListener('click', back);
+    document.getElementById('confirm-program-builder-save')?.addEventListener('click', onConfirm);
+  }
+
   async function saveProgramBuilder() {
     const draft = state.programBuilder;
     if (!draft) return;
     readProgramBuilderInputs();
-    await persistProgramBuilderDraft(draft);
-    const built = buildProgramFromBuilderDraft(draft, false);
+    let built;
+    try {
+      await persistProgramBuilderDraft(draft);
+      built = buildProgramFromBuilderDraft(draft, false);
+    } catch (error) {
+      console.error('Program builder preparation failed', error);
+      toast('Не удалось подготовить программу к сохранению');
+      return;
+    }
     if (!built.canSave) {
-      toast(built.trainingCount
-        ? 'Не все тренировочные дни удалось собрать. Вернись и проверь выбранные мышцы.'
-        : 'Добавь хотя бы один тренировочный день');
+      showProgramBuilderBlockingModal(built, draft);
       return;
     }
     const commit = async () => {
+      const button = document.getElementById('confirm-program-builder-save')
+        || document.getElementById('save-program-builder');
+      if (button?.disabled) return;
+      const originalLabel = button?.textContent || '';
+      if (button) {
+        button.disabled = true;
+        button.textContent = 'Сохраняю…';
+      }
       const program = built.program;
-      await DB.put('programs', program);
-      state.programs = state.programs.filter((item) => item.id !== program.id);
-      state.programs.push(program);
-      state.allPrograms = state.allPrograms.filter((item) => item.id !== program.id);
-      state.allPrograms.push(program);
-      state.settings.activeProgramId = program.id;
-      state.settings.currentDayIndex = 0;
-      await DB.setSettingsObject({ activeProgramId: program.id, currentDayIndex: 0 }, state.activeProfileId);
-      await clearProgramBuilderDraft();
-      state.programBuilder = null;
-      closeModal();
-      navigate('plan');
-      toast(`Программа «${program.name}» сохранена в «План»`);
+      try {
+        await DB.put('programs', program);
+        state.programs = state.programs.filter((item) => item.id !== program.id);
+        state.programs.push(program);
+        state.allPrograms = state.allPrograms.filter((item) => item.id !== program.id);
+        state.allPrograms.push(program);
+        state.settings.activeProgramId = program.id;
+        state.settings.currentDayIndex = 0;
+        await DB.setSettingsObject({ activeProgramId: program.id, currentDayIndex: 0 }, state.activeProfileId);
+        await clearProgramBuilderDraft();
+        state.programBuilder = null;
+        closeModal();
+        navigate('plan');
+        toast(`Программа «${program.name}» сохранена в «План»`);
+      } catch (error) {
+        console.error('Program builder save failed', error);
+        if (button) {
+          button.disabled = false;
+          button.textContent = originalLabel;
+        }
+        toast('Не удалось сохранить программу. Черновик остался на месте');
+      }
     };
-    if (!built.warnings.length) {
+    if (!built.warnings.length && !built.shortDays.length) {
       await commit();
       return;
     }
-    showProgramRecoveryWarningModal({
-      warnings: built.warnings,
-      title: 'В программе мышцы идут подряд',
-      detail: 'В соседних днях есть заметная повторная нагрузка. Это не запрет: можно вернуться и изменить дни либо сохранить программу как есть.',
-      confirmLabel: 'Сохранить всё равно',
-      cancelLabel: 'Вернуться к программе',
-      onConfirm: commit,
-      onCancel: renderProgramBuilderModal,
-    });
+    showProgramBuilderSaveConfirmation(built, draft, commit);
   }
 
   function showNewProgramModal() {
