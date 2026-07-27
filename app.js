@@ -600,21 +600,12 @@
       const root = document.documentElement;
       const nav = document.querySelector('.bottom-nav');
       if (!root || !nav) return;
-      let gap = 0;
-      if (isIOSDevice()) {
-        const viewport = window.visualViewport;
-        const screenHeight = Number(window.screen?.height || 0);
-        const viewportBottom = Number(viewport?.offsetTop || 0) + Number(viewport?.height || window.innerHeight || 0);
-        const measuredGap = screenHeight - viewportBottom;
-        // 0–72 px — системная нижняя область. Большая разница означает
-        // открытую клавиатуру или браузерную панель, в неё навигацию не двигаем.
-        if (Number.isFinite(measuredGap) && measuredGap > 0 && measuredGap <= 72) {
-          gap = Math.round(measuredGap * 10) / 10;
-        }
-      }
-      root.style.setProperty('--bottom-nav-viewport-gap', `${gap}px`);
-      // Инлайн-геометрия страхует от старого закэшированного каскада styles.css.
-      nav.style.setProperty('bottom', 'calc(0px - var(--bottom-nav-viewport-gap, 0px))', 'important');
+      // screen.height и visualViewport.height на iOS относятся к разным
+      // областям экрана. Их разница может оказаться больше высоты панели и
+      // полностью вытолкнуть навигацию за viewport. Всегда прижимаем её к
+      // реальной нижней границе layout viewport.
+      root.style.setProperty('--bottom-nav-viewport-gap', '0px');
+      nav.style.setProperty('bottom', '0px', 'important');
       nav.style.setProperty('height', 'var(--bottom-nav-content-height)', 'important');
       nav.style.setProperty('min-height', 'var(--bottom-nav-content-height)', 'important');
       nav.style.setProperty('padding', '2px 6px 1px', 'important');
