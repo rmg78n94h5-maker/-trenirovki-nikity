@@ -609,15 +609,11 @@
       const root = document.documentElement;
       const nav = document.querySelector('.bottom-nav');
       if (!root || !nav) return;
-      // screen.height и visualViewport.height на iOS относятся к разным
-      // областям экрана. Их разница может оказаться больше высоты панели и
-      // полностью вытолкнуть навигацию за viewport. Всегда прижимаем её к
-      // реальной нижней границе layout viewport.
+      // Геометрию панели задаёт финальный CSS через safe-area-inset-bottom.
+      // Убираем исторические inline-значения, чтобы iOS не оставляла чёрную
+      // полосу и не выталкивала панель за viewport.
       root.style.setProperty('--bottom-nav-viewport-gap', '0px');
-      nav.style.setProperty('bottom', '0px', 'important');
-      nav.style.setProperty('height', 'var(--bottom-nav-content-height)', 'important');
-      nav.style.setProperty('min-height', 'var(--bottom-nav-content-height)', 'important');
-      nav.style.setProperty('padding', '2px 6px 1px', 'important');
+      ['bottom', 'height', 'min-height', 'padding'].forEach((name) => nav.style.removeProperty(name));
     });
   }
 
@@ -1215,15 +1211,14 @@
           <article class="card rezhim-today-hero today-action-card program ${isProgramRestDay ? 'rest' : ''}">
             <div class="rezhim-hero-top">
               <span class="eyebrow">${isProgramRestDay ? 'План восстановления' : 'План на сегодня'}</span>
-              <span class="rezhim-time-chip">${escapeHTML(scheduleStatus.label)}</span>
+              <span class="rezhim-time-chip">День ${index + 1} из ${program.days.length}</span>
             </div>
             <h2>${escapeHTML(day?.name || 'Тренировка')}</h2>
             <span class="today-action-copy rezhim-legacy-copy" aria-hidden="true"><strong>${escapeHTML(day?.name || 'Тренировка')}</strong></span>
             <p>${isProgramRestDay
               ? `День ${index + 1} из ${program.days.length} · полный отдых по программе`
               : `${day.exercises.length} упражнений · около ${day.durationMin} минут`}</p>
-            <div class="rezhim-hero-meta">
-              <span>По программе</span>
+            <div class="rezhim-hero-meta compact">
               <span class="${readiness >= 7 ? 'ready' : 'watch'}">Готовность ${readiness}/10</span>
             </div>
             ${draft
@@ -1231,9 +1226,9 @@
               : isProgramRestDay
                 ? '<button class="button primary full" id="complete-program-rest" type="button">Отметить отдых и продолжить цикл</button>'
                 : '<button class="button primary full" id="start-cycle" type="button">Начать тренировку</button>'}
-            <div class="rezhim-hero-links">
+            <div class="rezhim-hero-links compact">
               <button id="home-workout-options" type="button">Другой вариант</button>
-              <button data-go="movement" type="button">Управление планом</button>
+              <button data-go="movement" type="button">Открыть план</button>
             </div>
           </article>
         </section>
@@ -4528,7 +4523,6 @@
     const programDraft = storedProgramBuilderDraft();
     const scheduleStatus = trainingScheduleStatus(program);
     const isProgramRestDay = Boolean(day?.restDay);
-    const cycleProgress = program.days.length ? Math.round(((index + 1) / program.days.length) * 100) : 0;
 
     setTopbar('Движение', 'Тренировки, план и история');
     el.main.innerHTML = `
@@ -4550,7 +4544,7 @@
               <div class="movement-next-top"><span class="eyebrow">${isProgramRestDay ? 'Следующий шаг' : 'Следующая тренировка'}</span><span class="rezhim-time-chip">Цикл ${index + 1}/${program.days.length}</span></div>
               <h2>${escapeHTML(day?.name || 'Тренировка')}</h2>
               <p>${isProgramRestDay ? 'Полный отдых по программе' : escapeHTML(day?.focus || program.description || scheduleStatus.detail)}</p>
-              <div class="movement-next-meta"><span>≈ ${Number(day?.durationMin || 0)} мин</span><span>${day?.exercises?.length || 0} упражнений</span><span>${cycleProgress}% цикла</span></div>
+              <div class="movement-next-meta"><span>≈ ${Number(day?.durationMin || 0)} мин</span><span>${day?.exercises?.length || 0} упражнений</span></div>
               ${isProgramRestDay
                 ? '<button class="button movement-primary full" id="movement-complete-rest" type="button">Отметить отдых</button>'
                 : '<button class="button movement-primary full" id="movement-start-workout" type="button">Начать</button>'}
@@ -4559,7 +4553,7 @@
         `}
 
         <section class="section">
-          <div class="section-head rezhim-section-head"><h2>Эта неделя</h2><button class="link-button" data-movement-route="history" type="button">История</button></div>
+          <div class="section-head rezhim-section-head"><h2>Эта неделя</h2></div>
           <div class="card movement-week-card">${renderMovementWeek()}</div>
         </section>
 
@@ -4567,8 +4561,8 @@
           <div class="section-head rezhim-section-head"><h2>Быстрый старт</h2></div>
           <div class="movement-quick-grid">
             <button id="movement-custom-workout" type="button"><span class="green">＋</span><strong>Своя тренировка</strong><small>Собрать на сегодня</small></button>
-            <button id="movement-smart-workout" type="button"><span class="purple">✦</span><strong>Подобрать</strong><small>По мышцам и времени</small></button>
-            <button id="movement-short-workout" type="button"><span class="orange">⚡</span><strong>Нет сил</strong><small>15–20 минут</small></button>
+            <button id="movement-smart-workout" type="button"><span class="purple">✦</span><strong>Подобрать тренировку</strong><small>По мышцам и времени</small></button>
+            <button id="movement-short-workout" type="button"><span class="orange">⚡</span><strong>Короткая тренировка</strong><small>15–20 минут</small></button>
           </div>
         </section>
 
@@ -6591,7 +6585,7 @@
       ['body', 'Тело'],
       ['strength', 'Сила'],
       ['photos', 'Фото'],
-      ['more', 'Ещё'],
+      ['more', 'Данные'],
     ];
     const secondaryTabs = [
       ['training', 'Тренировки'],
@@ -6651,14 +6645,28 @@
       ? (workouts.length ? 'Тренировки сохраняются — добавь свежий замер талии, чтобы увидеть изменение формы.' : 'Сохрани первую тренировку и добавь замеры — здесь появится человеческий вывод.')
       : `${waistDiff < -0.1 ? 'Талия уменьшается' : waistDiff > 0.1 ? 'Талия выросла' : 'Талия почти без изменений'}${weightDiff !== null ? `, вес ${Math.abs(weightDiff) < 0.1 ? 'стоит' : weightDiff > 0 ? 'растёт' : 'снижается'}` : ''}.`;
 
+    const hasStartingData = workouts.length || state.measurements.length || state.photos.length;
+
     return `
       <section class="section">
-        <button class="card progress-result-card" data-progress-target="body" type="button">
-          <span class="eyebrow">Главный результат</span>
-          <strong>${escapeHTML(headline)}</strong>
-          <h2>${escapeHTML(summary)}</h2>
-          <small>Открыть динамику тела <b>›</b></small>
-        </button>
+        ${hasStartingData ? `
+          <button class="card progress-result-card" data-progress-target="body" type="button">
+            <span class="eyebrow">Главный результат</span>
+            <strong>${escapeHTML(headline)}</strong>
+            <h2>${escapeHTML(summary)}</h2>
+            <small>Открыть динамику тела <b>›</b></small>
+          </button>
+        ` : `
+          <article class="card progress-result-card progress-empty-start">
+            <span class="eyebrow">Первый шаг</span>
+            <strong>Добавь исходные данные</strong>
+            <h2>Вес, талия и первое фото займут около минуты — после этого здесь появятся выводы.</h2>
+            <div class="progress-empty-actions">
+              <button class="button primary" id="progress-add-measurement" type="button">Добавить замеры</button>
+              <button class="button secondary" id="progress-add-photo" type="button">Добавить фото</button>
+            </div>
+          </article>
+        `}
       </section>
 
       <section class="section">
@@ -7092,6 +7100,8 @@
   }
 
   function bindProgressEvents() {
+    document.getElementById('progress-add-measurement')?.addEventListener('click', showMeasurementModal);
+    document.getElementById('progress-add-photo')?.addEventListener('click', showPhotoModal);
     document.getElementById('add-measurement')?.addEventListener('click', showMeasurementModal);
     document.getElementById('measurement-history')?.addEventListener('click', showMeasurementsModal);
     document.getElementById('measurement-history-inline')?.addEventListener('click', showMeasurementsModal);
@@ -8267,7 +8277,7 @@
               <h2>${remaining >= 0 ? `Осталось ${formatNutritionValue(remaining)} ккал` : `Перебор ${formatNutritionValue(Math.abs(remaining))} ккал`}</h2>
               <p>${formatNutritionValue(totals.kcal)} из ${formatNutritionValue(target.calories)} ккал</p>
             </div>
-            <div class="nutrition-calorie-ring" style="--nutrition-progress:${Math.min(caloriePercent, 100) * 3.6}deg"><strong>${caloriePercent}%</strong><span>ккал</span></div>
+            <div class="nutrition-calorie-ring" style="--nutrition-progress:${Math.min(caloriePercent, 100) * 3.6}deg"><strong>${formatNutritionValue(totals.kcal)} / ${formatNutritionValue(target.calories)}</strong><span>ккал</span></div>
           </div>
           <div class="nutrition-macro-grid">
             ${[

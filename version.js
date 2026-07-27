@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const version = '2.0.0';
+  const version = '2.0.1';
 
   globalThis.NIKITA_APP = Object.freeze({
     version,

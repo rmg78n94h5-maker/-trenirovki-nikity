@@ -8407,3 +8407,222 @@ body[data-route="workout"] .main-content {
     padding-left: 14px !important;
   }
 }
+
+/* ========================================================================== 
+   РЕЖИМ 2.0.1 — визуальная доводка и финальная геометрия iPhone
+   ========================================================================== */
+:root {
+  --bottom-nav-content-height: 66px;
+  --bottom-nav-safe-inset: env(safe-area-inset-bottom, 0px);
+}
+
+/* Внутренние экраны компактнее: полный бренд остаётся на «Сегодня». */
+body:not([data-route="home"]):not([data-route="workout"]) .topbar {
+  padding-top: calc(var(--safe-top-compact) + 3px) !important;
+  padding-bottom: 8px !important;
+}
+
+body:not([data-route="home"]):not([data-route="workout"]) .brand-lockup {
+  display: none !important;
+}
+
+body:not([data-route="home"]):not([data-route="workout"]) .topbar h1 {
+  margin-top: 0 !important;
+  font-size: clamp(27px, 7.4vw, 33px) !important;
+  line-height: 1 !important;
+}
+
+body:not([data-route="home"]):not([data-route="workout"]) .topbar-context {
+  font-size: 11px !important;
+}
+
+body:not([data-route="home"]):not([data-route="workout"]) .movement-tabs-section,
+body:not([data-route="home"]):not([data-route="workout"]) .progress-primary-tabs {
+  top: calc(var(--safe-top-compact) + 62px) !important;
+}
+
+/* Панель доходит до физического низа. Её верх остаётся на прежнем месте,
+   а кнопки опускаются в safe-area без чёрной полосы под ними. */
+.app-shell {
+  padding-bottom: calc(var(--bottom-nav-content-height) + 12px) !important;
+}
+
+.bottom-nav {
+  left: 10px !important;
+  right: 10px !important;
+  bottom: calc(0px - var(--bottom-nav-safe-inset)) !important;
+  width: auto !important;
+  height: calc(var(--bottom-nav-content-height) + var(--bottom-nav-safe-inset)) !important;
+  min-height: calc(var(--bottom-nav-content-height) + var(--bottom-nav-safe-inset)) !important;
+  padding: min(var(--bottom-nav-safe-inset), 14px) 7px 3px !important;
+  align-items: end !important;
+  box-sizing: border-box !important;
+  border-radius: 21px 21px 0 0 !important;
+  overflow: hidden !important;
+}
+
+.bottom-nav .nav-item,
+.bottom-nav .nav-item-today {
+  min-height: 56px !important;
+  height: 56px !important;
+  margin: 0 !important;
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+  transform: none !important;
+  background: transparent !important;
+}
+
+.bottom-nav .nav-item:not(.active),
+.bottom-nav .nav-item-today:not(.active) {
+  color: #9aa7a3 !important;
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.bottom-nav .nav-item.active,
+.bottom-nav .nav-item-today.active {
+  color: var(--accent) !important;
+  background: color-mix(in srgb, var(--accent) 11%, transparent) !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 16%, transparent) !important;
+}
+
+.toast {
+  bottom: calc(var(--bottom-nav-content-height) + 14px) !important;
+}
+
+/* Спокойнее иерархия: рамка нужна главным и активным карточкам, не всему подряд. */
+.card {
+  border-color: rgba(75, 101, 94, .46) !important;
+  box-shadow: 0 7px 22px rgba(0, 0, 0, .11) !important;
+}
+
+.movement-week-card,
+.progress-month-grid .card,
+.progress-balance-card,
+.progress-link-grid button,
+.nutrition-meal-card,
+.rezhim-balance-card {
+  border-color: rgba(75, 101, 94, .30) !important;
+  box-shadow: none !important;
+}
+
+.rezhim-today-hero,
+.movement-next-card,
+.nutrition-summary-card,
+.progress-result-card {
+  border-color: color-mix(in srgb, var(--accent) 31%, var(--line)) !important;
+}
+
+/* Главная карточка — меньше служебных плашек и воздуха. */
+.rezhim-today-hero {
+  padding: 18px !important;
+}
+
+.rezhim-hero-meta.compact {
+  grid-template-columns: auto !important;
+  justify-content: start !important;
+}
+
+.rezhim-hero-links.compact {
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.rezhim-hero-links.compact button {
+  flex: 0 1 auto;
+  color: #aab5b1;
+}
+
+/* Движение: короткие и недублирующиеся подписи. */
+.movement-next-meta {
+  grid-template-columns: repeat(2, max-content) !important;
+  justify-content: start !important;
+}
+
+.movement-quick-grid button {
+  min-height: 118px !important;
+}
+
+.movement-quick-grid strong {
+  font-size: 12px !important;
+}
+
+/* Питание: показываем фактические калории, а не абстрактный процент. */
+.nutrition-calorie-ring strong {
+  max-width: 78px;
+  font-size: 15px !important;
+  line-height: 1.05;
+  text-align: center;
+}
+
+.nutrition-goals-link {
+  min-height: 38px !important;
+  margin-top: 8px !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: #a6b2ae !important;
+  font-size: 11px !important;
+}
+
+.nutrition-meal-card {
+  padding: 15px !important;
+}
+
+/* Прогресс: пустое состояние сразу предлагает конкретное действие. */
+.progress-empty-start {
+  display: grid !important;
+  gap: 12px;
+  padding: 20px !important;
+  text-align: left;
+}
+
+.progress-empty-start > strong {
+  font-size: clamp(27px, 8vw, 38px) !important;
+  line-height: 1.02;
+  letter-spacing: -.04em;
+}
+
+.progress-empty-start > h2 {
+  margin: 0 !important;
+  color: #c1cbc7;
+  font-size: 15px !important;
+  line-height: 1.42;
+}
+
+.progress-empty-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+  margin-top: 3px;
+}
+
+.progress-empty-actions .button {
+  min-height: 45px;
+  padding-inline: 10px;
+  font-size: 12px;
+}
+
+/* Вторичный текст немного светлее на OLED и низкой яркости. */
+.topbar-context,
+.card p,
+.card small,
+.list-row-sub,
+.help,
+.stat-label,
+.nav-item:not(.active),
+.movement-week-day span {
+  color: #9eaba7;
+}
+
+/* Контент не скрывается за плавающей панелью. */
+.main-content {
+  padding-bottom: 46px !important;
+}
+
+@media (max-width: 390px) {
+  .progress-empty-actions {
+    grid-template-columns: 1fr;
+  }
+}
