@@ -302,6 +302,7 @@
       stores.profile.delete(profileId);
       stores.nutrition.delete(profileId);
       stores.meta.delete(`draftWorkout:${profileId}`);
+      stores.meta.delete(`scheduledWorkouts:${profileId}`);
 
       stores.settings.openCursor().onsuccess = (event) => {
         const cursor = event.target.result;

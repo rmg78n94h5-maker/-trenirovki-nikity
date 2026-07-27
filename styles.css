@@ -3127,6 +3127,222 @@ button:disabled {
   }
 }
 
+/* v1.27.0 — разовые запланированные тренировки */
+.scheduled-workouts-section {
+  display: grid;
+  gap: 10px;
+}
+
+.scheduled-workouts-head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 3px;
+}
+
+.scheduled-workouts-head h2 {
+  margin: 3px 0 0;
+  font-size: 22px;
+  letter-spacing: -.45px;
+}
+
+.scheduled-workouts-count {
+  min-width: 29px;
+  height: 29px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(199,255,47,.28);
+  border-radius: 10px;
+  background: rgba(199,255,47,.09);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.scheduled-workouts-list {
+  display: grid;
+  gap: 8px;
+}
+
+.scheduled-workout-card {
+  display: grid;
+  gap: 10px;
+  padding: 13px;
+  border: 1px solid rgba(199,255,47,.25);
+  border-radius: 19px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(199,255,47,.12), transparent 42%),
+    linear-gradient(145deg, #141a16, #0d1113);
+  box-shadow: 0 10px 26px rgba(0,0,0,.18);
+}
+
+.scheduled-workout-card.overdue {
+  border-color: rgba(255,190,61,.28);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(255,190,61,.10), transparent 42%),
+    linear-gradient(145deg, #181712, #0d1113);
+}
+
+.scheduled-workout-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 9px;
+}
+
+.scheduled-workout-time {
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: .015em;
+}
+
+.scheduled-workout-card.overdue .scheduled-workout-time {
+  color: #ffca61;
+}
+
+.scheduled-workout-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.scheduled-workout-copy strong {
+  overflow: hidden;
+  font-size: 17px;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scheduled-workout-copy small {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.scheduled-workout-actions {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) 44px;
+  gap: 8px;
+}
+
+.scheduled-workout-actions .button {
+  min-height: 44px;
+  padding: 8px 10px;
+  font-size: 11px;
+}
+
+.scheduled-workout-delete {
+  width: 44px;
+  min-height: 44px;
+  border: 1px solid rgba(255,94,108,.20);
+  border-radius: 13px;
+  background: rgba(255,94,108,.07);
+  color: var(--danger);
+  font-size: 22px;
+}
+
+.custom-builder-primary-actions {
+  display: grid;
+  grid-template-columns: minmax(0,.9fr) minmax(0,1.1fr);
+  gap: 8px;
+}
+
+.custom-builder-primary-actions .button {
+  min-width: 0;
+  min-height: 48px;
+  padding: 9px 8px;
+  font-size: 11px;
+}
+
+.schedule-workout-modal {
+  width: min(100%, 560px);
+}
+
+.schedule-workout-preview {
+  display: grid;
+  grid-template-columns: 46px minmax(0,1fr);
+  align-items: center;
+  gap: 11px;
+  margin-bottom: 14px;
+  padding: 12px;
+  border: 1px solid rgba(199,255,47,.20);
+  border-radius: 17px;
+  background: rgba(199,255,47,.055);
+}
+
+.schedule-workout-preview-icon {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: rgba(199,255,47,.12);
+  color: var(--accent);
+  font-size: 23px;
+}
+
+.schedule-workout-preview > div {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.schedule-workout-preview strong {
+  overflow: hidden;
+  font-size: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.schedule-workout-preview small {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.schedule-workout-fields {
+  margin-bottom: 12px;
+}
+
+.schedule-workout-fields input {
+  min-height: 48px;
+  font-size: 16px;
+}
+
+.schedule-workout-notice {
+  margin-top: 0;
+}
+
+.schedule-workout-modal-actions {
+  margin-top: 14px;
+}
+
+/* Нижняя навигация не должна попадать на активную тренировку:
+   её позднее правило display:grid перекрывало класс hidden и закрывало док подхода. */
+.bottom-nav.hidden,
+body[data-route="workout"] .bottom-nav {
+  display: none !important;
+}
+
+body[data-route="workout"] .app-shell {
+  padding-bottom: 0 !important;
+}
+
+body[data-route="workout"] .workout-control-dock {
+  z-index: 130 !important;
+}
+
+@media (max-width: 390px) {
+  .custom-builder-primary-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .schedule-workout-modal-actions {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 /* v1.16.0 — режим фокуса и удобная активная тренировка */
 .sport-workout-screen {
   padding-bottom: calc(282px + var(--safe-bottom));

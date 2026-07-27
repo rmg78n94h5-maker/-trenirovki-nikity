@@ -42,6 +42,7 @@
     painEntries: [],
     foodEntries: [],
     savedFoods: [],
+    scheduledWorkouts: [],
     foodDatabase: [],
     foodDatabaseInfo: null,
     foodDatabaseStatus: 'loading',
@@ -512,6 +513,7 @@
       state.painEntries = [];
       state.foodEntries = [];
       state.savedFoods = [];
+      state.scheduledWorkouts = [];
       updateProfileButton();
       return;
     }
@@ -523,7 +525,7 @@
 
   async function loadActiveProfileData() {
     const profileId = state.activeProfileId;
-    const [profile, nutrition, settings, workouts, measurements, photos, painEntries, foodEntries, savedFoods] = await Promise.all([
+    const [profile, nutrition, settings, workouts, measurements, photos, painEntries, foodEntries, savedFoods, scheduledWorkoutsRow] = await Promise.all([
       DB.get('profile', profileId),
       DB.get('nutrition', profileId),
       DB.getSettingsObject(profileId),
@@ -533,6 +535,7 @@
       DB.getAllForProfile('painEntries', profileId).catch(() => []),
       DB.getAllForProfile('foodEntries', profileId).catch(() => []),
       DB.getAllForProfile('savedFoods', profileId).catch(() => []),
+      DB.get('meta', scheduledWorkoutsKey(profileId)).catch(() => null),
     ]);
     state.profile = profile;
     state.nutrition = nutrition || { id: profileId, ...clone(window.NIKITA_SEED.nutrition) };
@@ -545,6 +548,7 @@
     state.painEntries = painEntries.sort((a, b) => String(b.createdAt || b.date || '').localeCompare(String(a.createdAt || a.date || '')));
     state.foodEntries = foodEntries.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
     state.savedFoods = savedFoods.sort((a, b) => String(b.updatedAt || b.createdAt || '').localeCompare(String(a.updatedAt || a.createdAt || '')));
+    state.scheduledWorkouts = normalizeScheduledWorkouts(scheduledWorkoutsRow?.value, profileId);
     state.nutritionDate = state.nutritionDate || todayISO();
     state.programBuilder = null;
     updateProfileButton();
@@ -558,7 +562,10 @@
       navigate('more');
     });
     window.addEventListener('hashchange', () => navigate(routeFromHash(), false));
-    window.addEventListener('online', updateOnlineStatus);
+    window.addEventListener('online', () => {
+      updateOnlineStatus();
+      syncPushAutomationSettings({ silent: true }).catch((error) => console.warn('Push schedule sync after reconnect failed', error));
+    });
     window.addEventListener('offline', updateOnlineStatus);
     window.addEventListener('scroll', scheduleWorkoutStickyOffsetSync, { passive: true });
     window.addEventListener('resize', () => {
@@ -855,6 +862,209 @@
     };
   }
 
+  function scheduledWorkoutsKey(profileId = state.activeProfileId) {
+    return `scheduledWorkouts:${profileId}`;
+  }
+
+  function scheduledWorkoutDateTime(item) {
+    const dateMatch = String(item?.scheduledDate || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    const timeMatch = String(item?.scheduledTime || '').match(/^(\d{2}):(\d{2})$/);
+    if (!dateMatch || !timeMatch) return null;
+    const date = new Date(
+      Number(dateMatch[1]),
+      Number(dateMatch[2]) - 1,
+      Number(dateMatch[3]),
+      Number(timeMatch[1]),
+      Number(timeMatch[2]),
+      0,
+      0,
+    );
+    return Number.isFinite(date.getTime()) ? date : null;
+  }
+
+  function normalizeScheduledWorkouts(value, profileId = state.activeProfileId) {
+    if (!Array.isArray(value)) return [];
+    return value
+      .filter((item) => item && item.id && item.profileId === profileId && item.customDay?.exercises?.length)
+      .map((item) => ({
+        ...clone(item),
+        status: 'scheduled',
+        scheduledDate: String(item.scheduledDate || '').slice(0, 10),
+        scheduledTime: String(item.scheduledTime || '').slice(0, 5),
+      }))
+      .filter((item) => scheduledWorkoutDateTime(item))
+      .sort((a, b) => scheduledWorkoutDateTime(a) - scheduledWorkoutDateTime(b));
+  }
+
+  async function persistScheduledWorkouts(profileId = state.activeProfileId) {
+    if (!profileId) throw new Error('Не выбран профиль');
+    const rows = normalizeScheduledWorkouts(state.scheduledWorkouts, profileId);
+    state.scheduledWorkouts = rows;
+    await DB.put('meta', {
+      key: scheduledWorkoutsKey(profileId),
+      value: clone(rows),
+      updatedAt: new Date().toISOString(),
+    });
+    return rows;
+  }
+
+  function defaultScheduledWorkoutSlot() {
+    const target = new Date();
+    target.setHours(19, 0, 0, 0);
+    if (target.getTime() <= Date.now()) target.setDate(target.getDate() + 1);
+    return {
+      date: localDateISO(target),
+      time: `${String(target.getHours()).padStart(2, '0')}:${String(target.getMinutes()).padStart(2, '0')}`,
+    };
+  }
+
+  function scheduledWorkoutTimeMinutes(item) {
+    const [hours, minutes] = String(item?.scheduledTime || '').split(':').map(Number);
+    if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return PUSH_AUTOMATION_DEFAULTS.workoutTimeMinutes;
+    return Math.min(1439, Math.max(0, hours * 60 + minutes));
+  }
+
+  function nextScheduledWorkoutForReminder() {
+    const graceMs = 2 * 60 * 1000;
+    return state.scheduledWorkouts
+      .filter((item) => {
+        const date = scheduledWorkoutDateTime(item);
+        return date && date.getTime() >= Date.now() - graceMs;
+      })
+      .sort((a, b) => scheduledWorkoutDateTime(a) - scheduledWorkoutDateTime(b))[0] || null;
+  }
+
+  async function addScheduledWorkout(customDay, scheduledDate, scheduledTime) {
+    const date = String(scheduledDate || '').slice(0, 10);
+    const time = String(scheduledTime || '').slice(0, 5);
+    const probe = scheduledWorkoutDateTime({ scheduledDate: date, scheduledTime: time });
+    if (!probe) throw new Error('Выбери дату и время');
+    if (probe.getTime() <= Date.now()) throw new Error('Это время уже прошло');
+
+    const now = new Date().toISOString();
+    const item = {
+      id: uid('scheduled-workout'),
+      profileId: state.activeProfileId,
+      status: 'scheduled',
+      scheduledDate: date,
+      scheduledTime: time,
+      timezone: PUSH_TIMEZONE,
+      customDay: clone(customDay),
+      createdAt: now,
+      updatedAt: now,
+    };
+    state.scheduledWorkouts.push(item);
+    try {
+      await persistScheduledWorkouts();
+    } catch (error) {
+      state.scheduledWorkouts = state.scheduledWorkouts.filter((row) => row.id !== item.id);
+      throw error;
+    }
+    return item;
+  }
+
+  async function removeScheduledWorkout(id, { rerender = true, syncPush = true } = {}) {
+    const previous = state.scheduledWorkouts;
+    const before = previous.length;
+    state.scheduledWorkouts = state.scheduledWorkouts.filter((item) => item.id !== id);
+    if (state.scheduledWorkouts.length === before) return false;
+    try {
+      await persistScheduledWorkouts();
+    } catch (error) {
+      state.scheduledWorkouts = previous;
+      throw error;
+    }
+    if (rerender && state.route === 'home') renderHome();
+    if (syncPush) syncPushAutomationSettings({ silent: true }).catch((error) => console.warn('Push schedule sync after planned workout removal failed', error));
+    return true;
+  }
+
+  async function startScheduledWorkout(id) {
+    const item = state.scheduledWorkouts.find((row) => row.id === id);
+    if (!item) {
+      toast('Запланированная тренировка уже удалена');
+      renderHome();
+      return;
+    }
+    await startWorkout({
+      customDay: clone(item.customDay),
+      startMode: 'scheduled',
+      shouldAdvanceCycle: false,
+      scheduledWorkoutId: item.id,
+    });
+  }
+
+  function scheduledWorkoutDateLabel(item) {
+    const date = scheduledWorkoutDateTime(item);
+    if (!date) return '';
+    const today = localDateStart(new Date());
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const dateStart = localDateStart(date);
+    if (dateStart.getTime() === today.getTime()) return 'Сегодня';
+    if (dateStart.getTime() === tomorrow.getTime()) return 'Завтра';
+    return formatDate(date, { weekday: 'short', day: 'numeric', month: 'short' });
+  }
+
+  function renderScheduledWorkouts() {
+    if (!state.scheduledWorkouts.length) return '';
+    const now = Date.now();
+    return `
+      <section class="section compact-home-section scheduled-workouts-section">
+        <div class="scheduled-workouts-head">
+          <div><span class="eyebrow">На очереди</span><h2>Запланированные</h2></div>
+          <span class="scheduled-workouts-count">${state.scheduledWorkouts.length}</span>
+        </div>
+        <div class="scheduled-workouts-list">
+          ${state.scheduledWorkouts.map((item) => {
+            const customDay = item.customDay;
+            const scheduledAt = scheduledWorkoutDateTime(item);
+            const overdue = scheduledAt && scheduledAt.getTime() < now;
+            return `
+              <article class="scheduled-workout-card ${overdue ? 'overdue' : ''}">
+                <div class="scheduled-workout-card-top">
+                  <span class="scheduled-workout-time">${escapeHTML(scheduledWorkoutDateLabel(item))} · ${escapeHTML(item.scheduledTime)}</span>
+                  <span class="chip ${overdue ? 'warning' : 'accent'}">${overdue ? 'ВРЕМЯ ПРОШЛО' : 'ЗАПЛАНИРОВАНО'}</span>
+                </div>
+                <div class="scheduled-workout-copy">
+                  <strong>${escapeHTML(customDay.name || 'Своя тренировка')}</strong>
+                  <small>≈ ${Number(customDay.durationMin || estimateCustomWorkoutMinutes(customDay.exercises))} мин · ${customDay.exercises.length} упражнений</small>
+                </div>
+                <div class="scheduled-workout-actions">
+                  <button class="button primary" data-start-scheduled-workout="${escapeAttr(item.id)}" type="button">Начать запланированную</button>
+                  <button class="scheduled-workout-delete" data-delete-scheduled-workout="${escapeAttr(item.id)}" type="button" aria-label="Удалить запланированную тренировку">×</button>
+                </div>
+              </article>`;
+          }).join('')}
+        </div>
+      </section>`;
+  }
+
+  function bindScheduledWorkoutActions() {
+    el.main.querySelectorAll('[data-start-scheduled-workout]').forEach((button) => {
+      button.addEventListener('click', () => {
+        startScheduledWorkout(button.dataset.startScheduledWorkout).catch((error) => {
+          console.error('Scheduled workout start failed', error);
+          toast(`Не удалось начать: ${error.message}`);
+        });
+      });
+    });
+    el.main.querySelectorAll('[data-delete-scheduled-workout]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const item = state.scheduledWorkouts.find((row) => row.id === button.dataset.deleteScheduledWorkout);
+        if (!item) return;
+        if (!window.confirm(`Удалить запланированную тренировку «${item.customDay?.name || 'Своя тренировка'}»?`)) return;
+        try {
+          await removeScheduledWorkout(item.id);
+          toast('Запланированная тренировка удалена');
+        } catch (error) {
+          console.error('Scheduled workout removal failed', error);
+          toast(`Не удалось удалить: ${error.message}`);
+        }
+      });
+    });
+  }
+
   const HOME_PANEL_STORAGE_KEY = 'nikita-workouts-home-panels-v1';
 
   function homePanelStorageId(panelId) {
@@ -959,6 +1169,8 @@
         </section>
       ` : ''}
 
+      ${renderScheduledWorkouts()}
+
       <section class="section today-hub-section">
         <div class="today-hub-head">
           <div><span class="eyebrow">Сегодня</span><h2>Выбери тренировку</h2></div>
@@ -989,7 +1201,7 @@
 
           <button class="today-action-card custom" id="today-custom-workout" type="button">
             <span class="today-action-top"><span class="today-action-icon">＋</span><span class="chip">НА ОДИН ДЕНЬ</span></span>
-            <span class="today-action-copy"><strong>Собрать тренировку на сегодня</strong><small>Разовый запуск: фильтр по мышцам, поиск и выбор упражнений</small></span>
+            <span class="today-action-copy"><strong>Собрать тренировку на сегодня</strong><small>Начать сразу или запланировать на нужное время с напоминанием</small></span>
             <span class="today-action-footer">Открыть конструктор <b>›</b></span>
           </button>
 
@@ -1090,7 +1302,7 @@
       showSmartWorkoutPreview();
     });
     document.getElementById('today-muscle-workout')?.addEventListener('click', () => showSmartWorkoutBuilderModal({ target: 'custom' }));
-    document.getElementById('today-custom-workout')?.addEventListener('click', showCustomWorkoutBuilderModal);
+    document.getElementById('today-custom-workout')?.addEventListener('click', () => showCustomWorkoutBuilderModal());
     document.getElementById('today-program-builder')?.addEventListener('click', showNewProgramModal);
     document.getElementById('resume-draft')?.addEventListener('click', () => navigate('workout'));
     document.getElementById('resume-draft-program')?.addEventListener('click', () => navigate('workout'));
@@ -1112,6 +1324,7 @@
     });
 
     bindHomePanelState();
+    bindScheduledWorkoutActions();
     bindGoButtons();
     el.main.querySelectorAll('.view-workout').forEach((button) => button.addEventListener('click', () => showWorkoutDetails(button.dataset.id)));
   }
@@ -2260,7 +2473,15 @@
       return;
     }
 
-    const suffix = shortMode ? 'короткая' : startMode === 'repeat' ? 'повтор' : startMode === 'selected' ? 'выбрана вручную' : '';
+    const suffix = shortMode
+      ? 'короткая'
+      : startMode === 'repeat'
+        ? 'повтор'
+        : startMode === 'selected'
+          ? 'выбрана вручную'
+          : startMode === 'scheduled'
+            ? 'запланирована'
+            : '';
     workoutExerciseUi.focusedIndex = 0;
     workoutExerciseUi.expandedQueued.clear();
     workoutExerciseUi.expandedCompleted.clear();
@@ -2270,8 +2491,8 @@
       profileId: state.activeProfileId,
       date: todayISO(),
       startedAt: new Date().toISOString(),
-      programId: customDay ? 'smart-builder' : program.id,
-      programName: customDay ? 'Умный конструктор' : program.name,
+      programId: customDay ? (startMode === 'scheduled' ? 'scheduled-custom' : 'smart-builder') : program.id,
+      programName: customDay ? (startMode === 'scheduled' ? 'Запланированная тренировка' : 'Умный конструктор') : program.name,
       dayId: day.id,
       dayIndex: index,
       cycleDayIndex: fallbackIndex,
@@ -2279,6 +2500,7 @@
       shortMode,
       startMode,
       shouldAdvanceCycle,
+      scheduledWorkoutId: config.scheduledWorkoutId || null,
       smartRecommendation: config.smartRecommendation || day.smartRecommendation || null,
       status: 'in_progress',
       preWorkoutPain,
@@ -2294,7 +2516,15 @@
       await savePainEntry({ ...preWorkoutPain, source: 'pre_workout', workoutId: state.currentWorkout.id });
     }
     await saveDraftWorkout();
+    if (config.scheduledWorkoutId) {
+      try {
+        await removeScheduledWorkout(config.scheduledWorkoutId, { rerender: false, syncPush: false });
+      } catch (error) {
+        console.warn('Could not remove started workout from schedule', error);
+      }
+    }
     navigate('workout');
+    syncPushAutomationSettings({ silent: true }).catch((error) => console.warn('Push schedule sync after planned workout start failed', error));
   }
 
   function workoutFocusEnabled() {
@@ -5459,14 +5689,19 @@
     return Math.max(10, Math.round(seconds / 60));
   }
 
-  function showCustomWorkoutBuilderModal() {
+  function showCustomWorkoutBuilderModal(initialDay = null) {
     if (state.currentWorkout) {
       toast('Сначала продолжи или удали сохранённый черновик');
       navigate('workout');
       return;
     }
 
-    const draft = { name: 'Своя тренировка', entries: [], groups: new Set(), query: '' };
+    const draft = {
+      name: String(initialDay?.name || 'Своя тренировка'),
+      entries: clone(Array.isArray(initialDay?.exercises) ? initialDay.exercises : []),
+      groups: new Set(),
+      query: '',
+    };
     showModal(`
       <div class="modal-head custom-builder-head">
         <div><div class="eyebrow">Ручной конструктор</div><h2>Собрать свою тренировку</h2></div>
@@ -5480,7 +5715,7 @@
 
       <div class="field custom-builder-name">
         <label>Название тренировки</label>
-        <input id="custom-workout-name" value="Своя тренировка" maxlength="60">
+        <input id="custom-workout-name" value="${escapeAttr(draft.name)}" maxlength="60">
       </div>
 
       <div class="custom-workout-summary" id="custom-workout-summary"></div>
@@ -5527,8 +5762,11 @@
           <button id="custom-scroll-selected" type="button">Выбрано: 0</button>
           <span id="custom-footer-duration">≈ 10 мин</span>
         </div>
-        <button class="button primary full" id="start-custom-workout" type="button" disabled>Начать свою тренировку</button>
-        <div class="help center">Тренировка не двигает основной цикл. Вес и повторы можно менять во время выполнения.</div>
+        <div class="custom-builder-primary-actions">
+          <button class="button secondary" id="schedule-custom-workout" type="button" disabled>Запланировать</button>
+          <button class="button primary" id="start-custom-workout" type="button" disabled>Начать сейчас</button>
+        </div>
+        <div class="help center">Оба варианта не двигают основной цикл. Вес и повторы можно менять во время выполнения.</div>
       </div>
     `);
 
@@ -5558,6 +5796,7 @@
       const selectedList = document.getElementById('custom-selected-list');
       const summary = document.getElementById('custom-workout-summary');
       const startButton = document.getElementById('start-custom-workout');
+      const scheduleButton = document.getElementById('schedule-custom-workout');
       const scrollSelectedButton = document.getElementById('custom-scroll-selected');
       const footerDuration = document.getElementById('custom-footer-duration');
       const minutes = estimateCustomWorkoutMinutes(draft.entries);
@@ -5573,8 +5812,12 @@
       if (startButton) {
         startButton.disabled = !draft.entries.length;
         startButton.textContent = draft.entries.length
-          ? `Начать · ${draft.entries.length} упр. · ≈ ${minutes} мин`
+          ? `Начать сейчас · ${draft.entries.length} упр.`
           : 'Сначала добавь упражнения';
+      }
+      if (scheduleButton) {
+        scheduleButton.disabled = !draft.entries.length;
+        scheduleButton.textContent = draft.entries.length ? 'Запланировать' : 'Сначала добавь упражнения';
       }
       if (!selectedList) return;
 
@@ -5714,16 +5957,27 @@
       document.getElementById('custom-selected-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
 
-    document.getElementById('start-custom-workout')?.addEventListener('click', async () => {
+    const buildCustomDay = () => {
       if (!draft.entries.length) return toast('Добавь хотя бы одно упражнение');
       const name = document.getElementById('custom-workout-name')?.value.trim() || 'Своя тренировка';
-      const customDay = {
+      return {
         id: uid('custom-day'),
         name,
         focus: 'Тренировка собрана вручную',
         durationMin: estimateCustomWorkoutMinutes(draft.entries),
         exercises: draft.entries.map((entry) => ({ ...entry })),
       };
+    };
+
+    document.getElementById('schedule-custom-workout')?.addEventListener('click', () => {
+      const customDay = buildCustomDay();
+      if (!customDay) return;
+      showScheduleCustomWorkoutModal(customDay);
+    });
+
+    document.getElementById('start-custom-workout')?.addEventListener('click', async () => {
+      const customDay = buildCustomDay();
+      if (!customDay) return;
       closeModal();
       await startWorkout({ customDay, startMode: 'custom', shouldAdvanceCycle: false });
     });
@@ -5731,6 +5985,82 @@
     updateFilterUi();
     renderSelected();
     renderLibrary();
+  }
+
+  function showScheduleCustomWorkoutModal(customDay) {
+    const slot = defaultScheduledWorkoutSlot();
+    const notificationsReady = state.push.subscribed && state.push.permission === 'granted';
+    const networkNote = navigator.onLine
+      ? 'После сохранения расписание сразу синхронизируется.'
+      : 'Сейчас офлайн: расписание синхронизируется автоматически, когда появится интернет.';
+    showModal(`
+      <div class="modal-head">
+        <div><div class="eyebrow">Разовая тренировка</div><h2>Когда напомнить?</h2></div>
+        <button class="modal-close" data-close aria-label="Закрыть">×</button>
+      </div>
+      <div class="schedule-workout-preview">
+        <span class="schedule-workout-preview-icon">◷</span>
+        <div>
+          <strong>${escapeHTML(customDay.name || 'Своя тренировка')}</strong>
+          <small>≈ ${Number(customDay.durationMin || 10)} мин · ${customDay.exercises.length} упражнений</small>
+        </div>
+      </div>
+      <div class="inline-fields schedule-workout-fields">
+        <div class="field">
+          <label for="schedule-workout-date">Дата</label>
+          <input id="schedule-workout-date" type="date" min="${todayISO()}" value="${slot.date}">
+        </div>
+        <div class="field">
+          <label for="schedule-workout-time">Время</label>
+          <input id="schedule-workout-time" type="time" step="300" value="${slot.time}">
+        </div>
+      </div>
+      <div class="notice ${notificationsReady ? 'success' : 'warning'} schedule-workout-notice">
+        <strong>${notificationsReady ? 'Системное уведомление включено.' : 'Для напоминания нужны уведомления.'}</strong><br>
+        ${notificationsReady
+          ? `Пуш придёт даже когда приложение закрыто. ${networkNote}`
+          : `После сохранения iPhone предложит включить уведомления. Без разрешения тренировка всё равно останется в списке. ${networkNote}`}
+      </div>
+      <div class="button-row schedule-workout-modal-actions">
+        <button class="button secondary" id="schedule-workout-back" type="button">Назад</button>
+        <button class="button primary" id="confirm-schedule-workout" type="button">Запланировать</button>
+      </div>
+      <div class="help center">Время берётся из настроек уведомлений приложения.</div>
+    `);
+    el.modalRoot.querySelector('.modal')?.classList.add('schedule-workout-modal');
+
+    document.getElementById('schedule-workout-back')?.addEventListener('click', () => showCustomWorkoutBuilderModal(customDay));
+    document.getElementById('confirm-schedule-workout')?.addEventListener('click', async (event) => {
+      const date = document.getElementById('schedule-workout-date')?.value;
+      const time = document.getElementById('schedule-workout-time')?.value;
+      const probe = scheduledWorkoutDateTime({ scheduledDate: date, scheduledTime: time });
+      if (!probe) return toast('Выбери дату и время');
+      if (probe.getTime() <= Date.now()) return toast('Это время уже прошло');
+
+      const canPromptForNotifications = !state.push.subscribed
+        && 'Notification' in window
+        && 'PushManager' in window
+        && isStandalonePWA()
+        && Notification.permission !== 'denied';
+      const pushEnablePromise = canPromptForNotifications ? enablePushNotifications() : Promise.resolve(null);
+      const button = event.currentTarget;
+      button.disabled = true;
+      button.textContent = 'Сохраняю…';
+      try {
+        const item = await addScheduledWorkout(customDay, date, time);
+        await pushEnablePromise;
+        await syncPushAutomationSettings({ silent: true });
+        closeModal();
+        renderHome();
+        const pushReady = state.push.subscribed && state.push.permission === 'granted';
+        toast(`${scheduledWorkoutDateLabel(item)} в ${item.scheduledTime}${pushReady ? ' · напоминание включено' : ' · сохранено в приложении'}`);
+      } catch (error) {
+        console.error('Scheduled workout save failed', error);
+        button.disabled = false;
+        button.textContent = 'Запланировать';
+        toast(`Не удалось запланировать: ${error.message}`);
+      }
+    });
   }
 
   function showExercisePicker(onChoose, onCancel = null) {
@@ -7030,6 +7360,7 @@
     closeModal();
     toast(`Выбран профиль «${state.profile.name}»`);
     navigate('home');
+    syncPushAutomationSettings({ silent: true }).catch((error) => console.warn('Push schedule sync after profile switch failed', error));
   }
 
   async function deleteProfileById(profileId) {
@@ -9768,9 +10099,9 @@
     return value;
   }
 
-  function pushApplicationUrl() {
+  function pushApplicationUrl(route = 'more') {
     const url = new URL('./', window.location.href);
-    url.hash = '/more';
+    url.hash = `/${route}`;
     return url.href;
   }
 
@@ -9912,16 +10243,44 @@
   }
 
   function workoutReminderPlan() {
+    const scheduled = nextScheduledWorkoutForReminder();
+    if (scheduled) {
+      return {
+        enabled: true,
+        nextLocalDate: scheduled.scheduledDate,
+        timeMinutes: scheduledWorkoutTimeMinutes(scheduled),
+        note: `запланирована «${scheduled.customDay?.name || 'Своя тренировка'}»`,
+        scheduledWorkout: scheduled,
+      };
+    }
+
     const today = todayISO();
     const completedToday = completedWorkoutList(state.workouts).some((workout) => String(workout.date || workout.startedAt || '').slice(0, 10) === today);
     const inProgressToday = state.currentWorkout?.status === 'in_progress' && String(state.currentWorkout.date || state.currentWorkout.startedAt || '').slice(0, 10) === today;
-    if (completedToday || inProgressToday) return { enabled: true, nextLocalDate: tomorrowISOFromLocal(), note: 'сегодня уже была тренировка' };
+    if (completedToday || inProgressToday) {
+      return {
+        enabled: true,
+        nextLocalDate: tomorrowISOFromLocal(),
+        timeMinutes: PUSH_AUTOMATION_DEFAULTS.workoutTimeMinutes,
+        note: 'сегодня уже была тренировка',
+      };
+    }
 
     const status = trainingScheduleStatus();
     if (status.mode === 'every_other_day' && !status.due && status.nextDate) {
-      return { enabled: true, nextLocalDate: localDateISO(status.nextDate), note: 'по графику через день' };
+      return {
+        enabled: true,
+        nextLocalDate: localDateISO(status.nextDate),
+        timeMinutes: PUSH_AUTOMATION_DEFAULTS.workoutTimeMinutes,
+        note: 'по графику через день',
+      };
     }
-    return { enabled: true, nextLocalDate: today, note: 'можно продолжать цикл' };
+    return {
+      enabled: true,
+      nextLocalDate: today,
+      timeMinutes: PUSH_AUTOMATION_DEFAULTS.workoutTimeMinutes,
+      note: 'можно продолжать цикл',
+    };
   }
 
   function buildPushAutomationSettings() {
@@ -9930,13 +10289,15 @@
       ...PUSH_AUTOMATION_DEFAULTS,
       timezone: PUSH_TIMEZONE,
       workoutEnabled: workoutPlan.enabled,
+      workoutTimeMinutes: workoutPlan.timeMinutes,
       workoutNextLocalDate: workoutPlan.nextLocalDate,
     };
   }
 
   function pushAutomationSummaryText() {
     const plan = workoutReminderPlan();
-    return `Авто: вода 09:00–22:00 каждые 75 мин, вес каждый день 08:00, тренировка 19:00 (${plan.note}), обновления включены.`;
+    const workoutTime = `${String(Math.floor(plan.timeMinutes / 60)).padStart(2, '0')}:${String(plan.timeMinutes % 60).padStart(2, '0')}`;
+    return `Авто: вода 09:00–22:00 каждые 75 мин, вес каждый день 08:00, тренировка ${workoutTime} (${plan.note}), обновления включены.`;
   }
 
   async function syncPushAutomationSettings({ silent = true } = {}) {

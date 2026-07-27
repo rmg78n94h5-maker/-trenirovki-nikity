@@ -1,5 +1,5 @@
 // Маркер релиза меняется вместе с version.js, чтобы iPhone точно установил новый Service Worker.
-const SERVICE_WORKER_RELEASE = '1.26.3';
+const SERVICE_WORKER_RELEASE = '1.27.0';
 importScripts(`./version.js?v=${SERVICE_WORKER_RELEASE}`);
 if (self.NIKITA_APP.version !== SERVICE_WORKER_RELEASE) throw new Error('Версии приложения и Service Worker не совпадают');
 const CACHE_NAME = self.NIKITA_APP.cacheName;
@@ -44,6 +44,64 @@ self.addEventListener('message', (event) => {
   }
 });
 
+function isWorkoutReminderPayload(payload) {
+  const kind = String(payload?.kind || '').toLowerCase();
+  const tag = String(payload?.tag || '').toLowerCase();
+  const body = String(payload?.body || '').toLowerCase();
+  return kind.includes('workout') || tag.includes('workout') || /пора.*тренир|время.*тренир|тренировк.*сегодня/.test(body);
+}
+
+function currentLocalDateISO(date = new Date()) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function scheduledMinuteOfDay(item) {
+  const [hours, minutes] = String(item?.scheduledTime || '').split(':').map(Number);
+  return Number.isFinite(hours) && Number.isFinite(minutes) ? hours * 60 + minutes : null;
+}
+
+async function readDueScheduledWorkout() {
+  if (!('indexedDB' in self)) return null;
+  const db = await new Promise((resolve, reject) => {
+    const request = indexedDB.open('nikita-workouts-db');
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+
+  try {
+    if (!db.objectStoreNames.contains('meta')) return null;
+    const activeProfileId = await new Promise((resolve, reject) => {
+      const request = db.transaction('meta', 'readonly').objectStore('meta').get('activeProfileId');
+      request.onsuccess = () => resolve(request.result?.value || null);
+      request.onerror = () => reject(request.error);
+    });
+    if (!activeProfileId) return null;
+
+    const row = await new Promise((resolve, reject) => {
+      const request = db.transaction('meta', 'readonly').objectStore('meta').get(`scheduledWorkouts:${activeProfileId}`);
+      request.onsuccess = () => resolve(request.result?.value || []);
+      request.onerror = () => reject(request.error);
+    });
+    if (!Array.isArray(row)) return null;
+
+    const now = new Date();
+    const today = currentLocalDateISO(now);
+    const minuteNow = now.getHours() * 60 + now.getMinutes();
+    return row
+      .filter((item) => item?.status === 'scheduled' && item.scheduledDate === today && item.customDay?.exercises?.length)
+      .map((item) => {
+        const minute = scheduledMinuteOfDay(item);
+        return { item, distance: minute === null ? null : Math.abs(minute - minuteNow) };
+      })
+      .filter(({ distance }) => Number.isFinite(distance) && distance <= 120)
+      .sort((a, b) => a.distance - b.distance)[0]?.item || null;
+  } catch (error) {
+    console.warn('Scheduled workout notification lookup failed', error);
+    return null;
+  } finally {
+    db.close();
+  }
+}
 
 self.addEventListener('push', (event) => {
   let payload = {};
@@ -53,23 +111,28 @@ self.addEventListener('push', (event) => {
     payload = { body: event.data?.text?.() || '' };
   }
 
-  const title = payload.title || 'Тренировки';
-  const targetUrl = payload.targetUrl || './#/more';
-  const tag = payload.tag || `trenirovki-${payload.kind || 'notice'}`;
-  const options = {
-    body: payload.body || 'Новое уведомление из приложения.',
-    icon: './icons/icon-192.png',
-    badge: './icons/icon-192.png',
-    tag,
-    renotify: true,
-    data: {
-      targetUrl,
-      kind: payload.kind || 'notice',
-      version: payload.version || null,
-    },
-  };
-
-  event.waitUntil(self.registration.showNotification(title, options));
+  event.waitUntil((async () => {
+    const planned = isWorkoutReminderPayload(payload) ? await readDueScheduledWorkout() : null;
+    const title = planned ? 'Запланированная тренировка' : (payload.title || 'Тренировки');
+    const targetUrl = planned ? './#/home' : (payload.targetUrl || './#/more');
+    const tag = planned ? `scheduled-workout-${planned.id}` : (payload.tag || `trenirovki-${payload.kind || 'notice'}`);
+    const options = {
+      body: planned
+        ? `${planned.customDay?.name || 'Своя тренировка'} · пора начинать`
+        : (payload.body || 'Новое уведомление из приложения.'),
+      icon: './icons/icon-192.png',
+      badge: './icons/icon-192.png',
+      tag,
+      renotify: true,
+      data: {
+        targetUrl,
+        kind: planned ? 'scheduled-workout' : (payload.kind || 'notice'),
+        scheduledWorkoutId: planned?.id || null,
+        version: payload.version || null,
+      },
+    };
+    await self.registration.showNotification(title, options);
+  })());
 });
 
 self.addEventListener('notificationclick', (event) => {
