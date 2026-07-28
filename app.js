@@ -8141,6 +8141,117 @@
     }, { kcal: 0, protein: 0, fat: 0, carbs: 0 });
   }
 
+
+  function nutritionMacroMeta(metric) {
+    return {
+      protein: { key: 'protein', label: 'Белки', short: 'Б', colorClass: 'protein' },
+      fat: { key: 'fat', label: 'Жиры', short: 'Ж', colorClass: 'fat' },
+      carbs: { key: 'carbs', label: 'Углеводы', short: 'У', colorClass: 'carbs' },
+    }[metric] || null;
+  }
+
+  function nutritionMacroBreakdown(entries, metric) {
+    const groups = new Map();
+    for (const entry of entries) {
+      const value = Number(entry?.nutrition?.[metric] || 0);
+      if (!(value > 0)) continue;
+      const name = String(entry.name || entry.foodSnapshot?.name || 'Продукт').trim() || 'Продукт';
+      const brand = String(entry.brand || entry.foodSnapshot?.brand || '').trim();
+      const key = String(entry.foodId || entry.foodSnapshot?.id || `${name.toLowerCase()}|${brand.toLowerCase()}`);
+      const current = groups.get(key) || {
+        id: key,
+        name,
+        brand,
+        value: 0,
+        kcal: 0,
+        entries: 0,
+        meals: new Set(),
+      };
+      current.value += value;
+      current.kcal += Number(entry?.nutrition?.kcal || 0);
+      current.entries += 1;
+      current.meals.add(nutritionMealMeta(entry.meal).label);
+      groups.set(key, current);
+    }
+    return [...groups.values()]
+      .map((row) => ({ ...row, value: roundNutrition(row.value), kcal: roundNutrition(row.kcal, 0), meals: [...row.meals] }))
+      .sort((a, b) => b.value - a.value || b.kcal - a.kcal || a.name.localeCompare(b.name, 'ru'));
+  }
+
+  function nutritionMacroStatus(metric, total, target) {
+    const meta = nutritionMacroMeta(metric);
+    const value = Number(total || 0);
+    const goal = Math.max(0, Number(target || 0));
+    const delta = roundNutrition(value - goal);
+    const ratio = goal > 0 ? value / goal : 0;
+    if (!meta || !goal) return { tone: 'neutral', title: 'Цель не задана', text: 'Укажи дневную цель, чтобы приложение оценило баланс.' };
+    if (value <= 0) return { tone: 'neutral', title: `${meta.label}: пока 0 г`, text: 'Добавь еду — здесь появятся главные источники за день.' };
+
+    if (metric === 'protein') {
+      if (ratio < .85) return { tone: 'low', title: `Не хватает ${formatNutritionValue(Math.abs(delta))} г`, text: 'Добрать можно постным мясом, рыбой, творогом или протеином.' };
+      if (ratio <= 1.15) return { tone: 'good', title: 'Белок в норме', text: 'Цель закрыта без заметного перекоса.' };
+      return { tone: 'high', title: `Выше цели на ${formatNutritionValue(delta)} г`, text: 'Белка уже достаточно — остаток дня не обязательно собирать только из белковых продуктов.' };
+    }
+    if (metric === 'fat') {
+      if (ratio < .70) return { tone: 'low', title: `Не хватает ${formatNutritionValue(Math.abs(delta))} г`, text: 'Можно добавить немного рыбы, орехов, масла или молочных продуктов.' };
+      if (ratio <= 1.10) return { tone: 'good', title: 'Жиры в норме', text: 'Дневная цель закрыта без заметного перебора.' };
+      return { tone: 'high', title: `Перебор ${formatNutritionValue(delta)} г`, text: 'Остаток дня лучше собрать из постного белка и углеводов без лишнего масла и жирных соусов.' };
+    }
+    if (ratio < .85) return { tone: 'low', title: `Не хватает ${formatNutritionValue(Math.abs(delta))} г`, text: 'Добрать можно крупой, картофелем, макаронами, хлебом или фруктами.' };
+    if (ratio <= 1.15) return { tone: 'good', title: 'Углеводы в норме', text: 'Цель закрыта без заметного перекоса.' };
+    return { tone: 'high', title: `Выше цели на ${formatNutritionValue(delta)} г`, text: 'Дополнительные углеводы сегодня уже не обязательны.' };
+  }
+
+  function showNutritionMacroBreakdown(metric = 'protein') {
+    const meta = nutritionMacroMeta(metric) || nutritionMacroMeta('protein');
+    const entries = nutritionEntriesForDate();
+    const totals = nutritionTotals(entries);
+    const target = nutritionTargetForDate(state.nutritionDate || todayISO());
+    const rows = nutritionMacroBreakdown(entries, meta.key);
+    const total = Number(totals[meta.key] || 0);
+    const goal = Number(target[meta.key] || 0);
+    const status = nutritionMacroStatus(meta.key, total, goal);
+    const dateLabel = nutritionDateLabel(state.nutritionDate || todayISO());
+
+    showModal(`
+      <div class="modal-head nutrition-breakdown-head">
+        <div><span class="eyebrow">${escapeHTML(dateLabel)}</span><h2>Раскладка по БЖУ</h2></div>
+        <button class="modal-close" data-close type="button">×</button>
+      </div>
+      <div class="nutrition-breakdown-tabs" role="tablist" aria-label="Выбрать показатель">
+        ${['protein', 'fat', 'carbs'].map((key) => {
+          const item = nutritionMacroMeta(key);
+          const value = Number(totals[key] || 0);
+          return `<button class="nutrition-breakdown-tab ${key === meta.key ? 'active' : ''} ${item.colorClass}" data-macro="${key}" type="button" role="tab" aria-selected="${key === meta.key}"><span>${item.label}</span><strong>${formatNutritionValue(value)} г</strong></button>`;
+        }).join('')}
+      </div>
+      <section class="nutrition-breakdown-summary ${meta.colorClass} ${status.tone}">
+        <div><span>${escapeHTML(meta.label)}</span><strong>${formatNutritionValue(total)} / ${formatNutritionValue(goal)} г</strong></div>
+        <div class="nutrition-breakdown-progress"><span style="width:${Math.min(nutritionProgress(total, goal), 100)}%"></span></div>
+        <h3>${escapeHTML(status.title)}</h3>
+        <p>${escapeHTML(status.text)}</p>
+      </section>
+      <div class="nutrition-breakdown-section-head"><h3>Что дало ${meta.label.toLowerCase()}</h3><span>${rows.length} ${rows.length === 1 ? 'источник' : rows.length < 5 ? 'источника' : 'источников'}</span></div>
+      <div class="nutrition-breakdown-list ${meta.colorClass}">
+        ${rows.length ? rows.map((row, index) => {
+          const share = total > 0 ? Math.round((row.value / total) * 100) : 0;
+          const details = [row.brand, row.meals.join(' · ')].filter(Boolean).join(' · ');
+          return `
+            <div class="nutrition-breakdown-row">
+              <span class="nutrition-breakdown-rank">${index + 1}</span>
+              <div class="nutrition-breakdown-food">
+                <div><strong>${escapeHTML(row.name)}</strong><b>${formatNutritionValue(row.value)} г</b></div>
+                <small>${details ? escapeHTML(details) : `${row.entries} ${row.entries === 1 ? 'запись' : 'записи'}`} · ${share}% от итога</small>
+                <div class="nutrition-breakdown-food-bar"><span style="width:${share}%"></span></div>
+              </div>
+            </div>`;
+        }).join('') : '<div class="nutrition-breakdown-empty">Пока нет продуктов с этим макросом.</div>'}
+      </div>
+    `);
+
+    el.modalRoot.querySelectorAll('.nutrition-breakdown-tab').forEach((button) => button.addEventListener('click', () => showNutritionMacroBreakdown(button.dataset.macro)));
+  }
+
   function roundNutrition(value, precision = 1) {
     const scale = 10 ** precision;
     return Math.round((Number(value) || 0) * scale) / scale;
@@ -8315,10 +8426,10 @@
               ['Жиры', totals.fat, target.fat, 'fat'],
               ['Углеводы', totals.carbs, target.carbs, 'carbs'],
             ].map(([label, value, goal, className]) => `
-              <div class="nutrition-macro ${className}">
-                <div><span>${label}</span><strong>${formatNutritionValue(value)} / ${formatNutritionValue(goal)} г</strong></div>
+              <button class="nutrition-macro ${className} open-nutrition-macro" data-macro="${className}" type="button" aria-label="Показать источники: ${label}">
+                <div><span>${label}</span><strong>${formatNutritionValue(value)} / ${formatNutritionValue(goal)} г <b aria-hidden="true">›</b></strong></div>
                 <div class="nutrition-macro-bar"><span style="width:${Math.min(nutritionProgress(value, goal), 100)}%"></span></div>
-              </div>
+              </button>
             `).join('')}
           </div>
           <button class="nutrition-goals-link" id="nutrition-edit-goals" type="button">Изменить дневные цели</button>
@@ -8358,6 +8469,7 @@
     document.getElementById('nutrition-own-food')?.addEventListener('click', () => showCustomFoodModal());
     document.getElementById('nutrition-open-favorites')?.addEventListener('click', () => showFoodPicker(defaultNutritionMeal(), 'favorites'));
     document.getElementById('nutrition-edit-goals')?.addEventListener('click', showNutritionModal);
+    el.main.querySelectorAll('.open-nutrition-macro').forEach((button) => button.addEventListener('click', () => showNutritionMacroBreakdown(button.dataset.macro)));
     el.main.querySelectorAll('.add-food-to-meal').forEach((button) => button.addEventListener('click', () => showFoodPicker(button.dataset.meal)));
     el.main.querySelectorAll('.quick-add-food').forEach((button) => button.addEventListener('click', () => {
       const food = findNutritionFood(button.dataset.foodId) || recentFoods(20).find((item) => item.id === button.dataset.foodId);

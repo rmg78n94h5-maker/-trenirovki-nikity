@@ -8664,3 +8664,268 @@ body:not([data-route="home"]):not([data-route="workout"]) .progress-primary-tabs
 .toast {
   bottom: calc(var(--bottom-nav-content-height) + 14px) !important;
 }
+
+/* v2.0.4 — подробная раскладка источников белков, жиров и углеводов. */
+.nutrition-macro {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.nutrition-macro:active {
+  opacity: .72;
+}
+
+.nutrition-macro > div:first-child strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.nutrition-macro > div:first-child strong b {
+  color: var(--muted);
+  font-size: 15px;
+  line-height: .7;
+}
+
+.nutrition-breakdown-head {
+  margin-bottom: 12px;
+}
+
+.nutrition-breakdown-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.nutrition-breakdown-tab {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  padding: 11px 8px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255,255,255,.025);
+  color: var(--muted);
+  text-align: left;
+}
+
+.nutrition-breakdown-tab span {
+  font-size: 10px;
+  font-weight: 850;
+}
+
+.nutrition-breakdown-tab strong {
+  color: var(--text);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.nutrition-breakdown-tab.active {
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--line));
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.nutrition-breakdown-tab.fat.active {
+  border-color: rgba(255,190,61,.52);
+  background: rgba(255,190,61,.09);
+}
+
+.nutrition-breakdown-tab.carbs.active {
+  border-color: rgba(87,199,255,.52);
+  background: rgba(87,199,255,.09);
+}
+
+.nutrition-breakdown-summary {
+  display: grid;
+  gap: 8px;
+  padding: 15px;
+  border: 1px solid color-mix(in srgb, var(--accent) 33%, var(--line));
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface-2));
+}
+
+.nutrition-breakdown-summary.fat {
+  border-color: rgba(255,190,61,.35);
+  background: rgba(255,190,61,.055);
+}
+
+.nutrition-breakdown-summary.carbs {
+  border-color: rgba(87,199,255,.35);
+  background: rgba(87,199,255,.055);
+}
+
+.nutrition-breakdown-summary > div:first-child {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.nutrition-breakdown-summary > div:first-child strong {
+  color: var(--text);
+}
+
+.nutrition-breakdown-progress,
+.nutrition-breakdown-food-bar {
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255,255,255,.08);
+}
+
+.nutrition-breakdown-progress {
+  height: 7px;
+}
+
+.nutrition-breakdown-progress span,
+.nutrition-breakdown-food-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+}
+
+.nutrition-breakdown-summary.fat .nutrition-breakdown-progress span,
+.nutrition-breakdown-list.fat .nutrition-breakdown-food-bar span {
+  background: #ffbe3d;
+}
+
+.nutrition-breakdown-summary.carbs .nutrition-breakdown-progress span,
+.nutrition-breakdown-list.carbs .nutrition-breakdown-food-bar span {
+  background: #57c7ff;
+}
+
+.nutrition-breakdown-summary h3 {
+  margin: 3px 0 0;
+  font-size: 18px;
+}
+
+.nutrition-breakdown-summary p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.nutrition-breakdown-summary.high h3 {
+  color: #ff9c78;
+}
+
+.nutrition-breakdown-summary.good h3 {
+  color: var(--accent);
+}
+
+.nutrition-breakdown-summary.low h3 {
+  color: #75ceff;
+}
+
+.nutrition-breakdown-section-head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 18px 2px 8px;
+}
+
+.nutrition-breakdown-section-head h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.nutrition-breakdown-section-head span {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.nutrition-breakdown-list {
+  display: grid;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255,255,255,.018);
+}
+
+.nutrition-breakdown-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 10px;
+  padding: 12px;
+  border-bottom: 1px solid rgba(255,255,255,.065);
+}
+
+.nutrition-breakdown-row:last-child {
+  border-bottom: 0;
+}
+
+.nutrition-breakdown-rank {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: rgba(199,255,47,.09);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.nutrition-breakdown-list.fat .nutrition-breakdown-rank {
+  background: rgba(255,190,61,.09);
+  color: #ffbe3d;
+}
+
+.nutrition-breakdown-list.carbs .nutrition-breakdown-rank {
+  background: rgba(87,199,255,.09);
+  color: #57c7ff;
+}
+
+.nutrition-breakdown-food {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.nutrition-breakdown-food > div:first-child {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.nutrition-breakdown-food strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.nutrition-breakdown-food b {
+  flex: 0 0 auto;
+  font-size: 12px;
+}
+
+.nutrition-breakdown-food small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nutrition-breakdown-food-bar {
+  height: 4px;
+}
+
+.nutrition-breakdown-empty {
+  padding: 22px 16px;
+  color: var(--muted);
+  text-align: center;
+  font-size: 12px;
+}
