@@ -8626,3 +8626,41 @@ body:not([data-route="home"]):not([data-route="workout"]) .progress-primary-tabs
     grid-template-columns: 1fr;
   }
 }
+
+
+/* ========================================================================== 
+   РЕЖИМ 2.0.2 — реальная нижняя область iPhone без обрезания кнопок
+   ========================================================================== */
+:root {
+  --bottom-nav-viewport-gap: 0px;
+}
+
+/* Контент заканчивается над верхней границей панели. Дополнительная системная
+   область находится ниже viewport и не должна увеличивать отступ страницы. */
+.app-shell {
+  padding-bottom: calc(var(--bottom-nav-content-height) + 14px) !important;
+}
+
+/* Панель расширяется вниз на измеренный iOS-разрыв. Её верх остаётся на месте,
+   кнопки всегда лежат в видимых 66 px, а вниз продолжается только фон. */
+.bottom-nav {
+  bottom: calc(0px - var(--bottom-nav-viewport-gap)) !important;
+  height: calc(var(--bottom-nav-content-height) + var(--bottom-nav-viewport-gap)) !important;
+  min-height: calc(var(--bottom-nav-content-height) + var(--bottom-nav-viewport-gap)) !important;
+  padding: 4px 7px calc(3px + var(--bottom-nav-viewport-gap)) !important;
+  align-items: start !important;
+  grid-auto-rows: 56px !important;
+  box-sizing: border-box !important;
+  overflow: hidden !important;
+}
+
+.bottom-nav .nav-item,
+.bottom-nav .nav-item-today {
+  align-self: start !important;
+  min-height: 56px !important;
+  height: 56px !important;
+}
+
+.toast {
+  bottom: calc(var(--bottom-nav-content-height) + 14px) !important;
+}

@@ -609,11 +609,41 @@
       const root = document.documentElement;
       const nav = document.querySelector('.bottom-nav');
       if (!root || !nav) return;
-      // Геометрию панели задаёт финальный CSS через safe-area-inset-bottom.
-      // Убираем исторические inline-значения, чтобы iOS не оставляла чёрную
-      // полосу и не выталкивала панель за viewport.
-      root.style.setProperty('--bottom-nav-viewport-gap', '0px');
-      ['bottom', 'height', 'min-height', 'padding'].forEach((name) => nav.style.removeProperty(name));
+
+      let gap = 0;
+      const viewport = window.visualViewport;
+      const screenHeight = Number(window.screen?.height || 0);
+      const viewportHeight = Number(viewport?.height || window.innerHeight || 0);
+      const viewportTop = Number(viewport?.offsetTop || 0);
+      const measuredGap = screenHeight - (viewportTop + viewportHeight);
+      const standalone = navigator.standalone === true
+        || window.matchMedia?.('(display-mode: standalone)')?.matches === true;
+      const active = document.activeElement;
+      const editing = Boolean(active && ['INPUT', 'TEXTAREA', 'SELECT'].includes(active.tagName));
+      const keyboardLikely = editing
+        || (screenHeight > 0 && viewportHeight > 0 && viewportHeight < screenHeight * 0.72);
+      const maxSystemGap = Math.min(140, screenHeight * 0.18);
+
+      // В standalone-режиме iOS иногда оставляет под visual viewport системную
+      // область, которая больше env(safe-area-inset-bottom). Продлеваем в неё
+      // только фон панели, а сами кнопки оставляем в верхних 66 px. При
+      // клавиатуре и в обычном Safari ничего не сдвигаем.
+      if (isIOSDevice()
+        && standalone
+        && !keyboardLikely
+        && Number.isFinite(measuredGap)
+        && measuredGap > 4
+        && measuredGap <= maxSystemGap) {
+        gap = Math.round(measuredGap * 10) / 10;
+      }
+
+      root.style.setProperty('--bottom-nav-viewport-gap', `${gap}px`);
+      root.dataset.bottomNavGap = String(gap);
+      nav.style.setProperty('bottom', 'calc(0px - var(--bottom-nav-viewport-gap))', 'important');
+      nav.style.setProperty('height', 'calc(var(--bottom-nav-content-height) + var(--bottom-nav-viewport-gap))', 'important');
+      nav.style.setProperty('min-height', 'calc(var(--bottom-nav-content-height) + var(--bottom-nav-viewport-gap))', 'important');
+      nav.style.setProperty('padding', '4px 7px calc(3px + var(--bottom-nav-viewport-gap))', 'important');
+      nav.style.setProperty('align-items', 'start', 'important');
     });
   }
 
