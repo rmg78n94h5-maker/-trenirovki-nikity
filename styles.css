@@ -8929,3 +8929,97 @@ body:not([data-route="home"]):not([data-route="workout"]) .progress-primary-tabs
   text-align: center;
   font-size: 12px;
 }
+
+
+/* v2.2.0 — умная тренировка */
+.smart-replacement-ranked .replacement-best-card div { min-width: 0; }
+.smart-replacement-ranked .replacement-best-card em {
+  display: block;
+  margin-top: 5px;
+  color: var(--text-soft, #8ea29b);
+  font-size: 11px;
+  font-style: normal;
+  line-height: 1.35;
+}
+.workout-next-plan {
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid rgba(167, 255, 120, .18);
+  border-radius: 18px;
+  background: rgba(167, 255, 120, .055);
+}
+.workout-next-plan .section-head { margin-bottom: 8px; }
+.workout-next-row, .weekly-progression-row {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 10px 0;
+  border-top: 1px solid rgba(255,255,255,.07);
+}
+.workout-next-row:first-of-type, .weekly-progression-row:first-child { border-top: 0; }
+.workout-next-row > span, .weekly-progression-row > span {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: rgba(255,255,255,.07);
+  font-weight: 900;
+}
+.workout-next-row.increase > span, .weekly-progression-row.increase > span { color: #a8ff78; background: rgba(168,255,120,.12); }
+.workout-next-row.reduce > span, .weekly-progression-row.reduce > span { color: #ffb86b; background: rgba(255,184,107,.12); }
+.workout-next-row strong, .weekly-progression-row strong { display:block; font-size: 13px; }
+.workout-next-row small, .weekly-progression-row small { display:block; margin-top:3px; color:var(--text-muted,#a8b3ae); line-height:1.4; }
+.workout-next-row em { display:block; margin-top:4px; color:var(--text-soft,#7f918b); font-size:11px; font-style:normal; }
+.muscle-recovery-mini-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0,1fr));
+  gap: 8px;
+}
+.muscle-recovery-mini {
+  min-width: 0;
+  padding: 9px 6px;
+  text-align: center;
+  border-radius: 13px;
+  background: rgba(255,255,255,.045);
+  border: 1px solid rgba(255,255,255,.07);
+}
+.muscle-recovery-mini span, .muscle-recovery-mini small { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.muscle-recovery-mini span { font-size:10px; color:var(--text-muted,#a8b3ae); }
+.muscle-recovery-mini strong { display:block; margin:3px 0 1px; font-size:16px; }
+.muscle-recovery-mini small { font-size:9px; color:var(--text-soft,#7f918b); }
+.muscle-recovery-mini.ready { border-color:rgba(168,255,120,.24); }
+.muscle-recovery-mini.ready strong { color:#a8ff78; }
+.muscle-recovery-mini.soon { border-color:rgba(121,211,255,.24); }
+.muscle-recovery-mini.soon strong { color:#79d3ff; }
+.muscle-recovery-mini.recovering { border-color:rgba(255,184,107,.2); }
+.muscle-recovery-mini.recovering strong { color:#ffb86b; }
+.muscle-recovery-mini.caution { border-color:rgba(255,112,112,.26); }
+.muscle-recovery-mini.caution strong { color:#ff8b8b; }
+.muscle-recovery-grid {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:10px;
+}
+.muscle-recovery-card { padding:14px; }
+.muscle-recovery-head { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+.muscle-recovery-head span { color:var(--text-soft,#7f918b); font-size:10px; }
+.muscle-recovery-head h3 { margin:2px 0 0; font-size:15px; }
+.muscle-recovery-head b { font-size:20px; }
+.muscle-recovery-track { height:6px; margin:10px 0; overflow:hidden; border-radius:999px; background:rgba(255,255,255,.08); }
+.muscle-recovery-track span { display:block; height:100%; border-radius:inherit; background:#a8ff78; }
+.muscle-recovery-card.recovering .muscle-recovery-track span { background:#ffb86b; }
+.muscle-recovery-card.soon .muscle-recovery-track span { background:#79d3ff; }
+.muscle-recovery-card.caution .muscle-recovery-track span { background:#ff7f7f; }
+.muscle-recovery-status { display:block; font-size:12px; }
+.muscle-recovery-card small, .muscle-recovery-card em { display:block; margin-top:4px; color:var(--text-muted,#a8b3ae); font-size:10px; line-height:1.35; }
+.muscle-recovery-card em { color:var(--text-soft,#7f918b); font-style:normal; }
+.weekly-coach-hero { padding:20px; border-color:rgba(121,211,255,.18); background:linear-gradient(145deg,rgba(121,211,255,.09),rgba(168,255,120,.04)); }
+.weekly-coach-hero h2 { margin:8px 0 6px; font-size:22px; line-height:1.15; }
+.weekly-coach-hero p { margin:0; color:var(--text-muted,#a8b3ae); }
+.weekly-progression-list { padding:8px 14px; }
+@media (max-width:380px) {
+  .muscle-recovery-mini-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .muscle-recovery-grid { grid-template-columns:1fr; }
+}

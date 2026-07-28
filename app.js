@@ -1517,7 +1517,7 @@
               <div class="section-head"><h2>Последняя тренировка</h2></div>
               ${lastWorkout ? workoutSummaryCard(lastWorkout) : `<div class="empty compact-empty"><strong>История пока пустая</strong>После первой тренировки приложение запомнит веса и начнёт предлагать прогрессию.</div>`}
             </div>
-            <div class="notice warning home-safety-note"><strong>Судно и безопасность.</strong> При сильной качке замени упражнения стоя с тяжёлым весом на варианты сидя, лёжа или с опорой. При боли — остановись, а не геройствуй.</div>
+            <div class="notice warning home-safety-note"><strong>Безопасность.</strong> Если поверхность неустойчивая, мало места или техника теряется — выбери вариант сидя, лёжа, в тренажёре или с опорой. При боли остановись.</div>
           </div>
         </details>
       </section>
@@ -1583,7 +1583,7 @@
         <button class="home-option-card" id="home-option-custom" type="button"><span>＋</span><div><strong>Собрать свою тренировку</strong><small>Поиск и фильтры по мышечным группам</small></div><b>›</b></button>
         <button class="home-option-card" id="home-option-repeat" type="button" ${lastWorkout ? '' : 'disabled'}><span>↻</span><div><strong>Повторить прошлую</strong><small>${lastWorkout ? escapeHTML(lastWorkout.dayName || 'Последняя тренировка') : 'История пока пустая'}</small></div><b>›</b></button>
         <button class="home-option-card" id="home-option-choose" type="button"><span>▦</span><div><strong>Выбрать из плана</strong><small>Основной цикл останется на месте</small></div><b>›</b></button>
-        <button class="home-option-card" id="home-option-short" type="button"><span>⚡</span><div><strong>Нет сил · 15–20 минут</strong><small>Короткая тренировка после смены</small></div><b>›</b></button>
+        <button class="home-option-card" id="home-option-short" type="button"><span>⚡</span><div><strong>Нет сил · 15–20 минут</strong><small>Короткая тренировка на загруженный день</small></div><b>›</b></button>
       </div>
       <div class="notice" style="margin-top:12px"><strong>Без наказаний за перестановку.</strong><br>Повтор и выбор другого дня не сдвигают основной цикл.</div>
     `);
@@ -1780,6 +1780,56 @@
     refreshSelection();
   }
 
+  function latestMuscleSession(groupId) {
+    for (const workout of completedWorkoutList(state.workouts)) {
+      let sets = 0;
+      let hard = 0;
+      let total = 0;
+      const sources = [];
+      for (const result of workout.exercises || []) {
+        if (result.skipped) continue;
+        const done = completedSets(result);
+        if (!done.length) continue;
+        const exercise = getExercise(result.exerciseId) || { id: result.exerciseId, name: result.name, group: '' };
+        if (!getMuscleGroupsForExercise(exercise, result).includes(groupId)) continue;
+        sets += done.length;
+        total += done.length;
+        hard += done.filter((set) => ['hard', 'failure'].includes(set.difficulty)).length;
+        sources.push(result.name || exercise.name || result.exerciseId);
+      }
+      if (!sets) continue;
+      const time = new Date(workout.finishedAt || workout.startedAt || workout.date || 0).getTime();
+      return {
+        workoutId: workout.id,
+        time: time || null,
+        sets,
+        hardRatio: total ? hard / total : 0,
+        completionPct: Number(workout.completionPct ?? workoutCompletion(workout)),
+        sources,
+      };
+    }
+    return null;
+  }
+
+  function muscleRecoveryWindowHours(row, session, painRows = []) {
+    if (!session) return 0;
+    const maxPain = painRows.length ? Math.max(...painRows.map((entry) => Number(entry.score) || 0)) : 0;
+    const loadHours = Math.min(30, Math.max(0, Number(session.sets || 0) - 3) * 3);
+    const intensityHours = Math.round(Math.max(0, Number(session.hardRatio || 0)) * 18);
+    const painHours = maxPain >= 7 ? 24 : maxPain >= 4 ? 10 : 0;
+    const overloadHours = row.status === 'overload' ? 18 : row.status === 'high' ? 8 : 0;
+    return Math.max(30, Math.min(96, 30 + loadHours + intensityHours + painHours + overloadHours));
+  }
+
+  function recoveryStatusForRow(row) {
+    if (!row.lastSession) return { status: 'ready', label: 'готова', note: 'давно не было нагрузки' };
+    if (row.painRows?.some((entry) => Number(entry.score) >= 7)) return { status: 'caution', label: 'осторожно', note: 'есть свежая сильная боль' };
+    if (row.status === 'overload') return { status: 'caution', label: 'перегруз', note: 'объём за неделю уже высокий' };
+    if (row.remainingHours <= 0) return { status: 'ready', label: 'готова', note: 'окно восстановления прошло' };
+    if (row.remainingHours <= 12) return { status: 'soon', label: 'скоро', note: `ещё около ${Math.max(1, Math.ceil(row.remainingHours))} ч` };
+    return { status: 'recovering', label: 'восстанавливается', note: `ещё около ${Math.max(1, Math.ceil(row.remainingHours))} ч` };
+  }
+
   function smartWorkoutReadinessSummary() {
     const summary = muscleLoadSummary(7);
     const now = Date.now();
@@ -1788,31 +1838,46 @@
       return time && now - time <= 7 * 86400000 && Number(entry.score) >= 4;
     });
     const rows = summary.rows.map((row) => {
-      const lastAt = smartLastMuscleTrainingAt(row.id);
+      const lastSession = latestMuscleSession(row.id);
+      const lastAt = lastSession?.time || null;
       const daysSince = lastAt ? Math.max(0, Math.floor((now - lastAt) / 86400000)) : null;
-      let score = row.status === 'low' ? 38 : row.status === 'normal' ? 12 : row.status === 'high' ? -18 : -42;
-      if (daysSince === null) score += 18;
-      else if (daysSince >= 5) score += 24;
-      else if (daysSince >= 3) score += 12;
-      else if (daysSince <= 1) score -= 34;
-      else score -= 4;
       const painRows = recentPain.filter((entry) => (smartPainMuscleGroups[entry.areaId] || []).includes(row.id));
-      if (painRows.length) score -= Math.min(42, Math.max(...painRows.map((entry) => Number(entry.score) || 0)) * 5);
-      return { ...row, daysSince, lastAt, score, painRows };
+      const requiredHours = muscleRecoveryWindowHours(row, lastSession, painRows);
+      const elapsedHours = lastAt ? Math.max(0, (now - lastAt) / 3600000) : requiredHours;
+      const remainingHours = Math.max(0, requiredHours - elapsedHours);
+      const readinessPct = lastSession ? Math.max(0, Math.min(100, Math.round((elapsedHours / Math.max(requiredHours, 1)) * 100))) : 100;
+      let score = row.status === 'low' ? 38 : row.status === 'normal' ? 12 : row.status === 'high' ? -18 : -42;
+      score += Math.round((readinessPct - 50) * 0.75);
+      if (painRows.length) score -= Math.min(46, Math.max(...painRows.map((entry) => Number(entry.score) || 0)) * 6);
+      const recovery = recoveryStatusForRow({ ...row, lastSession, painRows, remainingHours });
+      return {
+        ...row,
+        daysSince,
+        lastAt,
+        lastSession,
+        score,
+        painRows,
+        requiredHours,
+        elapsedHours,
+        remainingHours,
+        readinessPct,
+        recoveryStatus: recovery.status,
+        recoveryLabel: recovery.label,
+        recoveryNote: recovery.note,
+      };
     });
-    return { ...summary, rows, recentPain };
+    return {
+      ...summary,
+      rows,
+      recentPain,
+      readyCount: rows.filter((row) => row.recoveryStatus === 'ready').length,
+      recoveringCount: rows.filter((row) => ['recovering', 'soon'].includes(row.recoveryStatus)).length,
+      cautionCount: rows.filter((row) => row.recoveryStatus === 'caution').length,
+    };
   }
 
   function smartLastMuscleTrainingAt(groupId) {
-    for (const workout of completedWorkoutList(state.workouts)) {
-      const hasGroup = (workout.exercises || []).some((result) => {
-        if (result.skipped || !completedSets(result).length) return false;
-        const exercise = getExercise(result.exerciseId) || { id: result.exerciseId, name: result.name, group: '' };
-        return getMuscleGroupsForExercise(exercise, result).includes(groupId);
-      });
-      if (hasGroup) return new Date(workout.startedAt || workout.date || 0).getTime() || null;
-    }
-    return null;
+    return latestMuscleSession(groupId)?.time || null;
   }
 
   function smartDaysSinceLabel(days) {
@@ -2345,7 +2410,7 @@
       <div class="activity-kind-grid" style="margin-top:12px">
         ${['training','light','recovery','rest'].map((kind) => { const meta = manualDayKindMeta(kind); return `<button class="activity-kind-option ${kind === currentKind ? 'active' : ''}" data-kind="${kind}" type="button"><b>${meta.icon}</b><strong>${escapeHTML(meta.label)}</strong><span>${kind === 'training' ? 'Силовая или полноценная тренировка' : kind === 'light' ? 'Прогулка, степпер, короткая активность' : kind === 'recovery' ? 'Осознанный день восстановления' : 'Никакой тренировочной активности'}</span></button>`; }).join('')}
       </div>
-      <div class="field" style="margin-top:14px"><label>Комментарий, необязательно</label><textarea id="manual-day-comment" placeholder="Например: много ходил по судну, но без тренировки">${escapeHTML(existingManual?.comment || '')}</textarea></div>
+      <div class="field" style="margin-top:14px"><label>Комментарий, необязательно</label><textarea id="manual-day-comment" placeholder="Например: много ходил, но силовой тренировки не было">${escapeHTML(existingManual?.comment || '')}</textarea></div>
       <button class="button primary full" id="save-manual-day" style="margin-top:14px">Сохранить день</button>
       ${existingManual ? '<button class="button danger full" id="delete-manual-day" style="margin-top:10px">Убрать ручную отметку</button>' : ''}
     `);
@@ -2564,7 +2629,7 @@
           <input id="pre-pain-score" type="hidden" value="4">
           <div class="help">1–3 — лёгкий дискомфорт, 4–6 — осторожный режим, 7–10 — лучше не делать рискованные упражнения.</div>
         </div>
-        <div class="field"><label>Комментарий</label><textarea id="pre-pain-comment" placeholder="Например: паховая область ноет после смены"></textarea></div>
+        <div class="field"><label>Комментарий</label><textarea id="pre-pain-comment" placeholder="Например: плечо ноет после прошлой тренировки"></textarea></div>
         <button class="button primary full" id="start-with-pain" type="button">Включить контроль боли и начать</button>
       </div>
     `);
@@ -2937,7 +3002,7 @@
       <button class="button ghost full sport-iron-workout-button" id="open-iron-calculator-workout" type="button">⚖️ Калькулятор железа</button>
 
       <section class="card workout-comment-card">
-        <div class="field"><label>Комментарий ко всей тренировке</label><textarea id="workout-comment" placeholder="Самочувствие, качка, что изменить…">${escapeHTML(workout.comment || '')}</textarea></div>
+        <div class="field"><label>Комментарий ко всей тренировке</label><textarea id="workout-comment" placeholder="Самочувствие, техника, что изменить…">${escapeHTML(workout.comment || '')}</textarea></div>
       </section>
 
       ${renderWorkoutDock(workout, focusIndex)}
@@ -3783,30 +3848,83 @@
     renderWorkout();
   }
 
-  function replacementReason(currentExercise, candidate, currentResult) {
+  function profileExerciseAvailable(exercise) {
+    if (!exercise) return false;
+    const equipment = String(exercise.equipment || '').toLowerCase();
+    const available = String(state.profile?.equipment || '').toLowerCase();
+    if (!equipment || /собственн|коврик|стул|скамь|упор/.test(equipment)) return true;
+    if (/мультитренаж|тренажёр|блок/.test(equipment) && !/мультитренаж|тренаж|блок/.test(available)) return false;
+    if (equipment.includes('степпер') && !available.includes('степпер')) return false;
+    if (equipment.includes('штанг') && equipment.includes('гантел') && /или/.test(equipment)) return available.includes('штанг') || available.includes('гантел');
+    if (equipment.includes('штанг') && !available.includes('штанг')) return false;
+    if (equipment.includes('гантел') && !available.includes('гантел')) return false;
+    if (equipment.includes('брусь') && !available.includes('брусь')) return false;
+    if (equipment.includes('ролик') && !available.includes('ролик')) return false;
+    return true;
+  }
+
+  function replacementReason(currentExercise, candidate, currentResult, details = null) {
     const currentGroups = new Set(getMuscleGroupsForExercise(currentExercise, currentResult));
     const candidateGroups = getMuscleGroupsForExercise(candidate);
     const sameGroups = candidateGroups.filter((group) => currentGroups.has(group)).length;
-    const painRisk = analyzeExercisePainRisk(state.currentWorkout?.preWorkoutPain, candidate);
-    if (painRisk?.level === 'high') return 'Похожая нагрузка, но боль всё ещё требует осторожности';
-    if (sameGroups >= 2) return 'Те же основные мышцы';
-    if (/сидя|лёжа|тренажёр|блок/i.test(`${candidate.name} ${candidate.equipment}`)) return 'Устойчивее и проще при качке';
+    const painRisk = details?.painRisk || analyzeExercisePainRisk(state.currentWorkout?.preWorkoutPain, candidate);
+    if (painRisk?.level === 'high') return 'Та же зона, но ограничение по боли остаётся';
+    if (sameGroups >= 2) return 'Сохраняет основные мышцы и характер нагрузки';
+    if (/сидя|лёжа|тренажёр|блок|опор/i.test(`${candidate.name} ${candidate.equipment}`)) return 'Стабильнее и проще контролировать технику';
     if (sameGroups === 1) return 'Сохраняет главный мышечный акцент';
-    return 'Доступно на твоём оборудовании';
+    return 'Доступно с выбранным оборудованием';
+  }
+
+  function rankedReplacementCandidates(currentExercise, currentResult, index, limit = 8) {
+    const currentGroups = new Set(getMuscleGroupsForExercise(currentExercise, currentResult));
+    const explicit = new Set(currentExercise?.replacements || []);
+    const used = new Set((state.currentWorkout?.exercises || []).map((result, resultIndex) => resultIndex === index ? null : result.exerciseId).filter(Boolean));
+    const currentPain = (currentResult?.painEvents || []).slice().sort((a, b) => Number(b.score || 0) - Number(a.score || 0))[0];
+    const painInput = currentPain
+      ? normalizePainInput({ hasPain: true, areaId: currentPain.areaId, score: currentPain.score, comment: currentPain.comment })
+      : state.currentWorkout?.preWorkoutPain;
+    return (state.exercises || [])
+      .filter((candidate) => candidate?.id && candidate.id !== currentExercise?.id && !used.has(candidate.id) && profileExerciseAvailable(candidate))
+      .map((candidate) => {
+        const groups = getMuscleGroupsForExercise(candidate);
+        const overlap = groups.filter((group) => currentGroups.has(group));
+        const painRisk = analyzeExercisePainRisk(painInput, candidate);
+        const recentPain = smartExerciseRecentPainRisk(candidate);
+        const blocked = (painRisk?.level === 'high' && Number(painInput?.score || 0) >= 7) || recentPain.blocked;
+        let score = overlap.length * 42;
+        if (explicit.has(candidate.id)) score += 85;
+        if (groups.length && overlap.length === groups.length) score += 12;
+        if (/сидя|лёжа|тренажёр|блок|опор/i.test(`${candidate.name} ${candidate.equipment}`)) score += 8;
+        const daysSince = smartLastExerciseUseDays(candidate.id);
+        if (daysSince === null || daysSince >= 7) score += 8;
+        else if (daysSince <= 1) score -= 6;
+        if (painRisk?.level === 'moderate') score -= 24;
+        if (painRisk?.level === 'high') score -= 70;
+        score -= Math.min(50, recentPain.penalty || 0);
+        const reasons = [];
+        if (explicit.has(candidate.id)) reasons.push('готовая замена');
+        if (overlap.length) reasons.push(`те же мышцы: ${overlap.map(muscleGroupLabel).join(', ').toLowerCase()}`);
+        reasons.push('оборудование подходит');
+        if (painRisk?.level === 'moderate') reasons.push('осторожно из-за боли');
+        else if (!painRisk && !(recentPain.labels || []).length) reasons.push('без свежих ограничений');
+        return { candidate, score, overlap, painRisk, blocked, reasons };
+      })
+      .filter((row) => !row.blocked && (row.overlap.length || explicit.has(row.candidate.id)))
+      .sort((a, b) => b.score - a.score || a.candidate.name.localeCompare(b.candidate.name, 'ru'))
+      .slice(0, limit);
   }
 
   function showReplacementModal(index) {
     const current = state.currentWorkout.exercises[index];
     const exercise = getExercise(current.exerciseId);
-    const replacementIds = exercise?.replacements || [];
-    const candidates = replacementIds.map(getExercise).filter(Boolean).slice(0, 3);
+    const candidates = rankedReplacementCandidates(exercise, current, index, 8);
     showModal(`
-      <div class="modal-head"><h2>Чем заменить?</h2><button class="modal-close" data-close>×</button></div>
-      <p class="muted">${escapeHTML(current.name)}</p>
-      <div class="replacement-best-list">
-        ${candidates.length ? candidates.map((candidate, candidateIndex) => `<button class="replacement-best-card choose-replacement" data-id="${escapeAttr(candidate.id)}" type="button"><span>${candidateIndex + 1}</span><div><strong>${escapeHTML(candidate.name)}</strong><small>${escapeHTML(replacementReason(exercise, candidate, current))} · ${escapeHTML(candidate.equipment)}</small></div><b>›</b></button>`).join('') : `<div class="empty"><strong>Готовых замен нет</strong>Можно выбрать любое упражнение из библиотеки.</div>`}
+      <div class="modal-head"><div><div class="eyebrow">Умная замена</div><h2>${escapeHTML(current.name)}</h2></div><button class="modal-close" data-close>×</button></div>
+      <p class="muted">Варианты отсортированы по мышцам, доступному оборудованию, свежей боли и упражнениям, которые уже есть в тренировке.</p>
+      <div class="replacement-best-list smart-replacement-ranked">
+        ${candidates.length ? candidates.map((row, candidateIndex) => `<button class="replacement-best-card choose-replacement" data-id="${escapeAttr(row.candidate.id)}" type="button"><span>${candidateIndex + 1}</span><div><strong>${escapeHTML(row.candidate.name)}</strong><small>${escapeHTML(replacementReason(exercise, row.candidate, current, row))} · ${escapeHTML(row.candidate.equipment)}</small><em>${escapeHTML(row.reasons.slice(0, 3).join(' · '))}</em></div><b>›</b></button>`).join('') : `<div class="empty"><strong>Подходящей замены не нашлось</strong>Можно выбрать любое доступное упражнение из библиотеки.</div>`}
       </div>
-      <button class="button secondary full" id="choose-any-exercise" style="margin-top:12px">Все варианты</button>
+      <button class="button secondary full" id="choose-any-exercise" style="margin-top:12px">Открыть всю библиотеку</button>
     `);
     el.modalRoot.querySelectorAll('.choose-replacement').forEach((button) => button.addEventListener('click', () => replaceWorkoutExercise(index, button.dataset.id)));
     document.getElementById('choose-any-exercise').addEventListener('click', () => showExercisePicker((id) => replaceWorkoutExercise(index, id)));
@@ -4062,7 +4180,7 @@
     const result = state.currentWorkout.exercises[index];
     showModal(`
       <div class="modal-head"><h2>Комментарий</h2><button class="modal-close" data-close>×</button></div>
-      <div class="field"><label>${escapeHTML(result.name)}</label><textarea id="exercise-comment-input" placeholder="Например: неудобно при качке, тянет плечо, вес лёгкий…">${escapeHTML(result.comment || '')}</textarea></div>
+      <div class="field"><label>${escapeHTML(result.name)}</label><textarea id="exercise-comment-input" placeholder="Например: тянет плечо, неудобная техника, вес лёгкий…">${escapeHTML(result.comment || '')}</textarea></div>
       <button class="button primary full" id="save-exercise-comment" style="margin-top:14px">Сохранить</button>
     `);
     document.getElementById('save-exercise-comment').addEventListener('click', async () => {
@@ -4153,6 +4271,7 @@
       <div class="workout-finish-progress"><span style="width:${workout.completionPct}%"></span></div>
       <div class="help center">Выполнено ${workout.completionPct}% · оценено упражнений: ${feedbackCount}</div>
       ${workout.records?.length ? `<div class="workout-finish-records"><strong>Новые результаты</strong>${workout.records.slice(0, 4).map((record) => `<span>🏆 ${escapeHTML(record.title || record.text || record.label || 'Личный рекорд')}</span>`).join('')}</div>` : ''}
+      ${workout.progression?.some((row) => row?.text) ? `<div class="workout-next-plan"><div class="section-head"><h3>На следующий раз</h3><span class="chip">предложения</span></div>${workout.progression.filter((row) => row?.text).slice(0, 6).map((row) => `<div class="workout-next-row ${escapeAttr(row.kind || 'same')}"><span>${row.kind === 'increase' ? '↗' : row.kind === 'reduce' ? '↘' : '→'}</span><div><strong>${escapeHTML(row.exerciseName || getExercise(row.exerciseId)?.name || 'Упражнение')}</strong><small>${escapeHTML(row.text)}</small>${row.reason ? `<em>${escapeHTML(row.reason)}</em>` : ''}</div></div>`).join('')}</div>` : ''}
       <button class="button primary full" data-close type="button" style="margin-top:16px">Готово</button>
     `);
   }
@@ -4166,7 +4285,7 @@
     workout.completionPct = workoutCompletion(workout);
     workout.totalLoadKg = calculateLoad(workout);
     workout.records = calculateWorkoutRecords(workout, state.workouts);
-    workout.progression = workout.exercises.map((result) => ({ exerciseId: result.exerciseId, ...postWorkoutSuggestion(result) }));
+    workout.progression = workout.exercises.map((result) => postWorkoutSuggestion(result, workout));
     await DB.put('workouts', workout);
     const shouldAdvanceCycle = workout.shouldAdvanceCycle !== false;
     if (shouldAdvanceCycle) {
@@ -6623,6 +6742,7 @@
       ['recovery', 'Восстановление'],
       ['records', 'Рекорды'],
       ['stepper', 'Степпер'],
+      ['week', 'Неделя'],
     ];
     const secondaryActive = secondaryTabs.some(([value]) => value === state.progressTab);
     setTopbar('Прогресс', 'Последние 30 дней');
@@ -6651,6 +6771,7 @@
     if (state.progressTab === 'records') return renderRecordsProgress();
     if (state.progressTab === 'strength') return renderStrengthProgress();
     if (state.progressTab === 'stepper') return renderStepperProgress();
+    if (state.progressTab === 'week') return renderWeeklyTrainingReport();
     return renderPhotoProgress();
   }
 
@@ -6742,6 +6863,7 @@
             ['recovery', '○', 'Восстановление', 'Отдых и разгрузочная неделя'],
             ['records', '★', 'Рекорды', 'Полезные достижения'],
             ['stepper', '↗', 'Степпер', 'Время и лучшие результаты'],
+            ['week', '▤', 'Неделя', 'Итоги, прогрессия и следующий фокус'],
           ].map(([target, icon, title, note]) => `<button class="card" data-progress-target="${target}" type="button"><span>${icon}</span><strong>${title}</strong><small>${note}</small><b>›</b></button>`).join('')}
         </div>
       </section>`;
@@ -6961,18 +7083,28 @@
 
 
   function renderHomeMuscleLoadCard() {
-    const summary = muscleLoadSummary(7);
+    const summary = smartWorkoutReadinessSummary();
     const open = homePanelOpen('muscles', false);
-    const problemRows = summary.rows.filter((row) => ['overload', 'high', 'low'].includes(row.status)).slice(0, 3);
+    const ready = summary.rows.filter((row) => row.recoveryStatus === 'ready').sort((a, b) => b.score - a.score);
+    const caution = summary.rows.filter((row) => row.recoveryStatus === 'caution');
+    const recovering = summary.rows.filter((row) => ['recovering', 'soon'].includes(row.recoveryStatus));
     const headline = summary.completedWorkouts
-      ? `${summary.totalSets} рабочих подходов · ${summary.normalCount} норм · ${summary.warningCount} внимание`
+      ? `${ready.length} готовы · ${recovering.length} восстанавливаются${caution.length ? ` · ${caution.length} осторожно` : ''}`
       : 'Появится после сохранённых тренировок';
+    const advice = caution.length
+      ? `Сегодня лучше не добивать: ${caution.map((row) => row.label).join(', ')}.`
+      : ready.length
+        ? `Лучше всего готовы: ${ready.slice(0, 3).map((row) => row.label).join(', ')}.`
+        : 'Дай мышцам ещё немного времени или выбери лёгкую тренировку.';
     return `<section class="section compact-home-section"><details class="card home-disclosure muscle-home-card" data-home-panel="muscles" ${open ? 'open' : ''}>
-      <summary><span class="home-disclosure-icon">●</span><span class="home-disclosure-copy"><strong>Мышцы за 7 дней</strong><small>${escapeHTML(headline)}</small></span><span class="chip ${summary.warningCount ? 'warning' : 'success'}">${summary.warningCount ? 'есть перекосы' : 'ровно'}</span><span class="home-disclosure-chevron" aria-hidden="true">⌄</span></summary>
-      <div class="home-disclosure-body">${summary.completedWorkouts ? `<div class="muscle-mini-grid">${summary.rows.slice(0, 8).map(renderMuscleMiniCell).join('')}</div>${problemRows.length ? `<div class="help home-panel-help">${escapeHTML(muscleShortAdvice(problemRows))}</div>` : '<div class="help home-panel-help">Сильных перекосов не видно. Держим курс, капитан.</div>'}` : '<div class="empty compact-empty"><strong>Пока нет данных</strong>Сохрани пару тренировок — приложение посчитает нагрузку по группам.</div>'}<div class="home-panel-actions"><button class="button secondary small" id="open-muscle-progress-home" type="button">Подробнее</button><button class="button secondary small" id="smart-workout-from-muscles" type="button">✨ Подобрать</button></div></div>
+      <summary><span class="home-disclosure-icon">●</span><span class="home-disclosure-copy"><strong>Готовность мышц</strong><small>${escapeHTML(headline)}</small></span><span class="chip ${caution.length ? 'warning' : 'success'}">${caution.length ? 'есть ограничения' : ready.length ? 'можно тренироваться' : 'восстановление'}</span><span class="home-disclosure-chevron" aria-hidden="true">⌄</span></summary>
+      <div class="home-disclosure-body">${summary.completedWorkouts ? `<div class="muscle-recovery-mini-grid">${summary.rows.map(renderMuscleRecoveryMiniCell).join('')}</div><div class="help home-panel-help">${escapeHTML(advice)}</div>` : '<div class="empty compact-empty"><strong>Пока нет данных</strong>Сохрани пару тренировок — приложение рассчитает восстановление каждой группы.</div>'}<div class="home-panel-actions"><button class="button secondary small" id="open-muscle-progress-home" type="button">Подробнее</button><button class="button secondary small" id="smart-workout-from-muscles" type="button">✨ Подобрать тренировку</button></div></div>
     </details></section>`;
   }
 
+  function renderMuscleRecoveryMiniCell(row) {
+    return `<div class="muscle-recovery-mini ${row.recoveryStatus}"><span>${escapeHTML(row.shortLabel)}</span><strong>${row.readinessPct}%</strong><small>${escapeHTML(row.recoveryLabel)}</small></div>`;
+  }
 
   function renderMuscleMiniCell(row) {
     return `<div class="muscle-mini-cell ${row.status}"><span>${escapeHTML(row.shortLabel)}</span><strong>${row.sets}</strong></div>`;
@@ -6981,6 +7113,7 @@
   function renderMuscleProgress() {
     const days = Number(state.musclePeriodDays || state.settings.musclePeriodDays || 7) === 14 ? 14 : 7;
     const summary = muscleLoadSummary(days);
+    const recovery = smartWorkoutReadinessSummary();
     const overloaded = summary.rows.filter((row) => row.status === 'overload');
     const high = summary.rows.filter((row) => row.status === 'high');
     const low = summary.rows.filter((row) => row.status === 'low');
@@ -6990,14 +7123,27 @@
         <button class="button ${days === 14 ? 'primary' : 'secondary'} small muscle-period" data-days="14" type="button">14 дней</button>
       </div></section>
       <section class="section"><div class="stats-grid">
-        <div class="stat"><div class="stat-value">${summary.completedWorkouts}</div><div class="stat-label">тренировки</div></div>
-        <div class="stat"><div class="stat-value">${summary.totalSets}</div><div class="stat-label">раб. подходы</div></div>
-        <div class="stat"><div class="stat-value">${summary.normalCount}</div><div class="stat-label">норма</div></div>
-        <div class="stat"><div class="stat-value">${summary.warningCount}</div><div class="stat-label">внимание</div></div>
+        <div class="stat"><div class="stat-value">${recovery.readyCount}</div><div class="stat-label">готовы</div></div>
+        <div class="stat"><div class="stat-value">${recovery.recoveringCount}</div><div class="stat-label">восстанавливаются</div></div>
+        <div class="stat"><div class="stat-value">${recovery.cautionCount}</div><div class="stat-label">осторожно</div></div>
+        <div class="stat"><div class="stat-value">${summary.totalSets}</div><div class="stat-label">подходов за ${days} дн.</div></div>
       </div></section>
+      <section class="section"><div class="section-head"><h2>Готовность к следующей нагрузке</h2><span class="muted">расчёт по последней тренировке</span></div><div class="muscle-recovery-grid">${recovery.rows.map(renderMuscleRecoveryCard).join('')}</div></section>
       <section class="section"><div class="section-head"><h2>Нагрузка по группам</h2><span class="muted">${days} дней</span></div><div class="muscle-load-grid">${summary.rows.map(renderMuscleLoadCard).join('')}</div></section>
       <section class="section"><div class="card muscle-advice-card"><div class="section-head"><h2>Вывод</h2></div>${renderMuscleAdvice(summary, { overloaded, high, low })}</div></section>
-      <div class="notice">Считаются только выполненные рабочие подходы текущего профиля. Упражнения-комбо могут засчитываться сразу в несколько групп: например жим — грудь и трицепс, тяга — спина и бицепс.</div>`;
+      <div class="notice">Готовность — ориентир, а не медицинская оценка. Она учитывает выполненные подходы, тяжесть, время после нагрузки, недельный объём и свежие отметки боли.</div>`;
+  }
+
+  function renderMuscleRecoveryCard(row) {
+    const last = row.lastAt ? smartDaysSinceLabel(row.daysSince) : 'нет истории';
+    const sources = row.lastSession?.sources?.slice(0, 2).join(' · ') || 'упражнений пока не было';
+    return `<div class="card muscle-recovery-card ${row.recoveryStatus}">
+      <div class="muscle-recovery-head"><div><span>${escapeHTML(row.hint)}</span><h3>${escapeHTML(row.label)}</h3></div><b>${row.readinessPct}%</b></div>
+      <div class="muscle-recovery-track"><span style="width:${row.readinessPct}%"></span></div>
+      <strong class="muscle-recovery-status">${escapeHTML(row.recoveryLabel)}</strong>
+      <small>${escapeHTML(row.recoveryNote)} · ${escapeHTML(last)}</small>
+      <em>${escapeHTML(sources)}</em>
+    </div>`;
   }
 
   function renderMuscleLoadCard(row) {
@@ -7076,6 +7222,59 @@
           <div><strong>Степпер</strong><span>лёгкий темп</span></div>
         </div>
         <div class="notice" style="margin-top:12px"><strong>Это предложение, не приказ.</strong><br>Приложение отличает тренировки подряд от схемы через день и не душнит, когда отдых по календарю был.</div>
+      </div></section>`;
+  }
+
+  function weeklyTrainingReport() {
+    const now = new Date();
+    const from = startOfDay(new Date(now.getTime() - 6 * 86400000));
+    const previousFrom = startOfDay(new Date(now.getTime() - 13 * 86400000));
+    const current = completedWorkoutList(state.workouts).filter((workout) => new Date(workout.startedAt || workout.date || 0) >= from);
+    const previous = completedWorkoutList(state.workouts).filter((workout) => {
+      const date = new Date(workout.startedAt || workout.date || 0);
+      return date >= previousFrom && date < from;
+    });
+    const minutes = Math.round(current.reduce((sum, workout) => sum + Number(workout.durationSec || 0), 0) / 60);
+    const load = current.reduce((sum, workout) => sum + Number(workout.totalLoadKg || 0), 0);
+    const sets = current.reduce((sum, workout) => sum + (workout.exercises || []).reduce((inner, result) => inner + completedSets(result).length, 0), 0);
+    const records = current.reduce((sum, workout) => sum + (workout.records?.length || 0), 0);
+    const completion = Math.round(avgCompletion(current));
+    const previousLoad = previous.reduce((sum, workout) => sum + Number(workout.totalLoadKg || 0), 0);
+    const loadDiff = previousLoad > 0 ? Math.round(((load - previousLoad) / previousLoad) * 100) : null;
+    const progression = current.flatMap((workout) => workout.progression || []).filter((row) => row?.text);
+    const increases = progression.filter((row) => row.kind === 'increase');
+    const reductions = progression.filter((row) => row.kind === 'reduce');
+    const recovery = smartWorkoutReadinessSummary();
+    const ready = recovery.rows.filter((row) => row.recoveryStatus === 'ready').sort((a, b) => b.score - a.score);
+    const caution = recovery.rows.filter((row) => row.recoveryStatus === 'caution');
+    const muscles = muscleLoadSummary(7);
+    const low = muscles.rows.filter((row) => row.status === 'low');
+    const insight = !current.length
+      ? 'На этой неделе пока нет завершённых тренировок.'
+      : caution.length
+        ? `Сначала восстанови: ${caution.map((row) => row.label).join(', ')}.`
+        : ready.length
+          ? `Следующий хороший фокус: ${ready.slice(0, 3).map((row) => row.label).join(', ')}.`
+          : 'Продолжай цикл без резкого повышения нагрузки.';
+    return { current, previous, minutes, load, sets, records, completion, loadDiff, progression, increases, reductions, recovery, ready, caution, low, insight };
+  }
+
+  function renderWeeklyTrainingReport() {
+    const report = weeklyTrainingReport();
+    const loadTrend = report.loadDiff === null ? 'нет прошлой недели' : `${report.loadDiff > 0 ? '+' : ''}${report.loadDiff}% к прошлой неделе`;
+    return `
+      <section class="section"><div class="card weekly-coach-hero"><span class="eyebrow">Умный отчёт за 7 дней</span><h2>${escapeHTML(report.insight)}</h2><p>${report.current.length ? `${report.current.length} тренировок · ${report.minutes} минут · ${report.sets} рабочих подходов` : 'После первой завершённой тренировки здесь появятся сравнения и следующий фокус.'}</p></div></section>
+      <section class="section"><div class="stats-grid">
+        <div class="stat"><div class="stat-value">${report.current.length}</div><div class="stat-label">тренировки</div></div>
+        <div class="stat"><div class="stat-value">${report.completion || 0}%</div><div class="stat-label">выполнение</div></div>
+        <div class="stat"><div class="stat-value">${formatCompactLoad(report.load)}</div><div class="stat-label">объём, кг</div></div>
+        <div class="stat"><div class="stat-value">${report.records}</div><div class="stat-label">рекорды</div></div>
+      </div><div class="help center" style="margin-top:8px">${escapeHTML(loadTrend)}</div></section>
+      <section class="section"><div class="section-head"><h2>Прогрессия на следующий раз</h2><span class="muted">по завершённым упражнениям</span></div><div class="card weekly-progression-list">${report.progression.length ? report.progression.slice(0, 12).map((row) => `<div class="weekly-progression-row ${escapeAttr(row.kind || 'same')}"><span>${row.kind === 'increase' ? '↗' : row.kind === 'reduce' ? '↘' : '→'}</span><div><strong>${escapeHTML(row.exerciseName || getExercise(row.exerciseId)?.name || 'Упражнение')}</strong><small>${escapeHTML(row.text)}</small></div></div>`).join('') : '<div class="empty compact-empty"><strong>Пока нет рекомендаций</strong>Заверши тренировку — приложение разберёт каждое упражнение отдельно.</div>'}</div></section>
+      <section class="section"><div class="section-head"><h2>Баланс недели</h2></div><div class="card list-card">
+        <div class="list-row"><div class="list-row-main"><div class="list-row-title">Готовы к нагрузке</div><div class="list-row-sub">${escapeHTML(report.ready.length ? report.ready.map((row) => row.label).join(', ') : 'пока нет уверенно готовых групп')}</div></div><span class="chip success">${report.ready.length}</span></div>
+        <div class="list-row"><div class="list-row-main"><div class="list-row-title">Нужна осторожность</div><div class="list-row-sub">${escapeHTML(report.caution.length ? report.caution.map((row) => row.label).join(', ') : 'явных ограничений нет')}</div></div><span class="chip ${report.caution.length ? 'warning' : 'success'}">${report.caution.length}</span></div>
+        <div class="list-row"><div class="list-row-main"><div class="list-row-title">Недобор объёма</div><div class="list-row-sub">${escapeHTML(report.low.length ? report.low.map((row) => row.label).join(', ') : 'все основные группы получили нагрузку')}</div></div><span class="chip">${report.low.length}</span></div>
       </div></section>`;
   }
 
@@ -7179,7 +7378,7 @@
         <div class="inline-fields"><div class="field"><label>Вес, кг</label><input id="measure-weight" type="number" inputmode="decimal" step="0.1" value="${latest.weightKg ?? state.profile.currentWeightKg}"></div><div class="field"><label>Талия, см</label><input id="measure-waist" type="number" inputmode="decimal" step="0.1" value=""></div></div>
         <div class="inline-fields"><div class="field"><label>Живот, см</label><input id="measure-abdomen" type="number" inputmode="decimal" step="0.1"></div><div class="field"><label>Грудь, см</label><input id="measure-chest" type="number" inputmode="decimal" step="0.1"></div></div>
         <div class="inline-fields"><div class="field"><label>Бёдра, см</label><input id="measure-hips" type="number" inputmode="decimal" step="0.1"></div><div class="field"><label>Рука, см</label><input id="measure-arm" type="number" inputmode="decimal" step="0.1"></div></div>
-        <div class="field"><label>Комментарий</label><textarea id="measure-note" placeholder="Утро/вечер, после смены, отёки…"></textarea></div>
+        <div class="field"><label>Комментарий</label><textarea id="measure-note" placeholder="Утро/вечер, после еды, отёки…"></textarea></div>
       </div>
       <button class="button primary full" id="save-measurement" style="margin-top:14px">Сохранить</button>
     `);
@@ -9159,7 +9358,7 @@
           <p>Коротко, без воды и без подключения к сети. Найди тему или открой быстрый сценарий.</p>
           <label class="guide-search-wrap" for="offline-guide-search">
             <span aria-hidden="true">⌕</span>
-            <input id="offline-guide-search" type="search" inputmode="search" autocomplete="off" placeholder="Например: качка, боль, креатин" value="${escapeAttr(state.guideQuery)}">
+            <input id="offline-guide-search" type="search" inputmode="search" autocomplete="off" placeholder="Например: боль, разминка, креатин" value="${escapeAttr(state.guideQuery)}">
             <button id="clear-offline-guide-search" type="button" aria-label="Очистить поиск" ${state.guideQuery ? '' : 'hidden'}>×</button>
           </label>
         </div>
@@ -9936,27 +10135,129 @@
     return `${Math.max(...weights)} кг · ${reps.join('/')}`;
   }
 
+  function exerciseHistoryResults(exerciseId, limit = 4) {
+    const rows = [];
+    for (const workout of completedWorkoutList(state.workouts)) {
+      const result = (workout.exercises || []).find((item) => item.exerciseId === exerciseId && !item.skipped && completedSets(item).length);
+      if (!result) continue;
+      rows.push({ workout, result });
+      if (rows.length >= limit) break;
+    }
+    return rows;
+  }
+
+  function latestStoredProgression(exerciseId) {
+    for (const workout of completedWorkoutList(state.workouts)) {
+      const row = (workout.progression || []).find((item) => item.exerciseId === exerciseId);
+      if (row?.text) return row;
+    }
+    return null;
+  }
+
   function progressionSuggestion(exercise,last) {
+    const stored = latestStoredProgression(exercise?.id);
+    if (stored) return { ...stored, text: stored.text || stored.title || 'Повтори прошлую нагрузку' };
     if(!last)return {kind:'start',weightKg:exercise.defaults.weightKg??null,text:'Введи первый рабочий вес'};
     if(exercise.defaults.unit!=='reps')return {kind:'same',weightKg:null,text:'Повтори прошлую длительность'};
     const completed=last.sets.filter((s)=>s.completed);if(!completed.length)return {kind:'reduce',weightKg:null,text:'Начни спокойно'};
     const base=Math.max(...completed.map((s)=>Number(s.weightKg)||0));
     const days=Math.floor((Date.now()-new Date(last.workoutDate).getTime())/86400000);
-    if(days>30)return {kind:'reduce',weightKg:roundHalf(base*0.8),text:'Перерыв >30 дней: −20%'};
-    if(days>14)return {kind:'reduce',weightKg:roundHalf(base*0.9),text:'После перерыва: −10%'};
+    if(days>30)return {kind:'reduce',weightKg:roundHalf(base*0.8),text:'Перерыв больше месяца: начни примерно на 20% легче'};
+    if(days>14)return {kind:'reduce',weightKg:roundHalf(base*0.9),text:'После перерыва начни примерно на 10% легче'};
     const diff=completed.map((s)=>s.difficulty);
-    if(completed.length===last.sets.length && diff.every((x)=>x==='easy')){const next=roundHalf(base>0?base*1.025+0.25:base);return {kind:'increase',weightKg:next,text:base>0?`Попробуй ${next} кг или +1–2 повтора`:'Добавь 1–2 повтора'};}
-    if(diff.some((x)=>x==='failure') || completed.length<last.sets.length){const next=base>0?roundHalf(base*0.95):base;return {kind:'reduce',weightKg:next,text:base>0?`Спокойнее: около ${next} кг`:'Снизь повторы'};}
-    if(diff.some((x)=>x==='hard'))return {kind:'same',weightKg:base,text:`Оставь ${base || 'тот же'} кг`};
-    return {kind:'same',weightKg:base,text:`Повтори ${base || 'тот же вес'} кг`};
+    if(completed.length===last.sets.length && diff.every((x)=>x==='easy')){const next=roundHalf(base>0?base+recommendedWeightStep(base):base);return {kind:'increase',weightKg:next,text:base>0?`Можно попробовать ${formatKg(next)} кг или +1 повтор`:'Добавь 1–2 повтора'};}
+    if(diff.some((x)=>x==='failure') || completed.length<last.sets.length){const next=base>0?roundHalf(base*0.95):base;return {kind:'reduce',weightKg:next,text:base>0?`Спокойнее: около ${formatKg(next)} кг`:'Снизь повторы'};}
+    if(diff.some((x)=>x==='hard'))return {kind:'same',weightKg:base,text:`Оставь ${formatKg(base, 'тот же')} кг`};
+    return {kind:'same',weightKg:base,text:`Повтори ${formatKg(base, 'тот же вес')} кг`};
   }
 
-  function postWorkoutSuggestion(result){
-    const done=result.sets.filter((s)=>s.completed); if(result.skipped||!done.length)return {kind:'reduce',text:'В следующий раз начать легче'};
-    if(done.length===result.sets.length && done.every((s)=>s.difficulty==='easy'))return {kind:'increase',text:'Добавить вес или 1–2 повтора'};
-    if(done.some((s)=>s.difficulty==='failure')||done.length<result.sets.length)return {kind:'reduce',text:'Снизить вес/повторы на 5–10%'};
-    if(done.some((s)=>s.difficulty==='hard'))return {kind:'same',text:'Сохранить нагрузку'};
-    return {kind:'same',text:'Повторить нагрузку'};
+  function recommendedWeightStep(weight) {
+    const value = Number(weight) || 0;
+    if (value <= 0) return 0;
+    if (value < 10) return 0.5;
+    if (value < 30) return 1;
+    return 2;
+  }
+
+  function progressionMetrics(result) {
+    const done = completedSets(result);
+    const weights = done.map((set) => Number(set.weightKg) || 0);
+    const reps = done.map((set) => Number(set.reps) || 0);
+    const hardCount = done.filter((set) => ['hard', 'failure'].includes(set.difficulty)).length;
+    const failureCount = done.filter((set) => set.difficulty === 'failure').length;
+    return {
+      done,
+      completedSets: done.length,
+      plannedSets: result?.sets?.length || 0,
+      fullCompletion: Boolean(done.length && done.length === (result?.sets?.length || 0)),
+      maxWeight: weights.length ? Math.max(...weights) : 0,
+      minReps: reps.length ? Math.min(...reps) : 0,
+      maxReps: reps.length ? Math.max(...reps) : 0,
+      averageReps: reps.length ? reps.reduce((sum, value) => sum + value, 0) / reps.length : 0,
+      volume: done.reduce((sum, set) => sum + (Number(set.weightKg) || 0) * (Number(set.reps) || 0), 0),
+      hardRatio: done.length ? hardCount / done.length : 0,
+      failureCount,
+      discomfort: result?.feedback === 'discomfort' || Boolean(result?.painEvents?.length),
+    };
+  }
+
+  function smartPostWorkoutRecommendation(result, workout = null) {
+    const exercise = getExercise(result.exerciseId) || { defaults: result.defaults || {}, name: result.name };
+    const metrics = progressionMetrics(result);
+    const history = exerciseHistoryResults(result.exerciseId, 3);
+    const previous = history[0]?.result ? progressionMetrics(history[0].result) : null;
+    const confidence = history.length >= 3 ? 'высокая' : history.length >= 1 ? 'средняя' : 'начальная';
+    const base = {
+      exerciseId: result.exerciseId,
+      exerciseName: result.name || exercise.name,
+      createdAt: new Date().toISOString(),
+      confidence,
+      previousDate: history[0]?.workout?.startedAt || null,
+    };
+    if (result.skipped || !metrics.completedSets) {
+      return { ...base, kind: 'reduce', title: 'Вернуться спокойно', text: 'Упражнение не выполнено — в следующий раз начни без повышения нагрузки.', reason: 'нет завершённых подходов' };
+    }
+    if (metrics.discomfort || resultHasHighPain(result, workout)) {
+      const nextWeight = metrics.maxWeight > 0 ? roundHalf(metrics.maxWeight * 0.9) : null;
+      return { ...base, kind: 'reduce', title: 'Сначала комфорт', weightKg: nextWeight, text: nextWeight ? `Не повышать. Начни примерно с ${formatKg(nextWeight)} кг или выбери замену.` : 'Не повышать нагрузку; сократи амплитуду или выбери замену.', reason: 'отмечен дискомфорт или боль' };
+    }
+    if (exercise.defaults?.unit === 'minutes' || exercise.defaults?.unit === 'seconds') {
+      const field = exercise.defaults.unit === 'minutes' ? 'durationMin' : 'durationSec';
+      const unit = exercise.defaults.unit === 'minutes' ? 'мин' : 'сек';
+      const current = Math.max(...metrics.done.map((set) => Number(set[field]) || 0));
+      if (!metrics.fullCompletion || metrics.failureCount || metrics.hardRatio >= 0.5) {
+        const next = Math.max(1, Math.round(current * 0.9));
+        return { ...base, kind: 'reduce', title: 'Сделать легче', duration: next, text: `Следующий раз: около ${next} ${unit} без выхода на предел.`, reason: 'часть работы была тяжёлой или не завершена' };
+      }
+      if (metrics.done.every((set) => set.difficulty === 'easy')) {
+        const add = exercise.defaults.unit === 'minutes' ? Math.max(1, Math.round(current * 0.1)) : Math.max(5, Math.round(current * 0.1));
+        return { ...base, kind: 'increase', title: 'Немного добавить', duration: current + add, text: `Попробуй ${current + add} ${unit}.`, reason: 'вся работа выполнена легко' };
+      }
+      return { ...base, kind: 'same', title: 'Закрепить', duration: current, text: `Повтори около ${current} ${unit}.`, reason: 'нагрузка была рабочей' };
+    }
+    if (!metrics.fullCompletion || metrics.failureCount) {
+      const nextWeight = metrics.maxWeight > 0 ? roundHalf(metrics.maxWeight * 0.95) : null;
+      return { ...base, kind: 'reduce', title: 'Сделать устойчивее', weightKg: nextWeight, text: nextWeight ? `Попробуй ${formatKg(nextWeight)} кг и выполни все подходы без отказа.` : 'Снизь повторения на 1–2 и закончи все подходы.', reason: 'были незавершённые подходы или отказ' };
+    }
+    if (metrics.hardRatio >= 0.5 || result.feedback === 'hard') {
+      return { ...base, kind: 'same', title: 'Оставить нагрузку', weightKg: metrics.maxWeight || null, text: metrics.maxWeight ? `Оставь ${formatKg(metrics.maxWeight)} кг и закрепи технику.` : 'Повтори тот же объём.', reason: 'больше половины подходов были тяжёлыми' };
+    }
+    const targetMax = Number(result.defaults?.repsMax || exercise.defaults?.repsMax || 0);
+    const allEasy = metrics.done.every((set) => set.difficulty === 'easy') || result.feedback === 'easy';
+    const previousImproved = previous && (metrics.volume > previous.volume * 1.03 || metrics.maxReps > previous.maxReps);
+    if (metrics.maxWeight > 0 && (allEasy || (targetMax > 0 && metrics.minReps >= targetMax))) {
+      const nextWeight = roundHalf(metrics.maxWeight + recommendedWeightStep(metrics.maxWeight));
+      return { ...base, kind: 'increase', title: 'Добавить вес', weightKg: nextWeight, text: `Попробуй ${formatKg(nextWeight)} кг. Если техника поплывёт — вернись к ${formatKg(metrics.maxWeight)} кг.`, reason: allEasy ? 'все подходы выполнены легко' : `во всех подходах достигнут верх диапазона повторов${previousImproved ? ', результат вырос' : ''}` };
+    }
+    if (targetMax > 0 && metrics.minReps < targetMax) {
+      const nextMin = Math.min(targetMax, Math.max(metrics.minReps + 1, Number(result.defaults?.repsMin || 1)));
+      return { ...base, kind: 'increase', title: 'Добавить повтор', weightKg: metrics.maxWeight || null, repsMin: nextMin, repsMax: targetMax, text: `Оставь ${metrics.maxWeight ? `${formatKg(metrics.maxWeight)} кг` : 'тот же вариант'} и целься минимум в ${nextMin} повторов в каждом подходе.`, reason: 'вес уже рабочий, но диапазон повторов ещё не закрыт' };
+    }
+    return { ...base, kind: 'same', title: 'Закрепить', weightKg: metrics.maxWeight || null, text: metrics.maxWeight ? `Повтори ${formatKg(metrics.maxWeight)} кг с той же техникой.` : 'Повтори тот же объём.', reason: 'нагрузка выполнена ровно' };
+  }
+
+  function postWorkoutSuggestion(result, workout = null){
+    return smartPostWorkoutRecommendation(result, workout);
   }
 
   function workoutCompletion(workout){const sets=workout.exercises.filter((x)=>!x.skipped).flatMap((x)=>x.sets);if(!sets.length)return 0;return Math.round(sets.filter((s)=>s.completed).length/sets.length*100);}
