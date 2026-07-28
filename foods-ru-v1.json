@@ -1,10 +1,10 @@
 {
   "schemaVersion": 2,
   "databaseId": "trenirovki-foods-ru",
-  "databaseVersion": "2026.07.4",
+  "databaseVersion": "2026.07.5",
   "language": "ru",
   "region": "RU",
-  "generatedAt": "2026-07-27T20:00:00.000Z",
+  "generatedAt": "2026-07-28T04:00:00.000Z",
   "units": {
     "nutritionBasis": "на 100 г продукта/порошка или на 100 мл напитка",
     "energy": "ккал",
@@ -28,20 +28,20 @@
     "Пользовательские продукты и дневник питания хранятся отдельно от встроенной базы."
   ],
   "stats": {
-    "total": 901,
-    "generic": 210,
-    "dishes": 91,
+    "total": 971,
+    "generic": 220,
+    "dishes": 151,
     "beverages": 276,
     "sportNutrition": 43,
-    "branded": 367,
+    "branded": 281,
     "barcodes": 367,
     "categories": {
       "Бобовые": 6,
-      "Готовые блюда": 91,
+      "Готовые блюда": 151,
       "Крупы, макароны и хлеб": 70,
       "Масла, соусы и добавки": 43,
       "Молочные продукты": 137,
-      "Мясо и птица": 35,
+      "Мясо и птица": 45,
       "Напитки": 256,
       "Овощи и зелень": 38,
       "Овощи и консервы": 6,
@@ -53,34 +53,36 @@
       "Яйца": 10
     },
     "subcategories": {
-      "Мясные блюда": 13,
-      "Рыбные блюда": 6,
-      "Кисломолочные напитки": 21,
-      "Молоко": 28,
-      "Питьевые йогурты": 2,
-      "Сывороточные напитки": 4,
       "Алкоголь и коктейли": 32,
+      "Аминокислоты": 4,
+      "Белковые добавки": 1,
+      "Блюда из курицы": 61,
       "Вода": 14,
       "Газированные напитки": 30,
+      "Гейнеры": 3,
+      "Изотоники и электролиты": 3,
       "Какао и шоколадные напитки": 3,
       "Квас и брожение": 3,
+      "Кисломолочные напитки": 21,
       "Коктейли и смузи": 18,
       "Кофе": 28,
       "Кофе и какао": 6,
-      "Прочие напитки": 6,
-      "Соки, нектары и морсы": 70,
-      "Спортивные напитки": 10,
-      "Чай": 20,
-      "Энергетики": 16,
-      "Аминокислоты": 4,
-      "Белковые добавки": 1,
-      "Гейнеры": 3,
-      "Изотоники и электролиты": 3,
       "Креатин": 1,
+      "Курица готовая": 10,
+      "Молоко": 28,
+      "Мясные блюда": 13,
+      "Питьевые йогурты": 2,
       "Предтренировочные комплексы": 2,
       "Протеин": 20,
       "Протеиновые продукты": 6,
-      "Углеводные смеси": 3
+      "Прочие напитки": 6,
+      "Рыбные блюда": 6,
+      "Соки, нектары и морсы": 70,
+      "Спортивные напитки": 10,
+      "Сывороточные напитки": 4,
+      "Углеводные смеси": 3,
+      "Чай": 20,
+      "Энергетики": 16
     }
   },
   "foods": [
@@ -2887,7 +2889,8 @@
       "type": "dish",
       "name": "Чахохбили из курицы",
       "aliases": [
-        "чахохбили"
+        "чахохбили",
+        "курица по грузински с томатами"
       ],
       "brand": null,
       "barcode": null,
@@ -2917,7 +2920,8 @@
       },
       "confidence": "estimate",
       "note": "Ориентировочное значение: зависит от рецепта и количества масла.",
-      "search": "чахохбили из курицы чахохбили готовые блюда"
+      "search": "чахохбили из курицы чахохбили курица по грузински с томатами готовые блюда блюда из курицы",
+      "subcategory": "Блюда из курицы"
     },
     {
       "id": "dish-ru-charlotte",
@@ -36082,6 +36086,3030 @@
       "confidence": "reference",
       "note": null,
       "search": "яйцо перепелиное вареное перепелиное яйцо яйца"
+    },
+    {
+      "id": "dish-chicken-leg-baked",
+      "type": "generic",
+      "name": "Окорочок куриный запечённый",
+      "aliases": [
+        "окорочок запеченный",
+        "куриный окорочок в духовке",
+        "ножка куриная запечённая",
+        "окорочок куриный запеченый",
+        "окорочок запеченый",
+        "ножка куриная запеченая",
+        "окорочек куриный запеченый",
+        "окорочек запеченый",
+        "куриная ножка запеченая"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Мясо и птица",
+      "subcategory": "Курица готовая",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 190,
+        "protein": 23.5,
+        "fat": 10.2,
+        "carbs": 0,
+        "fiber": 0,
+        "sugar": 0,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "1 окорочок, съедобная часть",
+          "grams": 180
+        },
+        {
+          "id": "p2",
+          "label": "порция",
+          "grams": 200
+        }
+      ],
+      "source": {
+        "provider": "USDA FoodData Central, FNDDS 2021–2023; редакционная агрегация",
+        "license": "CC0-1.0",
+        "reference": "FDC 2706029/2706030 + 2706002/2706003",
+        "originalName": "Chicken thigh and drumstick, baked or roasted"
+      },
+      "confidence": "estimate",
+      "note": "КБЖУ указано на съедобную часть без костей. Кожа, маринад и количество масла заметно меняют итог.",
+      "search": "окорочок куриный запеченный окорочок запеченный куриный окорочок в духовке ножка куриная запеченная окорочок куриный запеченый окорочок запеченый ножка куриная запеченая окорочек куриный запеченый окорочек запеченый куриная ножка запеченая мясо и птица курица готовая"
+    },
+    {
+      "id": "dish-chicken-leg-baked-skin",
+      "type": "generic",
+      "name": "Окорочок куриный запечённый с кожей",
+      "aliases": [
+        "окорочок с кожей в духовке",
+        "окорочок куриный запеченый с кожей"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Мясо и птица",
+      "subcategory": "Курица готовая",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 218,
+        "protein": 23.1,
+        "fat": 13.5,
+        "carbs": 0,
+        "fiber": 0,
+        "sugar": 0,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "1 окорочок, съедобная часть",
+          "grams": 190
+        },
+        {
+          "id": "p2",
+          "label": "порция",
+          "grams": 200
+        }
+      ],
+      "source": {
+        "provider": "USDA FoodData Central, FNDDS 2021–2023; редакционная агрегация",
+        "license": "CC0-1.0",
+        "reference": "FDC 2706029 + 2706002",
+        "originalName": "Chicken thigh and drumstick, baked, skin eaten"
+      },
+      "confidence": "estimate",
+      "note": "КБЖУ указано на съедобную часть без костей. Кожа, маринад и количество масла заметно меняют итог.",
+      "search": "окорочок куриный запеченный с кожей окорочок с кожей в духовке окорочок куриный запеченый с кожей мясо и птица курица готовая"
+    },
+    {
+      "id": "dish-chicken-leg-baked-no-skin",
+      "type": "generic",
+      "name": "Окорочок куриный запечённый без кожи",
+      "aliases": [
+        "окорочок без кожи в духовке",
+        "окорочок куриный запеченый без кожи"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Мясо и птица",
+      "subcategory": "Курица готовая",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 166,
+        "protein": 24.4,
+        "fat": 7,
+        "carbs": 0,
+        "fiber": 0,
+        "sugar": 0,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "1 окорочок, съедобная часть",
+          "grams": 170
+        },
+        {
+          "id": "p2",
+          "label": "порция",
+          "grams": 200
+        }
+      ],
+      "source": {
+        "provider": "USDA FoodData Central, FNDDS 2021–2023; редакционная агрегация",
+        "license": "CC0-1.0",
+        "reference": "FDC 2706030 + 2706003",
+        "originalName": "Chicken thigh and drumstick, baked, skin not eaten"
+      },
+      "confidence": "estimate",
+      "note": "КБЖУ указано на съедобную часть без костей. Кожа, маринад и количество масла заметно меняют итог.",
+      "search": "окорочок куриный запеченный без кожи окорочок без кожи в духовке окорочок куриный запеченый без кожи мясо и птица курица готовая"
+    },
+    {
+      "id": "dish-chicken-leg-stewed",
+      "type": "generic",
+      "name": "Окорочок куриный тушёный",
+      "aliases": [
+        "тушеный окорочок",
+        "куриный окорочок тушёный"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Мясо и птица",
+      "subcategory": "Курица готовая",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 178,
+        "protein": 22.5,
+        "fat": 9,
+        "carbs": 1,
+        "fiber": 0,
+        "sugar": 0,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "1 окорочок, съедобная часть",
+          "grams": 180
+        },
+        {
+          "id": "p2",
+          "label": "порция",
+          "grams": 200
+        }
+      ],
+      "source": {
+        "provider": "USDA FoodData Central, FNDDS 2021–2023; редакционная агрегация",
+        "license": "CC0-1.0",
+        "reference": "derived from FNDDS chicken parts, stewed",
+        "originalName": "Chicken leg, stewed"
+      },
+      "confidence": "estimate",
+      "note": "КБЖУ указано на съедобную часть без костей. Кожа, маринад и количество масла заметно меняют итог.",
+      "search": "окорочок куриный тушеный тушеный окорочок куриный окорочок тушеный мясо и птица курица готовая"
+    },
+    {
+      "id": "dish-chicken-leg-stewed-skin",
+      "type": "generic",
+      "name": "Окорочок куриный тушёный с кожей",
+      "aliases": [
+        "окорочок тушеный с кожей"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Мясо и птица",
+      "subcategory": "Курица готовая",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 202,
+        "protein": 21.8,
+        "fat": 12,
+        "carbs": 1,
+        "fiber": 0,
+        "sugar": 0,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "1 окорочок, съедобная часть",
+          "grams": 190
+        },
+        {
+          "id": "p2",
+          "label": "порция",
+          "grams": 200
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-leg-stewed-skin"
+      },
+      "confidence": "estimate",
+      "note": "КБЖУ указано на съедобную часть без костей. Кожа, маринад и количество масла заметно меняют итог.",
+      "search": "окорочок куриный тушеный с кожей окорочок тушеный с кожей мясо и птица курица готовая"
+    },
+    {
+      "id": "dish-chicken-leg-stewed-no-skin",
+      "type": "generic",
+      "name": "Окорочок куриный тушёный без кожи",
+      "aliases": [
+        "окорочок тушеный без кожи"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Мясо и птица",
+      "subcategory": "Курица готовая",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 158,
+        "protein": 23.5,
+        "fat": 6.4,
+        "carbs": 1,
+        "fiber": 0,
+        "sugar": 0,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "1 окорочок, съедобная часть",
+          "grams": 170
+        },
+        {
+          "id": "p2",
+          "label": "порция",
+          "grams": 200
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-leg-stewed-no-skin"
+      },
+      "confidence": "estimate",
+      "note": "КБЖУ указано на съедобную часть без костей. Кожа, маринад и количество масла заметно меняют итог.",
+      "search": "окорочок куриный тушеный без кожи окорочок тушеный без кожи мясо и птица курица готовая"
+    },
+    {
+      "id": "dish-chicken-leg-baked-vegetables",
+      "type": "dish",
+      "name": "Окорочок куриный, запечённый с овощами",
+      "aliases": [
+        "окорочок с овощами в духовке",
+        "окорочок куриный запеченый с овощами"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 154,
+        "protein": 15,
+        "fat": 8.5,
+        "carbs": 4.5,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "1 окорочок с овощами",
+          "grams": 280
+        },
+        {
+          "id": "p2",
+          "label": "порция",
+          "grams": 250
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-leg-baked-vegetables"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "окорочок куриный запеченный с овощами окорочок с овощами в духовке окорочок куриный запеченый с овощами готовые блюда блюда из курицы овощи окорочок овощи"
+    },
+    {
+      "id": "dish-chicken-leg-stewed-vegetables",
+      "type": "dish",
+      "name": "Окорочок куриный, тушёный с овощами",
+      "aliases": [
+        "окорочок тушеный с овощами"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 137,
+        "protein": 14.5,
+        "fat": 6.5,
+        "carbs": 5.5,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "1 окорочок с овощами",
+          "grams": 280
+        },
+        {
+          "id": "p2",
+          "label": "порция",
+          "grams": 250
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-leg-stewed-vegetables"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "окорочок куриный тушеный с овощами окорочок тушеный с овощами готовые блюда блюда из курицы овощи окорочок овощи"
+    },
+    {
+      "id": "dish-chicken-leg-tomato",
+      "type": "dish",
+      "name": "Окорочок куриный в томатном соусе",
+      "aliases": [
+        "окорочок в томате",
+        "окорочок с подливкой"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 148,
+        "protein": 16.5,
+        "fat": 7,
+        "carbs": 4.5,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "1 окорочок с соусом",
+          "grams": 240
+        },
+        {
+          "id": "p2",
+          "label": "порция",
+          "grams": 250
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-leg-tomato"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "окорочок куриный в томатном соусе окорочок в томате окорочок с подливкой готовые блюда блюда из курицы томат томат"
+    },
+    {
+      "id": "dish-chicken-leg-cream",
+      "type": "dish",
+      "name": "Окорочок куриный в сливочном соусе",
+      "aliases": [
+        "окорочок в сливках"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 191,
+        "protein": 15.5,
+        "fat": 13,
+        "carbs": 4,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "1 окорочок с соусом",
+          "grams": 240
+        },
+        {
+          "id": "p2",
+          "label": "порция",
+          "grams": 250
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-leg-cream"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "окорочок куриный в сливочном соусе окорочок в сливках готовые блюда блюда из курицы сливки сливки"
+    },
+    {
+      "id": "dish-chicken-thigh-stewed",
+      "type": "generic",
+      "name": "Бедро куриное тушёное",
+      "aliases": [
+        "куриное бедро тушеное"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Мясо и птица",
+      "subcategory": "Курица готовая",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 185,
+        "protein": 22.5,
+        "fat": 9.8,
+        "carbs": 1,
+        "fiber": 0,
+        "sugar": 0,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "1 бедро, съедобная часть",
+          "grams": 110
+        },
+        {
+          "id": "p2",
+          "label": "порция",
+          "grams": 200
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-thigh-stewed"
+      },
+      "confidence": "estimate",
+      "note": "КБЖУ указано на съедобную часть без костей. Кожа, маринад и количество масла заметно меняют итог.",
+      "search": "бедро куриное тушеное куриное бедро тушеное мясо и птица курица готовая"
+    },
+    {
+      "id": "dish-chicken-thigh-stewed-vegetables",
+      "type": "dish",
+      "name": "Бедро куриное, тушёное с овощами",
+      "aliases": [
+        "куриные бедра с овощами"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 148,
+        "protein": 16,
+        "fat": 7.2,
+        "carbs": 5,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "1 бедро с овощами",
+          "grams": 190
+        },
+        {
+          "id": "p2",
+          "label": "порция",
+          "grams": 250
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-thigh-stewed-vegetables"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "бедро куриное тушеное с овощами куриные бедра с овощами готовые блюда блюда из курицы овощи бедро овощи"
+    },
+    {
+      "id": "dish-chicken-thigh-tomato",
+      "type": "dish",
+      "name": "Бедро куриное в томатном соусе",
+      "aliases": [
+        "куриные бедра в томате"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 158,
+        "protein": 18,
+        "fat": 7.8,
+        "carbs": 4,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "1 бедро с соусом",
+          "grams": 160
+        },
+        {
+          "id": "p2",
+          "label": "порция",
+          "grams": 220
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-thigh-tomato"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "бедро куриное в томатном соусе куриные бедра в томате готовые блюда блюда из курицы томат томат"
+    },
+    {
+      "id": "dish-chicken-thigh-cream",
+      "type": "dish",
+      "name": "Бедро куриное в сливочном соусе",
+      "aliases": [
+        "куриные бедра в сливках"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 207,
+        "protein": 17,
+        "fat": 14,
+        "carbs": 4,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "1 бедро с соусом",
+          "grams": 160
+        },
+        {
+          "id": "p2",
+          "label": "порция",
+          "grams": 220
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-thigh-cream"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "бедро куриное в сливочном соусе куриные бедра в сливках готовые блюда блюда из курицы сливки сливки бедро сливки"
+    },
+    {
+      "id": "dish-chicken-thigh-baked-vegetables",
+      "type": "dish",
+      "name": "Бедро куриное, запечённое с овощами",
+      "aliases": [
+        "куриные бедра с овощами в духовке",
+        "бедро куриное запеченое с овощами"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 160,
+        "protein": 17,
+        "fat": 8.5,
+        "carbs": 4.5,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "1 бедро с овощами",
+          "grams": 190
+        },
+        {
+          "id": "p2",
+          "label": "порция",
+          "grams": 250
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-thigh-baked-vegetables"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "бедро куриное запеченное с овощами куриные бедра с овощами в духовке бедро куриное запеченое с овощами готовые блюда блюда из курицы овощи бедро овощи"
+    },
+    {
+      "id": "dish-chicken-drumstick-stewed",
+      "type": "generic",
+      "name": "Голень куриная тушёная",
+      "aliases": [
+        "куриная ножка тушеная"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Мясо и птица",
+      "subcategory": "Курица готовая",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 168,
+        "protein": 22.5,
+        "fat": 7.8,
+        "carbs": 1,
+        "fiber": 0,
+        "sugar": 0,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "1 голень, съедобная часть",
+          "grams": 80
+        },
+        {
+          "id": "p2",
+          "label": "порция",
+          "grams": 160
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-drumstick-stewed"
+      },
+      "confidence": "estimate",
+      "note": "КБЖУ указано на съедобную часть без костей. Кожа, маринад и количество масла заметно меняют итог.",
+      "search": "голень куриная тушеная куриная ножка тушеная мясо и птица курица готовая"
+    },
+    {
+      "id": "dish-chicken-drumstick-stewed-vegetables",
+      "type": "dish",
+      "name": "Голень куриная, тушёная с овощами",
+      "aliases": [
+        "куриные голени с овощами"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 140,
+        "protein": 16,
+        "fat": 6,
+        "carbs": 5,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "2 голени с овощами",
+          "grams": 230
+        },
+        {
+          "id": "p2",
+          "label": "порция",
+          "grams": 250
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-drumstick-stewed-vegetables"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "голень куриная тушеная с овощами куриные голени с овощами готовые блюда блюда из курицы овощи голень овощи"
+    },
+    {
+      "id": "dish-chicken-drumstick-tomato",
+      "type": "dish",
+      "name": "Голень куриная в томатном соусе",
+      "aliases": [
+        "куриные голени в томате"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 151,
+        "protein": 18,
+        "fat": 6.5,
+        "carbs": 4,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "2 голени с соусом",
+          "grams": 190
+        },
+        {
+          "id": "p2",
+          "label": "порция",
+          "grams": 220
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-drumstick-tomato"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "голень куриная в томатном соусе куриные голени в томате готовые блюда блюда из курицы томат томат"
+    },
+    {
+      "id": "dish-chicken-drumstick-cream",
+      "type": "dish",
+      "name": "Голень куриная в сливочном соусе",
+      "aliases": [
+        "куриные голени в сливках"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 195,
+        "protein": 17,
+        "fat": 12.5,
+        "carbs": 4,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "2 голени с соусом",
+          "grams": 190
+        },
+        {
+          "id": "p2",
+          "label": "порция",
+          "grams": 220
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-drumstick-cream"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "голень куриная в сливочном соусе куриные голени в сливках готовые блюда блюда из курицы сливки сливки голень сливки"
+    },
+    {
+      "id": "dish-chicken-drumstick-baked-vegetables",
+      "type": "dish",
+      "name": "Голень куриная, запечённая с овощами",
+      "aliases": [
+        "куриные голени с овощами в духовке",
+        "голень куриная запеченая с овощами"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 150,
+        "protein": 17,
+        "fat": 7,
+        "carbs": 4.5,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "2 голени с овощами",
+          "grams": 230
+        },
+        {
+          "id": "p2",
+          "label": "порция",
+          "grams": 250
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-drumstick-baked-vegetables"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "голень куриная запеченная с овощами куриные голени с овощами в духовке голень куриная запеченая с овощами готовые блюда блюда из курицы овощи голень овощи"
+    },
+    {
+      "id": "dish-chicken-wings-stewed",
+      "type": "dish",
+      "name": "Крылья куриные тушёные",
+      "aliases": [
+        "куриные крылышки тушеные"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 226,
+        "protein": 20,
+        "fat": 15,
+        "carbs": 2,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "4 крыла, съедобная часть",
+          "grams": 140
+        },
+        {
+          "id": "p2",
+          "label": "порция",
+          "grams": 180
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-wings-stewed"
+      },
+      "confidence": "estimate",
+      "note": "КБЖУ указано на съедобную часть без костей. Кожа, маринад и количество масла заметно меняют итог.",
+      "search": "крылья куриные тушеные куриные крылышки тушеные готовые блюда блюда из курицы"
+    },
+    {
+      "id": "dish-chicken-wings-tomato",
+      "type": "dish",
+      "name": "Крылья куриные в томатном соусе",
+      "aliases": [
+        "крылышки в томате"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 221,
+        "protein": 19,
+        "fat": 14,
+        "carbs": 5,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "4 крыла с соусом",
+          "grams": 180
+        },
+        {
+          "id": "p2",
+          "label": "порция",
+          "grams": 200
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-wings-tomato"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "крылья куриные в томатном соусе крылышки в томате готовые блюда блюда из курицы томат томат"
+    },
+    {
+      "id": "dish-chicken-wings-soy",
+      "type": "dish",
+      "name": "Крылья куриные, запечённые в соевом соусе",
+      "aliases": [
+        "крылышки в соевом соусе",
+        "крылья куриные запеченые в соевом соусе"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 246,
+        "protein": 22,
+        "fat": 16,
+        "carbs": 3,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "4 крыла, съедобная часть",
+          "grams": 140
+        },
+        {
+          "id": "p2",
+          "label": "порция",
+          "grams": 180
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-wings-soy"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "крылья куриные запеченные в соевом соусе крылышки в соевом соусе крылья куриные запеченые в соевом соусе готовые блюда блюда из курицы соевый"
+    },
+    {
+      "id": "dish-chicken-wings-honey-mustard",
+      "type": "dish",
+      "name": "Крылья куриные в медово-горчичном соусе",
+      "aliases": [
+        "медовые куриные крылышки"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 262,
+        "protein": 20,
+        "fat": 17,
+        "carbs": 9,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "4 крыла, съедобная часть",
+          "grams": 140
+        },
+        {
+          "id": "p2",
+          "label": "порция",
+          "grams": 180
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-wings-honey-mustard"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "крылья куриные в медово горчичном соусе медовые куриные крылышки готовые блюда блюда из курицы горчица мед горчица"
+    },
+    {
+      "id": "dish-chicken-wings-bbq",
+      "type": "dish",
+      "name": "Крылья куриные в соусе барбекю",
+      "aliases": [
+        "крылышки барбекю",
+        "куриные крылья BBQ"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 250,
+        "protein": 20,
+        "fat": 15,
+        "carbs": 8,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "4 крыла, съедобная часть",
+          "grams": 140
+        },
+        {
+          "id": "p2",
+          "label": "порция",
+          "grams": 180
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-wings-bbq"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "крылья куриные в соусе барбекю крылышки барбекю куриные крылья bbq готовые блюда блюда из курицы"
+    },
+    {
+      "id": "dish-chicken-fillet-own-juice",
+      "type": "dish",
+      "name": "Филе куриное, тушёное в собственном соку",
+      "aliases": [
+        "куриная грудка в собственном соку",
+        "куриное филе без соуса"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 151,
+        "protein": 27,
+        "fat": 4,
+        "carbs": 1,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "1 филе",
+          "grams": 180
+        },
+        {
+          "id": "p2",
+          "label": "порция",
+          "grams": 200
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-fillet-own-juice"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "филе куриное тушеное в собственном соку куриная грудка в собственном соку куриное филе без соуса готовые блюда блюда из курицы свой сок без соуса"
+    },
+    {
+      "id": "dish-chicken-fillet-stewed-vegetables",
+      "type": "dish",
+      "name": "Филе куриное, тушёное с овощами",
+      "aliases": [
+        "куриная грудка тушеная с овощами"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 121,
+        "protein": 19,
+        "fat": 3,
+        "carbs": 5,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "порция",
+          "grams": 250
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-fillet-stewed-vegetables"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "филе куриное тушеное с овощами куриная грудка тушеная с овощами готовые блюда блюда из курицы овощи"
+    },
+    {
+      "id": "dish-chicken-fillet-baked-vegetables",
+      "type": "dish",
+      "name": "Филе куриное, запечённое с овощами",
+      "aliases": [
+        "куриная грудка с овощами в духовке",
+        "филе куриное запеченое с овощами"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 136,
+        "protein": 20,
+        "fat": 4,
+        "carbs": 5,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "порция",
+          "grams": 250
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-fillet-baked-vegetables"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "филе куриное запеченное с овощами куриная грудка с овощами в духовке филе куриное запеченое с овощами готовые блюда блюда из курицы овощи"
+    },
+    {
+      "id": "dish-chicken-fillet-tomato",
+      "type": "dish",
+      "name": "Филе куриное в томатном соусе",
+      "aliases": [
+        "куриная грудка в томате"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 132,
+        "protein": 20,
+        "fat": 3.5,
+        "carbs": 5,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "порция",
+          "grams": 220
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-fillet-tomato"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "филе куриное в томатном соусе куриная грудка в томате готовые блюда блюда из курицы томат томат"
+    },
+    {
+      "id": "dish-chicken-fillet-cream",
+      "type": "dish",
+      "name": "Филе куриное в сливочном соусе",
+      "aliases": [
+        "куриная грудка в сливках"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 176,
+        "protein": 20,
+        "fat": 9,
+        "carbs": 5,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "порция",
+          "grams": 220
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-fillet-cream"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "филе куриное в сливочном соусе куриная грудка в сливках готовые блюда блюда из курицы сливки сливки филе сливки грудка сливки"
+    },
+    {
+      "id": "dish-chicken-fillet-sour-cream",
+      "type": "dish",
+      "name": "Филе куриное в сметанном соусе",
+      "aliases": [
+        "курица в сметане",
+        "куриная грудка в сметане"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 171,
+        "protein": 20,
+        "fat": 8.5,
+        "carbs": 5,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "порция",
+          "grams": 220
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-fillet-sour-cream"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "филе куриное в сметанном соусе курица в сметане куриная грудка в сметане готовые блюда блюда из курицы сметана сметана"
+    },
+    {
+      "id": "dish-chicken-fillet-mushroom-cream",
+      "type": "dish",
+      "name": "Филе куриное с грибами в сливочном соусе",
+      "aliases": [
+        "курица с грибами в сливках"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 166,
+        "protein": 18,
+        "fat": 9,
+        "carbs": 4,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "порция",
+          "grams": 250
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-fillet-mushroom-cream"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "филе куриное с грибами в сливочном соусе курица с грибами в сливках готовые блюда блюда из курицы сливки сливки грибы филе сливки грудка сливки"
+    },
+    {
+      "id": "dish-chicken-fillet-cheese-baked",
+      "type": "dish",
+      "name": "Филе куриное, запечённое под сыром",
+      "aliases": [
+        "куриная грудка под сыром",
+        "курица с сыром в духовке",
+        "филе куриное запеченое под сыром"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 206,
+        "protein": 24,
+        "fat": 11,
+        "carbs": 3,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "1 филе",
+          "grams": 200
+        },
+        {
+          "id": "p2",
+          "label": "порция",
+          "grams": 220
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-fillet-cheese-baked"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "филе куриное запеченное под сыром куриная грудка под сыром курица с сыром в духовке филе куриное запеченое под сыром готовые блюда блюда из курицы сыр"
+    },
+    {
+      "id": "dish-chicken-breast-sleeve",
+      "type": "dish",
+      "name": "Грудка куриная, запечённая в рукаве",
+      "aliases": [
+        "куриное филе в рукаве",
+        "грудка куриная запеченая в рукаве"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 160,
+        "protein": 29,
+        "fat": 4,
+        "carbs": 1,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "1 филе",
+          "grams": 180
+        },
+        {
+          "id": "p2",
+          "label": "порция",
+          "grams": 200
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-breast-sleeve"
+      },
+      "confidence": "estimate",
+      "note": "КБЖУ указано на съедобную часть без костей. Кожа, маринад и количество масла заметно меняют итог.",
+      "search": "грудка куриная запеченная в рукаве куриное филе в рукаве грудка куриная запеченая в рукаве готовые блюда блюда из курицы"
+    },
+    {
+      "id": "dish-chicken-breast-tomato-cheese",
+      "type": "dish",
+      "name": "Грудка куриная, запечённая с помидорами и сыром",
+      "aliases": [
+        "куриное филе с помидорами и сыром",
+        "грудка куриная запеченая с помидорами и сыром"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 195,
+        "protein": 23,
+        "fat": 10,
+        "carbs": 4,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "1 филе",
+          "grams": 220
+        },
+        {
+          "id": "p2",
+          "label": "порция",
+          "grams": 250
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-breast-tomato-cheese"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "грудка куриная запеченная с помидорами и сыром куриное филе с помидорами и сыром грудка куриная запеченая с помидорами и сыром готовые блюда блюда из курицы сыр помидор томаты"
+    },
+    {
+      "id": "dish-chicken-french-style",
+      "type": "dish",
+      "name": "Курица по-французски",
+      "aliases": [
+        "куриное филе по французски",
+        "курица с сыром и майонезом"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 216,
+        "protein": 18,
+        "fat": 14,
+        "carbs": 6,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "порция",
+          "grams": 250
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-french-style"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "курица по французски куриное филе по французски курица с сыром и майонезом готовые блюда блюда из курицы сыр"
+    },
+    {
+      "id": "dish-chicken-pineapple-cheese",
+      "type": "dish",
+      "name": "Куриное филе с ананасом и сыром",
+      "aliases": [
+        "курица с ананасами в духовке"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 193,
+        "protein": 20,
+        "fat": 9,
+        "carbs": 8,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "порция",
+          "grams": 250
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-pineapple-cheese"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "куриное филе с ананасом и сыром курица с ананасами в духовке готовые блюда блюда из курицы сыр ананас"
+    },
+    {
+      "id": "dish-whole-chicken-baked-skin",
+      "type": "generic",
+      "name": "Курица целая запечённая с кожей",
+      "aliases": [
+        "курица запеченная целиком",
+        "курица целиком в духовке",
+        "курица целая запеченая с кожей",
+        "курица запеченая целиком"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Мясо и птица",
+      "subcategory": "Курица готовая",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 220,
+        "protein": 25,
+        "fat": 12,
+        "carbs": 0,
+        "fiber": 0,
+        "sugar": 0,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "порция мяса",
+          "grams": 200
+        }
+      ],
+      "source": {
+        "provider": "USDA FoodData Central, FNDDS 2021–2023; редакционная агрегация",
+        "license": "CC0-1.0",
+        "reference": "derived from FNDDS roasted chicken parts, skin eaten",
+        "originalName": "Whole chicken, roasted, skin eaten"
+      },
+      "confidence": "estimate",
+      "note": "КБЖУ указано на съедобную часть без костей. Кожа, маринад и количество масла заметно меняют итог.",
+      "search": "курица целая запеченная с кожей курица запеченная целиком курица целиком в духовке курица целая запеченая с кожей курица запеченая целиком мясо и птица курица готовая"
+    },
+    {
+      "id": "dish-whole-chicken-baked-no-skin",
+      "type": "generic",
+      "name": "Курица целая запечённая без кожи",
+      "aliases": [
+        "запеченная курица без кожи",
+        "курица целая запеченая без кожи",
+        "запеченая курица без кожи"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Мясо и птица",
+      "subcategory": "Курица готовая",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 170,
+        "protein": 26,
+        "fat": 6.5,
+        "carbs": 0,
+        "fiber": 0,
+        "sugar": 0,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "порция мяса",
+          "grams": 200
+        }
+      ],
+      "source": {
+        "provider": "USDA FoodData Central, FNDDS 2021–2023; редакционная агрегация",
+        "license": "CC0-1.0",
+        "reference": "derived from FNDDS roasted chicken parts, skin not eaten",
+        "originalName": "Whole chicken, roasted, skin not eaten"
+      },
+      "confidence": "estimate",
+      "note": "КБЖУ указано на съедобную часть без костей. Кожа, маринад и количество масла заметно меняют итог.",
+      "search": "курица целая запеченная без кожи запеченная курица без кожи курица целая запеченая без кожи запеченая курица без кожи мясо и птица курица готовая"
+    },
+    {
+      "id": "dish-whole-chicken-sleeve",
+      "type": "dish",
+      "name": "Курица, запечённая целиком в рукаве",
+      "aliases": [
+        "курица в рукаве",
+        "курица целиком в рукаве",
+        "курица запеченая целиком в рукаве"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 201,
+        "protein": 24,
+        "fat": 10.5,
+        "carbs": 1,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "порция мяса",
+          "grams": 200
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-whole-chicken-sleeve"
+      },
+      "confidence": "estimate",
+      "note": "КБЖУ указано на съедобную часть без костей. Кожа, маринад и количество масла заметно меняют итог.",
+      "search": "курица запеченная целиком в рукаве курица в рукаве курица целиком в рукаве курица запеченая целиком в рукаве готовые блюда блюда из курицы"
+    },
+    {
+      "id": "dish-whole-chicken-vegetables",
+      "type": "dish",
+      "name": "Курица, запечённая с овощами",
+      "aliases": [
+        "курица с овощами в духовке",
+        "курица запеченая с овощами"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 146,
+        "protein": 15,
+        "fat": 7,
+        "carbs": 5,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "порция",
+          "grams": 300
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-whole-chicken-vegetables"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "курица запеченная с овощами курица с овощами в духовке курица запеченая с овощами готовые блюда блюда из курицы овощи"
+    },
+    {
+      "id": "dish-whole-chicken-salt",
+      "type": "dish",
+      "name": "Курица, запечённая на соли",
+      "aliases": [
+        "курица на соли",
+        "курица запеченая на соли"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 215,
+        "protein": 25,
+        "fat": 12,
+        "carbs": 0,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "порция мяса",
+          "grams": 200
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-whole-chicken-salt"
+      },
+      "confidence": "estimate",
+      "note": "КБЖУ указано на съедобную часть без костей. Кожа, маринад и количество масла заметно меняют итог.",
+      "search": "курица запеченная на соли курица на соли курица запеченая на соли готовые блюда блюда из курицы"
+    },
+    {
+      "id": "dish-whole-chicken-own-juice",
+      "type": "dish",
+      "name": "Курица, тушёная в собственном соку",
+      "aliases": [
+        "курица тушеная без соуса"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 165,
+        "protein": 22,
+        "fat": 7.5,
+        "carbs": 1,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "порция",
+          "grams": 200
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-whole-chicken-own-juice"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "курица тушеная в собственном соку курица тушеная без соуса готовые блюда блюда из курицы свой сок без соуса"
+    },
+    {
+      "id": "dish-whole-chicken-stewed-vegetables",
+      "type": "dish",
+      "name": "Курица, тушёная с овощами",
+      "aliases": [
+        "тушеная курица с овощами"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 126,
+        "protein": 14,
+        "fat": 5.5,
+        "carbs": 6,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "порция",
+          "grams": 300
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-whole-chicken-stewed-vegetables"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "курица тушеная с овощами тушеная курица с овощами готовые блюда блюда из курицы овощи курица тушеная овощи"
+    },
+    {
+      "id": "dish-whole-chicken-tomato",
+      "type": "dish",
+      "name": "Курица в томатном соусе",
+      "aliases": [
+        "курица в томате",
+        "курица с томатной подливкой"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 141,
+        "protein": 16,
+        "fat": 6,
+        "carbs": 5,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "порция",
+          "grams": 250
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-whole-chicken-tomato"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "курица в томатном соусе курица в томате курица с томатной подливкой готовые блюда блюда из курицы томат томат"
+    },
+    {
+      "id": "dish-whole-chicken-cream",
+      "type": "dish",
+      "name": "Курица в сливочном соусе",
+      "aliases": [
+        "курица в сливках"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 186,
+        "protein": 16,
+        "fat": 12,
+        "carbs": 4,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "порция",
+          "grams": 250
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-whole-chicken-cream"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "курица в сливочном соусе курица в сливках готовые блюда блюда из курицы сливки сливки"
+    },
+    {
+      "id": "dish-chicken-stew-potato",
+      "type": "dish",
+      "name": "Рагу из курицы с картофелем",
+      "aliases": [
+        "куриное рагу с картошкой"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 116,
+        "protein": 10,
+        "fat": 4.5,
+        "carbs": 10,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "порция",
+          "grams": 350
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-stew-potato"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "рагу из курицы с картофелем куриное рагу с картошкой готовые блюда блюда из курицы картофель картошка картофель картошка"
+    },
+    {
+      "id": "dish-chicken-roast-potato",
+      "type": "dish",
+      "name": "Жаркое из курицы с картофелем",
+      "aliases": [
+        "жаркое из курицы",
+        "курица с картошкой тушеная"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 146,
+        "protein": 10.5,
+        "fat": 7,
+        "carbs": 11,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "порция",
+          "grams": 350
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-roast-potato"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "жаркое из курицы с картофелем жаркое из курицы курица с картошкой тушеная готовые блюда блюда из курицы картофель картошка картофель картошка"
+    },
+    {
+      "id": "dish-chicken-goulash",
+      "type": "dish",
+      "name": "Гуляш из курицы",
+      "aliases": [
+        "куриный гуляш",
+        "курица с подливкой"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 136,
+        "protein": 15,
+        "fat": 6.5,
+        "carbs": 5,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "порция",
+          "grams": 250
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-goulash"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "гуляш из курицы куриный гуляш курица с подливкой готовые блюда блюда из курицы"
+    },
+    {
+      "id": "dish-chicken-mushrooms-stewed",
+      "type": "dish",
+      "name": "Курица, тушёная с грибами",
+      "aliases": [
+        "курица с грибами без сливок"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 126,
+        "protein": 16,
+        "fat": 5,
+        "carbs": 4,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "порция",
+          "grams": 250
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-mushrooms-stewed"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "курица тушеная с грибами курица с грибами без сливок готовые блюда блюда из курицы грибы"
+    },
+    {
+      "id": "dish-chicken-cabbage",
+      "type": "dish",
+      "name": "Курица, тушёная с капустой",
+      "aliases": [
+        "тушеная капуста с курицей"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 111,
+        "protein": 13,
+        "fat": 4.5,
+        "carbs": 5,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "порция",
+          "grams": 300
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-cabbage"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "курица тушеная с капустой тушеная капуста с курицей готовые блюда блюда из курицы капуста"
+    },
+    {
+      "id": "dish-chicken-beans-tomato",
+      "type": "dish",
+      "name": "Курица с фасолью в томатном соусе",
+      "aliases": [
+        "курица с фасолью"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 131,
+        "protein": 12,
+        "fat": 4,
+        "carbs": 10,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "порция",
+          "grams": 300
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-beans-tomato"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "курица с фасолью в томатном соусе курица с фасолью готовые блюда блюда из курицы томат фасоль"
+    },
+    {
+      "id": "dish-chicken-curry-cream",
+      "type": "dish",
+      "name": "Курица карри в сливочном соусе",
+      "aliases": [
+        "курица карри",
+        "курица в соусе карри"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 181,
+        "protein": 16,
+        "fat": 11,
+        "carbs": 5,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "порция",
+          "grams": 250
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-curry-cream"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "курица карри в сливочном соусе курица карри курица в соусе карри готовые блюда блюда из курицы сливки"
+    },
+    {
+      "id": "dish-chicken-teriyaki",
+      "type": "dish",
+      "name": "Курица терияки",
+      "aliases": [
+        "курица в соусе терияки"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 166,
+        "protein": 19,
+        "fat": 5,
+        "carbs": 11,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "порция",
+          "grams": 250
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-teriyaki"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "курица терияки курица в соусе терияки готовые блюда блюда из курицы"
+    },
+    {
+      "id": "dish-chicken-soy-vegetables",
+      "type": "dish",
+      "name": "Курица с овощами в соевом соусе",
+      "aliases": [
+        "курица по азиатски с овощами"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 126,
+        "protein": 15,
+        "fat": 4,
+        "carbs": 8,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "порция",
+          "grams": 300
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-soy-vegetables"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "курица с овощами в соевом соусе курица по азиатски с овощами готовые блюда блюда из курицы овощи соевый"
+    },
+    {
+      "id": "dish-chicken-sweet-sour",
+      "type": "dish",
+      "name": "Курица в кисло-сладком соусе",
+      "aliases": [
+        "курица кисло сладкая"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 174,
+        "protein": 15,
+        "fat": 6,
+        "carbs": 15,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "порция",
+          "grams": 250
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-sweet-sour"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "курица в кисло сладком соусе курица кисло сладкая готовые блюда блюда из курицы"
+    },
+    {
+      "id": "dish-chicken-satsivi",
+      "type": "dish",
+      "name": "Сациви из курицы",
+      "aliases": [
+        "курица в ореховом соусе"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 242,
+        "protein": 17,
+        "fat": 18,
+        "carbs": 5,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "порция",
+          "grams": 250
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-satsivi"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение: количество грецких орехов и масла особенно сильно влияет на калорийность.",
+      "search": "сациви из курицы курица в ореховом соусе готовые блюда блюда из курицы орехи"
+    },
+    {
+      "id": "dish-chicken-tabaka",
+      "type": "dish",
+      "name": "Цыплёнок табака",
+      "aliases": [
+        "курица табака",
+        "тапака"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 262,
+        "protein": 24,
+        "fat": 18,
+        "carbs": 1,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "половина небольшого цыплёнка, мякоть",
+          "grams": 250
+        },
+        {
+          "id": "p2",
+          "label": "порция",
+          "grams": 200
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-tabaka"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "цыпленок табака курица табака тапака готовые блюда блюда из курицы"
+    },
+    {
+      "id": "dish-chicken-cutlets-baked",
+      "type": "dish",
+      "name": "Котлеты куриные запечённые",
+      "aliases": [
+        "куриные котлеты в духовке",
+        "котлеты куриные запеченые"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 171,
+        "protein": 19,
+        "fat": 8,
+        "carbs": 6,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "1 котлета",
+          "grams": 90
+        },
+        {
+          "id": "p2",
+          "label": "2 котлеты",
+          "grams": 180
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-cutlets-baked"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "котлеты куриные запеченные куриные котлеты в духовке котлеты куриные запеченые готовые блюда блюда из курицы"
+    },
+    {
+      "id": "dish-chicken-meatballs-tomato",
+      "type": "dish",
+      "name": "Тефтели куриные в томатном соусе",
+      "aliases": [
+        "куриные тефтели в томате"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 156,
+        "protein": 15,
+        "fat": 7,
+        "carbs": 8,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "3 тефтели с соусом",
+          "grams": 220
+        },
+        {
+          "id": "p2",
+          "label": "порция",
+          "grams": 250
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-meatballs-tomato"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "тефтели куриные в томатном соусе куриные тефтели в томате готовые блюда блюда из курицы томат томат"
+    },
+    {
+      "id": "dish-chicken-meatballs-cream",
+      "type": "dish",
+      "name": "Тефтели куриные в сливочном соусе",
+      "aliases": [
+        "куриные тефтели в сливках"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 186,
+        "protein": 14,
+        "fat": 11,
+        "carbs": 7,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "3 тефтели с соусом",
+          "grams": 220
+        },
+        {
+          "id": "p2",
+          "label": "порция",
+          "grams": 250
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-meatballs-cream"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "тефтели куриные в сливочном соусе куриные тефтели в сливках готовые блюда блюда из курицы сливки сливки"
+    },
+    {
+      "id": "dish-chicken-casserole-vegetables",
+      "type": "dish",
+      "name": "Запеканка из курицы с овощами",
+      "aliases": [
+        "куриная запеканка"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 141,
+        "protein": 16,
+        "fat": 6,
+        "carbs": 6,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "кусок",
+          "grams": 220
+        },
+        {
+          "id": "p2",
+          "label": "порция",
+          "grams": 250
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-casserole-vegetables"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "запеканка из курицы с овощами куриная запеканка готовые блюда блюда из курицы овощи"
+    },
+    {
+      "id": "dish-chicken-roll-baked",
+      "type": "dish",
+      "name": "Рулет куриный запечённый",
+      "aliases": [
+        "куриный рулет",
+        "рулет куриный запеченый"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 191,
+        "protein": 22,
+        "fat": 10,
+        "carbs": 3,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "ломтик",
+          "grams": 60
+        },
+        {
+          "id": "p2",
+          "label": "порция",
+          "grams": 180
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-roll-baked"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "рулет куриный запеченный куриный рулет рулет куриный запеченый готовые блюда блюда из курицы"
+    },
+    {
+      "id": "dish-chicken-rice-vegetables",
+      "type": "dish",
+      "name": "Курица с рисом и овощами",
+      "aliases": [
+        "рис с курицей и овощами"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 147,
+        "protein": 9,
+        "fat": 4.5,
+        "carbs": 18,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "порция",
+          "grams": 300
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-rice-vegetables"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "курица с рисом и овощами рис с курицей и овощами готовые блюда блюда из курицы овощи рис"
+    },
+    {
+      "id": "dish-chicken-liver-onion",
+      "type": "dish",
+      "name": "Печень куриная, тушёная с луком",
+      "aliases": [
+        "куриная печень с луком",
+        "печень куриная тушеная"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 171,
+        "protein": 19,
+        "fat": 9,
+        "carbs": 5,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "порция",
+          "grams": 200
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-liver-onion"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "печень куриная тушеная с луком куриная печень с луком печень куриная тушеная готовые блюда блюда из курицы лук"
+    },
+    {
+      "id": "dish-chicken-liver-sour-cream",
+      "type": "dish",
+      "name": "Печень куриная в сметанном соусе",
+      "aliases": [
+        "куриная печень в сметане"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 184,
+        "protein": 17,
+        "fat": 11,
+        "carbs": 5,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "порция",
+          "grams": 220
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-liver-sour-cream"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "печень куриная в сметанном соусе куриная печень в сметане готовые блюда блюда из курицы сметана сметана"
+    },
+    {
+      "id": "dish-chicken-hearts-stewed",
+      "type": "dish",
+      "name": "Сердечки куриные тушёные",
+      "aliases": [
+        "куриные сердца тушеные"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 166,
+        "protein": 18,
+        "fat": 8,
+        "carbs": 4,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "порция",
+          "grams": 200
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-hearts-stewed"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "сердечки куриные тушеные куриные сердца тушеные готовые блюда блюда из курицы"
+    },
+    {
+      "id": "dish-chicken-hearts-cream",
+      "type": "dish",
+      "name": "Сердечки куриные в сливочном соусе",
+      "aliases": [
+        "куриные сердечки в сливках"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 195,
+        "protein": 16,
+        "fat": 12,
+        "carbs": 5,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "порция",
+          "grams": 220
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-hearts-cream"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "сердечки куриные в сливочном соусе куриные сердечки в сливках готовые блюда блюда из курицы сливки сливки"
+    },
+    {
+      "id": "dish-chicken-gizzards-stewed",
+      "type": "dish",
+      "name": "Желудки куриные тушёные",
+      "aliases": [
+        "куриные желудочки тушеные",
+        "пупки куриные тушеные"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 146,
+        "protein": 20,
+        "fat": 5,
+        "carbs": 4,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "порция",
+          "grams": 200
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-gizzards-stewed"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "желудки куриные тушеные куриные желудочки тушеные пупки куриные тушеные готовые блюда блюда из курицы"
+    },
+    {
+      "id": "dish-chicken-gizzards-vegetables",
+      "type": "dish",
+      "name": "Желудки куриные, тушёные с овощами",
+      "aliases": [
+        "куриные желудочки с овощами"
+      ],
+      "brand": null,
+      "barcode": null,
+      "category": "Готовые блюда",
+      "subcategory": "Блюда из курицы",
+      "nutrition": {
+        "basis": 100,
+        "unit": "g",
+        "kcal": 126,
+        "protein": 15,
+        "fat": 4,
+        "carbs": 7,
+        "fiber": null,
+        "sugar": null,
+        "sodiumMg": null,
+        "caffeineMg": null,
+        "alcoholG": 0
+      },
+      "portions": [
+        {
+          "id": "p1",
+          "label": "порция",
+          "grams": 250
+        }
+      ],
+      "source": {
+        "provider": "Редакционная оценка по типовой домашней и судовой рецептуре",
+        "license": "ODbL-1.0 в составе этой базы",
+        "reference": "dish-chicken-gizzards-vegetables"
+      },
+      "confidence": "estimate",
+      "note": "Ориентировочное значение для готового блюда. Количество масла, сливок, сметаны, соуса и овощей может заметно менять КБЖУ.",
+      "search": "желудки куриные тушеные с овощами куриные желудочки с овощами готовые блюда блюда из курицы овощи"
     }
   ]
 }
