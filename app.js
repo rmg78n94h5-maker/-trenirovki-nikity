@@ -2365,6 +2365,73 @@
     }[kind] || { label: 'Полный отдых', short: 'О', icon: '○', className: 'rest' };
   }
 
+  function completedActivityRowsForDate(date) {
+    return state.workouts.filter((workout) => (
+      workout?.status === 'completed'
+      && localDateISO(new Date(workout.startedAt || workout.date || 0)) === date
+    ));
+  }
+
+  function refreshAfterActivityChange() {
+    if (state.route === 'home') renderHome();
+    else if (state.route === 'movement') renderMovement();
+    else if (state.route === 'progress') renderProgress();
+    else if (state.route === 'history') renderHistory();
+  }
+
+  async function saveManualActivityDay({ date, kind, comment = '', source = 'manual_history' }) {
+    const existingManual = manualDayEntryForDate(date);
+    const now = new Date().toISOString();
+    const startedAt = existingManual?.startedAt || `${date}T12:00:00`;
+    const meta = manualDayKindMeta(kind);
+    const entry = {
+      id: existingManual?.id || uid('manual-day'),
+      profileId: state.activeProfileId,
+      type: 'manual_day',
+      date,
+      startedAt,
+      finishedAt: startedAt,
+      status: 'completed',
+      durationSec: 0,
+      completionPct: 100,
+      totalLoadKg: 0,
+      programId: state.settings.activeProgramId || null,
+      dayId: 'manual-day',
+      dayIndex: null,
+      dayName: meta.label,
+      shortMode: kind === 'light',
+      startMode: source,
+      shouldAdvanceCycle: false,
+      manualDay: { kind, source, updatedAt: now },
+      exercises: [],
+      comment: String(comment || '').trim(),
+    };
+    await DB.put('workouts', entry);
+    state.workouts = state.workouts.filter((row) => row.id !== entry.id);
+    state.workouts.push(entry);
+    state.workouts.sort((a, b) => new Date(b.startedAt || b.date) - new Date(a.startedAt || a.date));
+    return { entry, meta };
+  }
+
+  async function markRestTodayFromMovement() {
+    const date = todayISO();
+    const existingManual = manualDayEntryForDate(date);
+    const rows = completedActivityRowsForDate(date);
+    const hasRealEntry = rows.some((workout) => !isManualDayEntry(workout) && (isTrainingWorkout(workout) || isRecoveryWorkout(workout)));
+    if (existingManual || hasRealEntry) {
+      showEditActivityDayModal(date);
+      return;
+    }
+    const { day, index } = getCurrentDay();
+    if (day?.restDay) {
+      await completeProgramRestDay(index);
+      return;
+    }
+    const { meta } = await saveManualActivityDay({ date, kind: 'rest', source: 'movement_quick_rest' });
+    refreshAfterActivityChange();
+    toast(`${meta.label} сохранён за сегодня`);
+  }
+
   function showPastActivityCalendarModal() {
     const today = startOfDay(new Date());
     const todayValue = localDateISO(today);
@@ -2420,29 +2487,27 @@
       el.modalRoot.querySelectorAll('.activity-kind-option').forEach((item) => item.classList.toggle('active', item === button));
     }));
     document.getElementById('save-manual-day').addEventListener('click', async () => {
-      const now = new Date().toISOString();
-      const startedAt = `${date}T12:00:00`;
-      const meta = manualDayKindMeta(selectedKind);
-      const entry = {
-        id: existingManual?.id || uid('manual-day'), profileId: state.activeProfileId, type: 'manual_day', date,
-        startedAt, finishedAt: startedAt, status: 'completed', durationSec: 0, completionPct: 100, totalLoadKg: 0,
-        programId: state.settings.activeProgramId || null, dayId: 'manual-day', dayIndex: null,
-        dayName: meta.label, shortMode: selectedKind === 'light', startMode: 'manual_history', shouldAdvanceCycle: false,
-        manualDay: { kind: selectedKind, updatedAt: now }, exercises: [], comment: document.getElementById('manual-day-comment').value.trim(),
-      };
-      await DB.put('workouts', entry);
-      state.workouts = state.workouts.filter((row) => row.id !== entry.id);
-      state.workouts.push(entry);
-      state.workouts.sort((a,b) => new Date(b.startedAt || b.date) - new Date(a.startedAt || a.date));
+      const { day, index } = getCurrentDay();
+      if (date === todayISO() && selectedKind === 'rest' && day?.restDay) {
+        closeModal();
+        await completeProgramRestDay(index);
+        return;
+      }
+      const { meta } = await saveManualActivityDay({
+        date,
+        kind: selectedKind,
+        comment: document.getElementById('manual-day-comment').value,
+        source: 'manual_history',
+      });
       closeModal();
-      if (state.route === 'home') renderHome(); else if (state.route === 'progress') renderProgress(); else if (state.route === 'history') renderHistory();
+      refreshAfterActivityChange();
       toast(`${meta.label} сохранён${selectedKind === 'rest' ? '' : 'а'} за ${formatTinyDate(date)}`);
     });
     document.getElementById('delete-manual-day')?.addEventListener('click', async () => {
       await DB.remove('workouts', existingManual.id);
       state.workouts = state.workouts.filter((row) => row.id !== existingManual.id);
       closeModal();
-      if (state.route === 'home') renderHome(); else if (state.route === 'progress') renderProgress(); else if (state.route === 'history') renderHistory();
+      refreshAfterActivityChange();
       toast('Ручная отметка удалена');
     });
   }
@@ -4653,15 +4718,21 @@
   function renderMovementWeek() {
     const start = startOfWeek(new Date());
     const labels = ['ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ', 'СБ', 'ВС'];
+    const today = todayISO();
     return labels.map((label, offset) => {
       const date = new Date(start);
       date.setDate(start.getDate() + offset);
       const iso = localDateISO(date);
-      const rows = state.workouts.filter((workout) => localDateISO(new Date(workout.startedAt || workout.date || 0)) === iso);
-      const trained = rows.some((workout) => isTrainingWorkout(workout));
-      const recovered = rows.some((workout) => isRecoveryWorkout(workout) || isManualDayEntry(workout));
-      const isToday = iso === todayISO();
-      return `<div class="movement-week-day ${trained ? 'done' : ''} ${recovered ? 'recovery' : ''} ${isToday ? 'today' : ''}"><span>${label}</span><strong>${trained ? '✓' : date.getDate()}</strong></div>`;
+      const rows = completedActivityRowsForDate(iso);
+      const manual = manualDayEntryForDate(iso);
+      const recorded = rows.some((workout) => isManualDayEntry(workout) || isTrainingWorkout(workout) || isRecoveryWorkout(workout));
+      const kind = activityKindForDate(iso);
+      const meta = manualDayKindMeta(kind);
+      const isToday = iso === today;
+      const isFuture = iso > today;
+      const marker = recorded ? meta.short : String(date.getDate());
+      const statusText = recorded ? meta.label : isFuture ? 'Будущий день' : 'Не отмечено';
+      return `<button class="movement-week-day ${recorded ? `status-${meta.className}` : 'unmarked'} ${manual?.manualDay?.kind === 'rest' ? 'logged-rest' : ''} ${isToday ? 'today' : ''} ${isFuture ? 'future' : ''}" data-movement-day="${iso}" type="button" aria-label="${escapeAttr(`${label}, ${formatTinyDate(iso)}: ${statusText}`)}"><span>${label}</span><strong>${escapeHTML(marker)}</strong>${recorded ? `<small>${date.getDate()}</small>` : ''}</button>`;
     }).join('');
   }
 
@@ -4672,6 +4743,15 @@
     const programDraft = storedProgramBuilderDraft();
     const scheduleStatus = trainingScheduleStatus(program);
     const isProgramRestDay = Boolean(day?.restDay);
+    const movementToday = todayISO();
+    const movementTodayRows = completedActivityRowsForDate(movementToday);
+    const movementTodayManual = manualDayEntryForDate(movementToday);
+    const movementTodayRecorded = movementTodayRows.some((workout) => isManualDayEntry(workout) || isTrainingWorkout(workout) || isRecoveryWorkout(workout));
+    const movementTodayActionLabel = movementTodayManual?.manualDay?.kind === 'rest'
+      ? 'Изменить отметку за сегодня'
+      : movementTodayRecorded
+        ? 'Изменить сегодняшний день'
+        : 'Отметить отдых сегодня';
 
     setTopbar('Движение', 'Тренировки, план и история');
     el.main.innerHTML = `
@@ -4701,9 +4781,13 @@
           </section>
         `}
 
-        <section class="section">
-          <div class="section-head rezhim-section-head"><h2>Эта неделя</h2></div>
+        <section class="section movement-week-section">
+          <div class="section-head rezhim-section-head"><h2>Эта неделя</h2><button class="link-button" id="movement-open-activity-log" type="button">Все даты</button></div>
           <div class="card movement-week-card">${renderMovementWeek()}</div>
+          <div class="movement-week-actions">
+            <button class="button secondary" id="movement-log-rest-today" type="button"><span>○</span>${escapeHTML(movementTodayActionLabel)}</button>
+          </div>
+          <p class="help movement-week-help">Нажми на любой сегодняшний или прошедший день, чтобы отметить тренировку, активность, восстановление или полный отдых.</p>
         </section>
 
         <section class="section">
@@ -4736,6 +4820,16 @@
     `;
 
     bindMovementTabs();
+    el.main.querySelectorAll('[data-movement-day]').forEach((button) => button.addEventListener('click', () => {
+      const date = button.dataset.movementDay;
+      if (date > todayISO()) {
+        toast('Будущий день пока нельзя заполнять');
+        return;
+      }
+      showEditActivityDayModal(date);
+    }));
+    document.getElementById('movement-log-rest-today')?.addEventListener('click', markRestTodayFromMovement);
+    document.getElementById('movement-open-activity-log')?.addEventListener('click', showPastActivityCalendarModal);
     document.getElementById('movement-resume-workout')?.addEventListener('click', () => navigate('workout'));
     document.getElementById('movement-start-workout')?.addEventListener('click', () => startWorkout({ shortMode: false, startMode: 'cycle', shouldAdvanceCycle: true }));
     document.getElementById('movement-complete-rest')?.addEventListener('click', () => completeProgramRestDay(index));

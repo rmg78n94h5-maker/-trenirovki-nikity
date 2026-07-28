@@ -9023,3 +9023,86 @@ body:not([data-route="home"]):not([data-route="workout"]) .progress-primary-tabs
   .muscle-recovery-mini-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .muscle-recovery-grid { grid-template-columns:1fr; }
 }
+
+
+/* ========================================================================== 
+   РЕЖИМ 2.2.1 — быстрые отметки активности прямо в «Движении»
+   ========================================================================== */
+.movement-week-day {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.movement-week-day small {
+  min-height: 10px;
+  color: #80908b;
+  font-size: 8px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.movement-week-day:focus-visible strong {
+  outline: 2px solid var(--movement);
+  outline-offset: 3px;
+}
+
+.movement-week-day.future {
+  opacity: .42;
+}
+
+.movement-week-day.status-training strong {
+  background: var(--movement);
+  color: #061014;
+}
+
+.movement-week-day.status-light strong {
+  background: rgba(87, 227, 137, .18);
+  color: var(--success);
+}
+
+.movement-week-day.status-recovery strong {
+  background: rgba(255, 190, 61, .18);
+  color: var(--warning);
+}
+
+.movement-week-day.status-rest.logged-rest strong {
+  background: rgba(185, 154, 242, .18);
+  color: var(--progress-accent);
+}
+
+.movement-week-day.today strong {
+  border: 1px solid var(--movement);
+  box-shadow: 0 0 0 3px rgba(112, 206, 246, .10);
+}
+
+.movement-week-day.status-training.today strong {
+  color: #061014;
+}
+
+.movement-week-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.movement-week-actions .button {
+  min-height: 48px;
+  justify-content: center;
+  gap: 8px;
+}
+
+.movement-week-actions .button span {
+  color: var(--progress-accent);
+  font-size: 20px;
+  line-height: 1;
+}
+
+.movement-week-help {
+  margin: 8px 4px 0;
+}
