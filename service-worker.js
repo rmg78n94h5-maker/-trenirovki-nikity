@@ -1,5 +1,5 @@
 // Маркер релиза меняется вместе с version.js, чтобы iPhone точно установил новый Service Worker.
-const SERVICE_WORKER_RELEASE = '2.2.1';
+const SERVICE_WORKER_RELEASE = '2.3.0';
 importScripts(`./version.js?v=${SERVICE_WORKER_RELEASE}`);
 if (self.NIKITA_APP.version !== SERVICE_WORKER_RELEASE) throw new Error('Версии приложения и Service Worker не совпадают');
 const CACHE_NAME = self.NIKITA_APP.cacheName;
@@ -7,6 +7,7 @@ const APP_SHELL = [
   './',
   './index.html',
   './styles.css',
+  './exercise-cards.css',
   './version.js',
   './seed.js',
   './exercise-guides.js',
@@ -14,6 +15,7 @@ const APP_SHELL = [
   './foods-ru-v1.json',
   './db.js',
   './app.js',
+  './exercise-cards.js',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',
